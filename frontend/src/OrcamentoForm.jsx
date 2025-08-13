@@ -11,13 +11,10 @@ const API = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 console.log('[OrcamentoForm] API =', API);
 
 export default function OrcamentoForm() {
-  // --- helpers ---
+  // helper para garantir array
   const asArray = (data) =>
     Array.isArray(data) ? data : (Array.isArray(data?.rows) ? data.rows : []);
 
-  const fmt2 = (n) => Number(n || 0).toFixed(2);
-
-  // --- estados base ---
   const [tiposOrcamento, setTiposOrcamento] = useState([]);
   const [tipoSelecionado, setTipoSelecionado] = useState(null);
 
@@ -43,21 +40,32 @@ export default function OrcamentoForm() {
   const [fundoSelecionado, setFundoSelecionado] = useState(null);
   const [passepartoutSelecionado, setPassepartoutSelecionado] = useState(null);
 
-  const [baguetes, setBaguetes] = useState([]);
-  const [bagueteInternaSelecionada, setBagueteInternaSelecionada] = useState(null);
-
   const [camisaObjetoTabela, setCamisaObjetoTabela] = useState([]);
 
-  // Passe-partout (Fotos)
+  // Nº de aberturas (para Fotos)
   const [numAberturas, setNumAberturas] = useState(1);
   const [numAberturasCalc, setNumAberturasCalc] = useState(1);
 
-  // UX / mensagens
+  // avisos
   const [avisoM2, setAvisoM2] = useState(null);
+
+  // Resumo dos itens somados
   const [itensSomados, setItensSomados] = useState([]);
+
+  // zoom imagem de moldura
   const [zoomImg, setZoomImg] = useState(null);
 
-  // Totais e métricas
+  // helper 2 casas
+  const fmt2 = (n) => Number(n || 0).toFixed(2);
+
+  // Baguete interna (ml)
+  const [baguetes, setBaguetes] = useState([]);
+  const [bagueteInternaSelecionada, setBagueteInternaSelecionada] = useState(null);
+
+  // Chassi (apenas para Tela)
+  const [chassis, setChassis] = useState([]);
+  const [incluirChassi, setIncluirChassi] = useState(false);
+
   const [valorTotal, setValorTotal] = useState(0);
   const [valorSemMarkup, setValorSemMarkup] = useState(0);
   const [fundoBloqueado, setFundoBloqueado] = useState(false);
@@ -71,22 +79,7 @@ export default function OrcamentoForm() {
     mensagemAviso: null,
   });
 
-  // Controle de PP excedido
-  const [excedePP, setExcedePP] = useState(false);
-
-  // --- Folha do PP para preview ---
-  const FOLHA_PP = { maior: 152, menor: 102, seguranca: 2 };
-  function cabeNaFolhaPassepartout(larguraCm, alturaCm, margemCm) {
-    const w = (parseFloat(larguraCm) || 0) + (parseFloat(margemCm) || 0) * 2;
-    const h = (parseFloat(alturaCm) || 0) + (parseFloat(margemCm) || 0) * 2;
-    const maxMenor = FOLHA_PP.menor - FOLHA_PP.seguranca;
-    const maxMaior = FOLHA_PP.maior - FOLHA_PP.seguranca;
-    const okNormal = w <= maxMenor && h <= maxMaior;
-    const okRotacion = h <= maxMenor && w <= maxMaior;
-    return okNormal || okRotacion;
-  }
-
-  // --- reset ao trocar Tipo ---
+  // Zera todos os campos dependentes do tipo
   const resetDependentes = () => {
     setAltura('');
     setLargura('');
@@ -98,7 +91,6 @@ export default function OrcamentoForm() {
     setFundoSelecionado(null);
     setVidroSelecionado(null);
     setImpressaoSelecionada(null);
-
     setMoldura1(null);
     setMoldura2(null);
     setMoldura3(null);
@@ -118,7 +110,22 @@ export default function OrcamentoForm() {
     });
   };
 
-  // ---------- Perfil por Tipo (normalizado) ----------
+  // controle vindo do cálculo assíncrono
+  const [excedePP, setExcedePP] = useState(false);
+
+  // folha do passepartout (aceita rotação) + segurança
+  const FOLHA_PP = { maior: 152, menor: 102, seguranca: 2 };
+  function cabeNaFolhaPassepartout(larguraCm, alturaCm, margemCm) {
+    const w = (parseFloat(larguraCm) || 0) + (parseFloat(margemCm) || 0) * 2;
+    const h = (parseFloat(alturaCm) || 0) + (parseFloat(margemCm) || 0) * 2;
+    const maxMenor = FOLHA_PP.menor - FOLHA_PP.seguranca;
+    const maxMaior = FOLHA_PP.maior - FOLHA_PP.seguranca;
+    const okNormal = w <= maxMenor && h <= maxMaior;
+    const okRotacion = h <= maxMenor && w <= maxMaior;
+    return okNormal || okRotacion;
+  }
+
+  // -------- Perfil por Tipo (normalizado + tabela) --------
   const norm = (s = '') =>
     s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
 
@@ -129,55 +136,65 @@ export default function OrcamentoForm() {
 
     vidroFrontalCombo: true,
     vidroFundoComumFixo: false, // Entre Vidros
-    vidroSomenteComum: false,   // força vidro comum
+    vidroSomenteComum: false,   // força vidro comum (Profundidade/Flutuante/Camisa)
 
     showFundoCombo: true,
     foamExtraAuto: false,
 
     bagueteAuto: false,
-    molduraUsoTipo: null, // 'C' caixa, 'N' normal, 'A' alumínio, null=todos
+    // filtro de molduras
+    molduraUsoTipo: null, // 'C' caixa, 'N' normal, 'A' alumínio, null = todos
     molduraUsos: {},
 
     permiteM2M3: true,
   };
 
   const PERFIS = {
+    // Superfície / Fotos
     superficie: {
       showAberturas: true,
-      // carrega pelo campo do BD
+      molduraUsoTipo: null,
       molduraUsos: { uso_superficie: 1 },
     },
+
+    // Entre Vidros
     entre_vidros: {
       showPassepartout: false,
       vidroFrontalCombo: true,
-      vidroFundoComumFixo: true,
+      vidroFundoComumFixo: true, // vidro comum faz papel de fundo
       showFundoCombo: false,
       molduraUsoTipo: 'C',
       molduraUsos: { uso_entre_vidros: 1 },
     },
+
+    // Profundidade
     profundidade: {
       showPassepartout: true,
       vidroFrontalCombo: false,
-      vidroSomenteComum: true,
+      vidroSomenteComum: true,   // anti-reflexo opaca em profundidade
       showFundoCombo: true,
       bagueteAuto: true,
       molduraUsoTipo: 'C',
       molduraUsos: { uso_profundidade: 1 },
       permiteM2M3: false,
     },
+
+    // Flutuante
     flutuante: {
       showPassepartout: false,
       vidroFrontalCombo: false,
       vidroSomenteComum: true,
       showFundoCombo: true,
-      foamExtraAuto: true,
+      foamExtraAuto: true,       // “Foam Ad Branco” extra
       bagueteAuto: true,
       molduraUsoTipo: 'C',
       molduraUsos: { uso_flutuante: 1 },
       permiteM2M3: false,
     },
+
+    // Camisa / Objetos
     camisa_objeto: {
-      showPassepartout: true,
+      showPassepartout: true,      // opcional, sem margem
       passepartoutSemMargem: true,
       vidroFrontalCombo: false,
       vidroSomenteComum: true,
@@ -188,16 +205,22 @@ export default function OrcamentoForm() {
       molduraUsos: { uso_camisa_objeto: 1 },
       permiteM2M3: false,
     },
+
+    // Tela
     tela: {
       showPassepartout: false,
-      vidroFrontalCombo: false,
+      vidroFrontalCombo: false,  // tela normalmente sem vidro
       showFundoCombo: false,
+      molduraUsoTipo: null,
       molduraUsos: { uso_tela: 1 },
     },
+
+    // Outros
     outro: {
       showPassepartout: false,
       vidroFrontalCombo: false,
       showFundoCombo: false,
+      molduraUsoTipo: null,
       molduraUsos: {},
       permiteM2M3: false,
     },
@@ -205,6 +228,7 @@ export default function OrcamentoForm() {
 
   function perfilDoTipo(nomeTipo) {
     const k = norm(nomeTipo);
+
     let key = null;
     if (/entre\s*vidros?/.test(k)) key = 'entre_vidros';
     else if (/profundidade/.test(k)) key = 'profundidade';
@@ -214,65 +238,66 @@ export default function OrcamentoForm() {
     else if (/outros?/.test(k)) key = 'outro';
     else if (/(foto|superficie)/.test(k)) key = 'superficie';
 
-    const overrides = key ? PERFIS[key] : PERFIS.superficie;
+    const overrides = key ? PERFIS[key] : PERFIS.superficie; // fallback para Superfície
     return { ...DEFAULT_PERFIL, ...overrides };
   }
 
   const perfil = perfilDoTipo(tipoSelecionado?.nome || '');
-  const tipoKey = norm(tipoSelecionado?.nome || ''); // compat/dep. de efeito
+  const isTela = /tela/i.test(tipoSelecionado?.nome || '');
 
-  // Preview excede PP
+  // Preview excede PP e “bloqueio” de PP
   const previewExcedePP =
     perfil.showPassepartout &&
     !cabeNaFolhaPassepartout(largura, altura, margemPassepartout);
 
-  // --- helpers de moldura ---
+  // Bloqueia PP se preview OU cálculo disserem que excede
+  const ppBloqueado = Boolean(perfil.showPassepartout && (previewExcedePP || excedePP));
+  
+  // Entre Vidros => 2 vidros: frente (selecionado) + fundo (comum)
+  const isEntreVidros = Boolean(perfil.vidroFundoComumFixo);
+
+  // Flutuante => não se usa passe-partout (perde o efeito)
+  const isFlutuante = /flutuant/i.test(tipoSelecionado?.nome || '');
+
+
+  // tipo/categoria helpers
   const tipoDoItem = (m) =>
     (m?.tipo || m?.tipo_moldura || m?.categoria || '').toLowerCase();
   const ehRetaOuPP = (m) => /reta|passepartout/.test(tipoDoItem(m));
   const ehAluminio = (m) => m?.uso_tipo === 'A' || /alum/i.test(m?.tipo_material || '');
   const ehCaixa    = (m) => m?.uso_tipo === 'C' || /caixa/i.test(tipoDoItem(m));
 
-  // Bloqueios por M1 (alumínio / caixa / diferente de Reta/PP)
+  // coerções de M2/M3 conforme M1
   useEffect(() => {
-    const deveBloquearPorM1 =
-      ehAluminio(moldura1) ||
-      ehCaixa(moldura1) ||
-      (moldura1 && !ehRetaOuPP(moldura1));
-
-    if (deveBloquearPorM1) {
+    if (ehAluminio(moldura1)) {
+      if (moldura2) setMoldura2(null);
+      if (moldura3) setMoldura3(null);
+    }
+    if (moldura1 && !ehRetaOuPP(moldura1)) {
       if (moldura2) setMoldura2(null);
       if (moldura3) setMoldura3(null);
     }
   }, [moldura1]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // M2 regras (só Reta/PP; se Caixa, sem M3)
+  // Se M2 virar "Caixa", limpa/desabilita M3
   useEffect(() => {
-    if (!moldura2) { setAvisoM2(null); return; }
+    if (ehCaixa?.(moldura2) && moldura3) setMoldura3(null);
+  }, [moldura2]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    if (!ehRetaOuPP(moldura2)) {
-      setMoldura2(null);
-      setAvisoM2('Moldura 2 só pode ser Reta ou Passepartout.');
-      return;
-    }
-    if (ehCaixa(moldura2) && moldura3) setMoldura3(null);
-
-    setAvisoM2(null);
-  }, [moldura2, moldura3]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Carregamentos iniciais
+  // carregamentos iniciais
   useEffect(() => {
     const load = async () => {
       try {
-        const [tipos, impr, v, f, pp, bg, camis] = await Promise.all([
-          axios.get(`${API}/tipos-orcamento`),
-          axios.get(`${API}/impressoes`),
-          axios.get(`${API}/vidros`),
-          axios.get(`${API}/fundos`),
-          axios.get(`${API}/passepartouts`),
-          axios.get(`${API}/baguetes`),
+        const [tipos, impr, v, f, pp, bg, camis, chs] = await Promise.all([
+           axios.get(`${API}/tipos-orcamento`),
+           axios.get(`${API}/impressoes`),
+           axios.get(`${API}/vidros`),
+           axios.get(`${API}/fundos`),
+           axios.get(`${API}/passepartouts`),
+           axios.get(`${API}/baguetes`),
           axios.get(`${API}/camisas`).catch(() => ({ data: [] })),
-        ]);
+          axios.get(`${API}/chassis`).catch(() => ({ data: [] })),
+         ]);
         setTiposOrcamento(asArray(tipos.data));
         setImpressoes(asArray(impr.data));
         setVidros(asArray(v.data));
@@ -280,6 +305,7 @@ export default function OrcamentoForm() {
         setPassepartouts(asArray(pp.data));
         setBaguetes(asArray(bg.data));
         setCamisaObjetoTabela(asArray(camis.data));
+        setChassis(asArray(chs.data));
       } catch (err) {
         console.error('Erro ao carregar listas iniciais:', err);
       }
@@ -287,10 +313,11 @@ export default function OrcamentoForm() {
     load();
   }, []);
 
-  // Ao trocar tipo: carregar molduras com filtros + aplicar regras
+  // quando troca o tipo, recarrega molduras + aplica regras
   useEffect(() => {
     if (!tipoSelecionado) return;
 
+    // monta params conforme perfil
     const params = { ...perfil.molduraUsos };
     if (perfil.molduraUsoTipo) params.uso_tipo = perfil.molduraUsoTipo;
 
@@ -312,7 +339,7 @@ export default function OrcamentoForm() {
         setMolduras([]);
       });
 
-    // Vidro
+    // fixa/limpa campos pelo perfil
     if (perfil.vidroSomenteComum || perfil.vidroFundoComumFixo) {
       const comum = vidros.find(v => /comum/i.test(v.nome || v.descricao || ''));
       if (perfil.vidroSomenteComum) setVidroSelecionado(comum || null);
@@ -320,7 +347,6 @@ export default function OrcamentoForm() {
       setVidroSelecionado(null);
     }
 
-    // PP / Margem
     if (!perfil.showPassepartout) {
       setPassepartoutSelecionado(null);
       setMargemPassepartout(0);
@@ -328,24 +354,25 @@ export default function OrcamentoForm() {
       setMargemPassepartout(0);
     }
 
-    // Fundo extra automático (flutuante/camisa)
     if (perfil.foamExtraAuto) {
       const foam = fundo.find(f => /foam ad branco/i.test(f.nome || ''));
       if (foam) setFundoSelecionado(foam);
     }
 
-    // Sem M2/M3 em alguns tipos
     if (!perfil.permiteM2M3) {
       setMoldura2(null);
       setMoldura3(null);
     }
 
-    // limpeza auxiliar
     setAvisoM2(null);
     setNumAberturas(1);
+
+    // Tela: por padrão marcamos "incluir chassi"
+    setIncluirChassi(/tela/i.test(tipoSelecionado?.nome || '') ? true : false);
+
   }, [tipoSelecionado, vidros, fundo]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // defaults: item único
+  // defaults quando há item único
   useEffect(() => {
     if (fundo.length === 1) setFundoSelecionado(fundo[0]);
     if (vidros.length === 1) setVidroSelecionado(vidros[0]);
@@ -353,21 +380,28 @@ export default function OrcamentoForm() {
     if (baguetes.length === 1) setBagueteInternaSelecionada(baguetes[0]);
   }, [fundo, vidros, passepartouts, baguetes]);
 
-  // Foam extra para Flutuante/Camisa
+  // foam extra para Flutuante e Camisa/Objeto (enviado ao cálculo)
   const precisaFoamExtra = /flutuante|camisa|objeto/i.test(tipoSelecionado?.nome || '');
   const foamExtra = precisaFoamExtra
     ? (fundo.find(f => (f.nome || f.descricao || '').toLowerCase().includes('foam ad branco')) || null)
     : null;
 
-  // Se PP excede, desabilita “Nº de aberturas” e volta p/ 1
-  useEffect(() => {
-    if (excedePP) setNumAberturas(1);
-  }, [excedePP]);
-
-  // Cálculo do orçamento
+  // cálculo do orçamento
   useEffect(() => {
     async function atualizarOrcamento() {
       try {
+
+        // Área interna em m² (para regra do chassi 3 mm/5 mm)
+        const areaInternaM2 =
+          (Math.max(0, parseFloat(altura) || 0) / 100) *
+          (Math.max(0, parseFloat(largura) || 0) / 100);
+        const chassiEscolhido =
+          (isTela && incluirChassi)
+            ? (areaInternaM2 > 1
+                ? (chassis.find(c => /5mm/i.test(c.nome || '')) || null)
+                : (chassis.find(c => /3mm/i.test(c.nome || '')) || null))
+            : null;
+
         const resultado = await calcularOrcamento({
           altura,
           largura,
@@ -383,11 +417,12 @@ export default function OrcamentoForm() {
           passepartoutSelecionado,
           tipoSelecionado,
           bagueteInternaSelecionada,
+
+          // extras
           fundoExtraSelecionado: foamExtra,
           camisaObjetoTabela,
 
           // extras de perfil
-          perfilKey: tipoKey,
           entreVidros: perfil.vidroFundoComumFixo,
           vidroSomenteComum: perfil.vidroSomenteComum,
           foamExtraAuto: perfil.foamExtraAuto,
@@ -396,6 +431,10 @@ export default function OrcamentoForm() {
           // passe-partout
           numAberturas,
           precoAberturaExtra: Number(passepartoutSelecionado?.preco_abertura_extra || 0),
+        
+          // chassi (tela)
+          incluirChassi: Boolean(isTela && incluirChassi),
+          chassiSelecionado: chassiEscolhido,
         });
 
         if (!resultado) return;
@@ -421,7 +460,7 @@ export default function OrcamentoForm() {
           setMargemPassepartout(0);
         }
 
-        // resumo
+        // resumo de itens
         const itens = [];
         const c = resultado.custos || {};
 
@@ -438,7 +477,12 @@ export default function OrcamentoForm() {
           itens.push(`Baguete interna${bagueteInternaSelecionada?.nome ? `: ${bagueteInternaSelecionada.nome}` : ''}`);
         }
         if (c.vidro > 0 && vidroSelecionado) {
-          itens.push(`Vidro: ${vidroSelecionado.nome || vidroSelecionado.descricao || 'selecionado'}`);
+          if (perfil.vidroFundoComumFixo) {
+            itens.push(`Vidro (frente): ${vidroSelecionado.nome || vidroSelecionado.descricao || 'selecionado'}`);
+            itens.push('Vidro (fundo): Vidro Comum');
+          } else {
+            itens.push(`Vidro: ${vidroSelecionado.nome || vidroSelecionado.descricao || 'selecionado'}`);
+          }
         }
         if (c.fundo > 0 && fundoSelecionado) {
           itens.push(`Fundo: ${fundoSelecionado.nome || fundoSelecionado.descricao || 'selecionado'}`);
@@ -457,7 +501,12 @@ export default function OrcamentoForm() {
           const totalFmt = Number(c.passepartoutAberturasExtra).toFixed(2).replace('.', ',');
           itens.push(`Passe-partout — aberturas extras: ${qtdExtras} × R$ ${unitFmt} = R$ ${totalFmt}`);
         }
-        if (c.impressao > 0) itens.push('Impressão');
+        if (c.impressao > 0) {
+          itens.push('Impressão');
+        }
+        if (Number(c.chassi) > 0) {
+          itens.push(`Chassi ${resultado.chassiInfo?.mm || ''}`);
+        }
         if (resultado.reforcoInfo?.necessita_reforco && Number(resultado.reforcoInfo?.valorTotal) > 0) {
           itens.push('Reforço (moldura caixa)');
         }
@@ -489,16 +538,34 @@ export default function OrcamentoForm() {
       });
     }
   }, [
-    altura, largura, quantidade, markup, margemPassepartout,
-    moldura1, moldura2, moldura3,
-    impressaoSelecionada, vidroSelecionado, fundoSelecionado, passepartoutSelecionado,
-    tipoSelecionado, bagueteInternaSelecionada, foamExtra, camisaObjetoTabela,
-    numAberturas, tipoKey, perfil.bagueteAuto, perfil.foamExtraAuto,
-    perfil.vidroFundoComumFixo, perfil.vidroSomenteComum,
+    altura,
+    largura,
+    quantidade,
+    markup,
+    margemPassepartout,
+    moldura1,
+    moldura2,
+    moldura3,
+    impressaoSelecionada,
+    vidroSelecionado,
+    fundoSelecionado,
+    passepartoutSelecionado,
+    tipoSelecionado,
+    bagueteInternaSelecionada,
+    foamExtra,
+    camisaObjetoTabela,
+    numAberturas,
+    perfil.bagueteAuto,
+    perfil.foamExtraAuto,
+    perfil.vidroFundoComumFixo,
+    perfil.vidroSomenteComum,
   ]);
 
-  // ======= derivadas para alertas =======
-  const isCaixaM1 = useMemo(() => ehCaixa(moldura1), [moldura1]);
+  // ======= derivadas e alertas =======
+  const isCaixaM1 = useMemo(
+    () => (moldura1?.uso_tipo === 'C') || /caixa/i.test(moldura1?.tipo || moldura1?.categoria || ''),
+    [moldura1]
+  );
   const larguraM1cm = useMemo(() => {
     const mm = parseFloat(moldura1?.largura_mm || 0);
     return mm > 0 ? mm / 10 : parseFloat(moldura1?.largura || 0);
@@ -511,10 +578,10 @@ export default function OrcamentoForm() {
   const mostrarCustoReforco =
     needsReforco && isCaixaM1 && (Number(reforcoInfo?.valorTotal || 0) > 0);
 
-  // Área grande com moldura fina (pedido)
+  // Área grande com moldura fina
   const AREA_GRANDE_M2 = 6;
   const LIMIAR_MOLDURA_CM = 3;
-  const hasVidro = Boolean(vidroSelecionado) || perfil.vidroSomenteComum;
+  const hasVidro = Boolean(vidroSelecionado) || perfil.vidroSomenteComum; // selecionado ou forçado
   const mostrarAlertaAreaGrandeFina =
     Number(dimensoesFinais.area) > AREA_GRANDE_M2 &&
     hasVidro &&
@@ -524,16 +591,10 @@ export default function OrcamentoForm() {
 
   // Mostrar select de baguete interna?
   const usaBagueteInterna = useMemo(() => {
+    if (isTela) return false; // Tela nunca usa baguete
     return isCaixaM1 || Boolean(Number(tipoSelecionado?.usa_baguete || 0));
-  }, [isCaixaM1, tipoSelecionado]);
+  }, [isCaixaM1, tipoSelecionado, isTela]);
 
-  // Flag de bloqueio geral por M1 (para render condicional de M2/M3)
-  const bloqueiaM2M3PorM1 =
-    ehAluminio(moldura1) ||
-    ehCaixa(moldura1) ||
-    (moldura1 && !ehRetaOuPP(moldura1));
-
-  // ======= UI =======
   return (
     <div className="max-w-4xl mx-auto mt-8 p-6 bg-white shadow rounded">
       <h1 className="text-2xl font-bold text-center text-blue-900 mb-4">
@@ -594,7 +655,7 @@ export default function OrcamentoForm() {
             options={passepartouts || []}
             value={passepartoutSelecionado}
             setValue={setPassepartoutSelecionado}
-            disabled={excedePP}
+            disabled={ppBloqueado}
           />
 
           <FloatingInput
@@ -603,10 +664,11 @@ export default function OrcamentoForm() {
             step="0.1"
             value={margemPassepartout}
             onChange={(e) => setMargemPassepartout(e.target.value)}
-            disabled={excedePP || perfil.passepartoutSemMargem}
+            disabled={ppBloqueado || perfil.passepartoutSemMargem}
           />
 
-          {perfil.showAberturas && (
+          {/* Nº de aberturas: oculto quando PP bloqueado; se PP não selecionado, fica desabilitado */}
+          {perfil.showAberturas && !ppBloqueado && (
             <div className="col-span-2 md:col-span-1">
               <FloatingInput
                 label="Nº de aberturas"
@@ -614,7 +676,7 @@ export default function OrcamentoForm() {
                 min={1}
                 value={numAberturas}
                 onChange={(e) => setNumAberturas(Math.max(1, Number(e.target.value) || 1))}
-                disabled={excedePP}
+                disabled={!passepartoutSelecionado}
               />
             </div>
           )}
@@ -634,17 +696,47 @@ export default function OrcamentoForm() {
 
       {/* Vidro (quando aplicável) */}
       {perfil.vidroFrontalCombo && (
-        <FloatingSelect
-          label="Vidro"
-          options={vidros || []}
-          value={vidroSelecionado}
-          setValue={setVidroSelecionado}
-          disabled={perfil.vidroSomenteComum || vidros.length === 1}
-        />
-      )}
-      {!perfil.vidroFrontalCombo && perfil.vidroSomenteComum && (
+         <FloatingSelect
+           label="Vidro"
+           options={vidros || []}
+           value={vidroSelecionado}
+           setValue={setVidroSelecionado}
+           disabled={perfil.vidroSomenteComum || vidros.length === 1}
+         />
+       )}
+      {perfil.vidroFrontalCombo && perfil.vidroFundoComumFixo && (
         <div className="mt-2 text-sm text-gray-600">
-          Vidro comum aplicado automaticamente neste tipo.
+          Entre Vidros utiliza <strong>2 vidros</strong>: o frontal
+          ({vidroSelecionado?.nome || vidroSelecionado?.descricao || '—'}) e um
+          <strong> vidro comum</strong> no fundo. Ambos já estão incluídos no cálculo.
+        </div>
+      )}
+       {!perfil.vidroFrontalCombo && perfil.vidroSomenteComum && (
+         <div className="mt-2 text-sm text-gray-600">
+           Vidro comum aplicado automaticamente neste tipo.
+         </div>
+       )}
+
+       {isFlutuante && (
+        <Alert severity="info" className="mt-2">
+          No tipo <strong>Flutuante</strong> não se usa passe-partout — ele encosta na peça e
+          perde o efeito de flutuar.
+        </Alert>
+      )}
+
+
+      {/* Tela: controle de chassi */}
+      {isTela && (
+        <div className="mt-2 text-sm text-gray-700">
+          <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={incluirChassi}
+              onChange={(e) => setIncluirChassi(e.target.checked)}
+            />
+            <span>Incluir chassi (aplicado por perímetro; 3 mm até 1 m², 5 mm acima)</span>
+          </label>
         </div>
       )}
 
@@ -658,7 +750,7 @@ export default function OrcamentoForm() {
           labelKey="display"
         />
 
-        {(perfil.permiteM2M3 && !bloqueiaM2M3PorM1) && (
+        {(perfil.permiteM2M3 && !ehAluminio(moldura1) && ehRetaOuPP(moldura1)) && (
           <>
             <FloatingSelect
               label="Moldura 2 (opcional)"
@@ -667,9 +759,7 @@ export default function OrcamentoForm() {
               setValue={setMoldura2}
               labelKey="display"
             />
-
-            {/* M3 só aparece se M2 existir e não for Caixa */}
-            {moldura2 && !ehCaixa(moldura2) && (
+            {!ehCaixa?.(moldura2) && (
               <FloatingSelect
                 label="Moldura 3 (opcional)"
                 options={molduras || []}
@@ -685,7 +775,6 @@ export default function OrcamentoForm() {
       {avisoM2 && <Alert severity="info" className="mt-2">{avisoM2}</Alert>}
       {ehAluminio(moldura1) && <Alert severity="info" className="mt-2">Moldura de alumínio não permite adicionais.</Alert>}
       {(moldura1 && !ehRetaOuPP(moldura1)) && <Alert severity="info" className="mt-2">Moldura 1 diferente de Reta/Passepartout bloqueia Moldura 2 e 3.</Alert>}
-      {moldura2 && ehCaixa(moldura2) && <Alert severity="info" className="mt-2">Moldura 2 “Caixa” não permite Moldura 3.</Alert>}
 
       {/* Previews das molduras com zoom */}
       {[{m:moldura1, rot:'Moldura 1'}, {m:moldura2, rot:'Moldura 2'}, {m:moldura3, rot:'Moldura 3'}]
@@ -707,17 +796,24 @@ export default function OrcamentoForm() {
           </div>
       ))}
 
-      {/* Baguete (auto, mas editável) — com um espacinho extra antes */}
-      {(perfil.bagueteAuto || (moldura1?.uso_tipo === 'C')) && (
-        <div className="mt-6">
-          <FloatingSelect
-            label="Baguete interna (ml)"
-            options={baguetes || []}
-            value={bagueteInternaSelecionada}
-            setValue={setBagueteInternaSelecionada}
-          />
-        </div>
-      )}
+      {/* Baguete (auto, mas editável) — aparece quando houver caixa/uso */}
+      {(perfil.bagueteAuto || (moldura1?.uso_tipo === 'C')) && !isTela && (
+         <div className="mt-6">
+           <FloatingSelect
+             label="Baguete interna (ml)"
+             options={baguetes || []}
+             value={bagueteInternaSelecionada}
+             setValue={setBagueteInternaSelecionada}
+           />
+         </div>
+       )}
+
+       <FloatingSelect
+         label="Impressão (opcional)"
+         options={impressoes || []}
+         value={impressaoSelecionada}
+         setValue={setImpressaoSelecionada}
+       />
 
       {/* ALERTAS */}
       {mostrarAlertaRisco && (
@@ -743,22 +839,36 @@ export default function OrcamentoForm() {
         </div>
       )}
 
-      {/* Impressão (sempre visível) */}
-      <FloatingSelect
-        label="Impressão (opcional)"
-        options={impressoes || []}
-        value={impressaoSelecionada}
-        setValue={setImpressaoSelecionada}
-      />
+      {/* Impressão */}
+      <div className="mt-6">
+        <FloatingSelect
+          label="Impressão (opcional)"
+          options={impressoes || []}
+          value={impressaoSelecionada}
+          setValue={setImpressaoSelecionada}
+        />
+      </div>
 
       {/* Métricas e itens somados */}
       <div className="mt-4 text-sm text-gray-600 leading-relaxed space-y-1">
         <div>📐 <strong>Interna</strong>: {fmt2(largura)} cm × {fmt2(altura)} cm</div>
-        <div>🛠️ <strong>Com Passepartout</strong>: {fmt2(dimensoesFinais.larguraReforco)} cm × {fmt2(dimensoesFinais.alturaReforco)} cm</div>
+
+        {perfil.showPassepartout && passepartoutSelecionado && !ppBloqueado && (
+          <div>🛠️ <strong>Com Passepartout</strong>: {fmt2(dimensoesFinais.larguraReforco)} cm × {fmt2(dimensoesFinais.alturaReforco)} cm</div>
+        )}
+        
         <div>🖼️ <strong>Final (com moldura)</strong>: {fmt2(dimensoesFinais.largura)} cm × {fmt2(dimensoesFinais.altura)} cm</div>
         <div>📦 <strong>Área total</strong>: {Number(dimensoesFinais.area || 0).toFixed(3)} m²</div>
+        
+        {isTela && incluirChassi && (
+          <div>🔩 <strong>Chassi</strong>: {(((parseFloat(altura)||0)/100)*((parseFloat(largura)||0)/100)) > 1 ? '5 mm' : '3 mm'} (incluído no cálculo)</div>
+        )}
+        
+        {isEntreVidros && (
+          <div>🪟 <strong>Vidros</strong>: 2 (frente: {vidroSelecionado?.nome || vidroSelecionado?.descricao || '—'}, fundo: Vidro Comum)</div>
+        )}
 
-        {perfil.showPassepartout && passepartoutSelecionado && !excedePP && (
+        {perfil.showPassepartout && passepartoutSelecionado && !ppBloqueado && (
           <div>🧩 <strong>Aberturas no passe-partout</strong>: {numAberturasCalc}</div>
         )}
 

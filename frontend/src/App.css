@@ -88,4 +88,15 @@
 .preview-moldura img { cursor: zoom-in; border-radius: 8px; border:1px solid #e5e7eb; width:112px; height:80px; object-fit:cover; }
 
 .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:1000; }
-.modal-backdrop img { max-width:90vw; max-height:90vh; border-radius:12px; box-shadow:0 20px 60px rgba(0,0,0,.35); }
+/* Modal de zoom: imagem maior e sombra mais forte */
+.modal-backdrop img {
+  max-width: 98vw;
+  max-height: 98vh;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.35);
+}
+
+/* Dá um espaço depois do último preview de moldura */
+.preview-moldura:last-of-type {
+  margin-bottom: 1.5rem; /* ~24px */
+}

@@ -37,6 +37,11 @@ export async function calcularOrcamento({
   // passe-partout
   numAberturas = 1,
   precoAberturaExtra = 0,
+
+  // chassis
+  incluirChassi = false,
+  chassiSelecionado = null,
+
 }) {
   const num = (v, d = 0) => {
     const n = Number(String(v ?? '').toString().replace(',', '.'));
@@ -108,6 +113,21 @@ export async function calcularOrcamento({
       mensagemAviso = 'Dimensões excedem a folha de passepartout (102 × 152 cm). Passepartout desativado automaticamente.';
     }
   }
+
+  // === chassi (Tela) ===
+    let chassiInfo = null;
+    if (incluirChassi && chassiSelecionado?.preco) {
+      const precoML = Number(chassiSelecionado.preco || chassiSelecionado.preco_ml || 0);
+      const custo = precoML * perimetro_m * (Number(quantidade) || 1);
+      custos.chassi = custo;
+      chassiInfo = {
+        mm: /5mm/i.test(chassiSelecionado.nome || '') ? '5mm' : (/3mm/i.test(chassiSelecionado.nome || '') ? '3mm' : ''),
+        nome: chassiSelecionado.nome || 'Chassi',
+        precoML,
+        ml: perimetro_m,
+      };
+    }
+
 
   // Custos planos
   const custoVidroFrontal = areaPlanosM2 * precoVidroFrontalM2;
@@ -287,6 +307,8 @@ export async function calcularOrcamento({
 
       impressao: custoImpressao,
       camisaObjetoExtra,
+
+      chassi: 0,
 
       reforco: valorReforco,
 

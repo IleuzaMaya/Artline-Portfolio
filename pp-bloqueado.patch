@@ -1,149 +1,140 @@
-diff --git a/frontend/src/OrcamentoForm.jsx b/frontend/src/OrcamentoForm.jsx
-index 0000000..0000000 100644
---- a/frontend/src/OrcamentoForm.jsx
-+++ b/frontend/src/OrcamentoForm.jsx
+*** a/frontend/src/utils/calcularOrcamento.js
+--- b/frontend/src/utils/calcularOrcamento.js
 @@
--  // tipo/categoria helpers
--  const tipoDoItem = (m) =>
--    (m?.tipo || m?.tipo_moldura || m?.categoria || '').toLowerCase();
--  const ehRetaOuPP = (m) => /reta|passepartout/.test(tipoDoItem(m));
--  const ehAluminio = (m) => m?.uso_tipo === 'A' || /alum/i.test(m?.tipo_material || '');
-+  // tipo/categoria helpers
-+  const tipoDoItem = (m) =>
-+    (m?.tipo || m?.tipo_moldura || m?.categoria || '').toLowerCase();
-+  const ehRetaOuPP = (m) => /reta|passepartout/.test(tipoDoItem(m));
-+  const ehAluminio = (m) => m?.uso_tipo === 'A' || /alum/i.test(m?.tipo_material || '');
-+  const ehCaixa    = (m) => m?.uso_tipo === 'C' || /caixa/i.test(tipoDoItem(m));
+ export async function calcularOrcamento({
+   altura,
+   largura,
+   quantidade = 1,
+   markup = 30,
 @@
--  // Preview excede PP (usar perfil.showPassepartout como verdade)
--  const previewExcedePP =
--    perfil.showPassepartout &&
--    !cabeNaFolhaPassepartout(largura, altura, margemPassepartout);
-+  // Preview excede PP (usar perfil.showPassepartout como verdade)
-+  const previewExcedePP =
-+    perfil.showPassepartout &&
-+    !cabeNaFolhaPassepartout(largura, altura, margemPassepartout);
-+  // Bloqueia PP se preview OU cálculo disserem que excede
-+  const ppBloqueado = Boolean(perfil.showPassepartout && (previewExcedePP || excedePP));
-@@
-   useEffect(() => {
-     if (ehAluminio(moldura1)) {
-       if (moldura2) setMoldura2(null);
-       if (moldura3) setMoldura3(null);
-     }
-     if (moldura1 && !ehRetaOuPP(moldura1)) {
-       if (moldura2) setMoldura2(null);
-       if (moldura3) setMoldura3(null);
-     }
-   }, [moldura1]);
+   // chassis
+   incluirChassi = false,
+   chassiSelecionado = null,
 +
-+  // Se M2 virar "Caixa", limpa/desabilita M3
-+  useEffect(() => {
-+    if (ehCaixa?.(moldura2) && moldura3) setMoldura3(null);
-+  }, [moldura2]); // eslint-disable-line react-hooks/exhaustive-deps
-@@
--      {perfil.showPassepartout && (
-+      {perfil.showPassepartout && (
-         <div className="grid grid-cols-2 gap-4 mt-4">
-           {(dimensoesFinais?.mensagemAviso || previewExcedePP) && (
-             <div className="col-span-2">
-               <Alert severity="info" className="mt-1">
-                 {dimensoesFinais?.mensagemAviso ||
-                   '❗ Dimensões excedem a folha de passepartout (102 × 152 cm). Passepartout desativado automaticamente.'}
-               </Alert>
-             </div>
-           )}
++  // diversos (opcional)
++  diversoSelecionado = null,
  
-           <FloatingSelect
-             label="Passepartout"
-             options={passepartouts || []}
-             value={passepartoutSelecionado}
-             setValue={setPassepartoutSelecionado}
--            disabled={excedePP}
-+            disabled={ppBloqueado}
-           />
- 
-           <FloatingInput
-             label="Margem (cm)"
-             type="number"
-             step="0.1"
-             value={margemPassepartout}
-             onChange={(e) => setMargemPassepartout(e.target.value)}
--            disabled={excedePP || perfil.passepartoutSemMargem}
-+            disabled={ppBloqueado || perfil.passepartoutSemMargem}
-           />
- 
--          {perfil.showAberturas && (
-+          {/* Nº de aberturas: oculto quando PP bloqueado; se PP não selecionado, fica desabilitado */}
-+          {perfil.showAberturas && !ppBloqueado && (
-             <div className="col-span-2 md:col-span-1">
-               <FloatingInput
-                 label="Nº de aberturas"
-                 type="number"
-                 min={1}
-                 value={numAberturas}
-                 onChange={(e) => setNumAberturas(Math.max(1, Number(e.target.value) || 1))}
-+                disabled={!passepartoutSelecionado}
-               />
-             </div>
-           )}
-         </div>
-       )}
+ }) {
 @@
--        {(perfil.permiteM2M3 && !ehAluminio(moldura1) && ehRetaOuPP(moldura1)) && (
--          <>
--            <FloatingSelect
--              label="Moldura 2 (opcional)"
--              options={molduras || []}
--              value={moldura2}
--              setValue={setMoldura2}
--              labelKey="display"
--            />
--            <FloatingSelect
--              label="Moldura 3 (opcional)"
--              options={molduras || []}
--              value={moldura3}
--              setValue={setMoldura3}
--              labelKey="display"
--            />
--          </>
--        )}
-+        {(perfil.permiteM2M3 && !ehAluminio(moldura1) && ehRetaOuPP(moldura1)) && (
-+          <>
-+            <FloatingSelect
-+              label="Moldura 2 (opcional)"
-+              options={molduras || []}
-+              value={moldura2}
-+              setValue={setMoldura2}
-+              labelKey="display"
-+            />
-+            {!ehCaixa?.(moldura2) && (
-+              <FloatingSelect
-+                label="Moldura 3 (opcional)"
-+                options={molduras || []}
-+                value={moldura3}
-+                setValue={setMoldura3}
-+                labelKey="display"
-+              />
-+            )}
-+          </>
-+        )}
+   let excedePassepartout = false, mensagemAviso = null;
+   if (temPP) {
+     const W = larguraInterna, H = alturaInterna;
+     const maxMenor = FOLHA_PP.menor - FOLHA_PP.seguranca;
+     const maxMaior = FOLHA_PP.maior - FOLHA_PP.seguranca;
+     const ok = (W <= maxMenor && H <= maxMaior) || (H <= maxMenor && W <= maxMaior);
+     excedePassepartout = !ok;
+     if (excedePassepartout) {
+       mensagemAviso = 'Dimensões excedem a folha de passepartout (102 × 152 cm). Passepartout desativado automaticamente.';
+     }
+   }
+ 
+-  // === chassi (Tela) ===
+-    let chassiInfo = null;
+-    if (incluirChassi && chassiSelecionado?.preco) {
+-      const precoML = Number(chassiSelecionado.preco || chassiSelecionado.preco_ml || 0);
+-      const custo = precoML * perimetro_m * (Number(quantidade) || 1);
+-      custos.chassi = custo;
+-      chassiInfo = {
+-        mm: /5mm/i.test(chassiSelecionado.nome || '') ? '5mm' : (/3mm/i.test(chassiSelecionado.nome || '') ? '3mm' : ''),
+-        nome: chassiSelecionado.nome || 'Chassi',
+-        precoML,
+-        ml: perimetro_m,
+-      };
+-    }
++  // === Chassi (Tela) — custo unitário por metro linear do perímetro interno ===
++  const precoChassiML = num(pick(chassiSelecionado || {}, ['preco_ml','preco','valor_ml','valor']), 0);
++  const custoChassiUnit = (incluirChassi && precoChassiML > 0)
++    ? perimetroInternoM * precoChassiML
++    : 0;
++  const chassiInfo = (incluirChassi && precoChassiML > 0)
++    ? {
++        mm: (/5mm/i.test(chassiSelecionado?.nome || '')) ? '5mm' :
++            ((/3mm/i.test(chassiSelecionado?.nome || '')) ? '3mm' : ''),
++        nome: chassiSelecionado?.nome || 'Chassi',
++        precoML: precoChassiML,
++        ml: perimetroInternoM,
++      }
++    : null;
++
++  // === Diversos (opcional) — unitário / ml / m2 ===
++  let custoDiversoUnit = 0;
++  let diversoInfo = { aplicado: false };
++  if (diversoSelecionado) {
++    const unidade = String(diversoSelecionado.unidade || '').toLowerCase();
++    const precoBase = num(
++      pick(diversoSelecionado, ['preco','valor','preco_ml','valor_ml','preco_m2','valor_m2']),
++      0
++    );
++    if (precoBase > 0) {
++      if (unidade === 'ml')       custoDiversoUnit = precoBase * perimetroInternoM;
++      else if (unidade === 'm2')  custoDiversoUnit = precoBase * areaObraM2;
++      else                        custoDiversoUnit = precoBase; // unitário / default
++      diversoInfo = {
++        aplicado: true,
++        nome: diversoSelecionado.nome || 'Serviço',
++        unidade,
++        faixa: diversoSelecionado.faixa_aplicacao || null,
++        precoBase,
++      };
++    }
++  }
 @@
--      {(perfil.bagueteAuto || (moldura1?.uso_tipo === 'C')) && (
--        <FloatingSelect
--          label="Baguete interna (ml)"
--          options={baguetes || []}
--          value={bagueteInternaSelecionada}
--          setValue={setBagueteInternaSelecionada}
--        />
--      )}
-+      {(perfil.bagueteAuto || (moldura1?.uso_tipo === 'C')) && (
-+        <div className="mt-6">
-+          <FloatingSelect
-+            label="Baguete interna (ml)"
-+            options={baguetes || []}
-+            value={bagueteInternaSelecionada}
-+            setValue={setBagueteInternaSelecionada}
-+          />
-+        </div>
-+      )}
+   const subtotalMateriaisUnit =
+     custoMoldurasTotal +
+     custoBagueteInterna +
+     custoVidro +
+     custoFundo +
+     custoFundoExtra +
+     custoPP +
+     custoAberturasExtras +
+     custoImpressao +
++    custoChassiUnit +
++    custoDiversoUnit +
+     camisaObjetoExtra +
+     (aplicaReforco ? valorReforco : 0);
+@@
+   return {
+     valorSemMarkup,
+     valorTotal: valorComMarkup,
+     excedePassepartout,
+     reforcoInfo,
++    chassiInfo,
++    diversoInfo,
+     mensagemAviso: mensagemAviso || null,
+     modoCobrancaPassepartout,
+@@
+     custos: {
+       moldurasCamadas: custosCamadas,
+       moldurasTotal: custoMoldurasTotal,
+ 
+       bagueteInterna: custoBagueteInterna,
+ 
+       vidroFrontal: custoVidroFrontal,
+       vidroFundoComum: custoVidroFundoComum,
+       vidro: custoVidro,
+ 
+       fundo: custoFundo,
+       fundoExtra: custoFundoExtra,
+ 
+       passepartout: custoPP,
+       passepartoutAberturasExtra: custoAberturasExtras,
+ 
+       impressao: custoImpressao,
+       camisaObjetoExtra,
+ 
+-      chassi: 0,
++      chassi: custoChassiUnit,
++      diversos: custoDiversoUnit,
+ 
+       reforco: valorReforco,
+ 
+       subtotalMateriaisUnit,
+       totalUnitario,
+       quantidade: QTD,
+       markupPercent: MARKUP * 100,
+ 
+       perimetroInternoM,
+       perimetroAberturaM,
+     },
+   };
+ }
