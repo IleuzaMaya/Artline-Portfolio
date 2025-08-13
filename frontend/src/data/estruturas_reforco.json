@@ -1,0 +1,20 @@
+[
+  {
+    "tipo_emoldurado": "canvas",
+    "largura_min_cm": 50,
+    "largura_max_cm": 120,
+    "altura_min_cm": 50,
+    "altura_max_cm": 120,
+    "metragem_linear_reforco": 300,
+    "observacoes": "Reforço necessário para grandes formatos em tela."
+  },
+  {
+    "tipo_emoldurado": "matte",
+    "largura_min_cm": 60,
+    "largura_max_cm": 100,
+    "altura_min_cm": 60,
+    "altura_max_cm": 100,
+    "metragem_linear_reforco": 280,
+    "observacoes": "Reforço necessário para molduras com vidro."
+  }
+]

@@ -1,0 +1,91 @@
+/* App.css */
+
+/* Container de cada grupo com label flutuante */
+.floating-group {
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+/* Input e select com padding superior para a label */
+.floating-input,
+.floating-select {
+  width: 100%;
+  padding: 1.25rem 0.75rem 0.5rem;
+  font-size: 1rem;
+  background-color: white;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  outline: none;
+  transition: border-color 0.2s ease-in-out;
+}
+
+/* Floating label padrão */
+.floating-label {
+  position: absolute;
+  top: 0.9rem;
+  left: 0.75rem;
+  font-size: 1rem;
+  color: #6b7280;
+  background-color: white;
+  padding: 0 0.25rem;
+  pointer-events: none;
+  transition: all 0.2s ease-out;
+  z-index: 10;
+}
+
+/* Label sobe quando o input está focado ou preenchido */
+.floating-group:focus-within .floating-label,
+.floating-input:not(:placeholder-shown) + .floating-label,
+.floating-select:valid + .floating-label {
+  top: -0.5rem;
+  left: 0.65rem;
+  font-size: 0.75rem;
+  color: #2563eb;
+  background-color: white;
+  z-index: 20;
+}
+
+/* Foco no input */
+.floating-input:focus,
+.floating-select:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 1px #2563eb;
+}
+
+/* Erro visual opcional */
+.floating-input.error,
+.floating-select.error {
+  border-color: #dc2626;
+}
+
+.floating-input.error:focus,
+.floating-select.error:focus {
+  box-shadow: 0 0 0 1px #dc2626;
+}
+
+/* ---- FIX SELECTS: label sempre flutuada e sem sobrepor ---- */
+.floating-group select.floating-select + .floating-label {
+  top: -0.5rem;
+  left: 0.65rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+  background: #fff;
+  z-index: 20;
+}
+
+/* Mais espaço no topo do select para não colidir com a label */
+.floating-select {
+  padding-top: 1.75rem; /* antes 1.25rem */
+}
+
+.floating-group:focus-within select.floating-select + .floating-label {
+  color: #2563eb;
+}
+
+
+/* Preview da moldura + zoom */
+.preview-moldura { margin: 12px 0 18px; display:flex; align-items:center; gap:12px; }
+.preview-moldura img { cursor: zoom-in; border-radius: 8px; border:1px solid #e5e7eb; width:112px; height:80px; object-fit:cover; }
+
+.modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:1000; }
+.modal-backdrop img { max-width:90vw; max-height:90vh; border-radius:12px; box-shadow:0 20px 60px rgba(0,0,0,.35); }
