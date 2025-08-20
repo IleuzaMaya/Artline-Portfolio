@@ -13,12 +13,13 @@ import orcamentoRoutes from './routes/orcamentoRoutes.js';
 import moldurasRoutes from './routes/moldurasRoutes.js';
 import tiposOrcamentoRoutes from './routes/tiposOrcamentoRoutes.js';
 import baguetesRoutes from './routes/baguetesRoutes.js';
+import diversosRoutes from './routes/diversosRoutes.js';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ✅ ROTAS OFICIAIS (apenas uma vez cada)
+// ✅ ROTAS OFICIAIS
 app.use('/api/vidros', vidrosRoutes);
 app.use('/api/fundos', fundosRoutes);
 app.use('/api/passepartouts', passepartoutsRoutes);
@@ -30,6 +31,7 @@ app.use('/api/orcamento', orcamentoRoutes);
 app.use('/api/molduras', moldurasRoutes);
 app.use('/api/tipos-orcamento', tiposOrcamentoRoutes);
 app.use('/api/baguetes', baguetesRoutes);
+app.use('/api/diversos', diversosRoutes);
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
