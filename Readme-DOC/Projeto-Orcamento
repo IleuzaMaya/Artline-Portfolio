@@ -1,0 +1,614 @@
+🟩 OrcamentoForm.jsx — visão técnica & pontos de extensão
+
+Componente React que:
+
+carrega catálogos (tipos, vidros, fundos, PP, baguetes, chassis, impressões) via API,
+
+controla o formulário (medidas, seleção de insumos, etc.),
+
+aplica perfil por tipo de orçamento (regras de UI/negócio),
+
+monta o payload e chama calcularOrcamento(...),
+
+exibe métricas e totais.
+
+API base: VITE_API_URL (fallback http://localhost:4000/api).
+
+
+🔹 Contratos de dados (resumo)
+
+GET /tipos-orcamento → [ { id, nome, ... } ]
+
+GET /impressoes → [ { id, nome, preco_m2|valor_m2, ... } ]
+
+GET /vidros|fundos|passepartouts|baguetes|chassis → listas simples
+
+GET /molduras → [ { id, nome, uso_tipo('C'|'N'|'A'), largura_mm, preco_metro, ... } ]
+
+GET /camisas → tabela de adicionais p/ “Camisa/Objeto”
+
+(opcional) GET /diversos caso use múltiplos, mas no modo “Diversos” atual a seleção vem de tipos unificados (ver abaixo).
+
+Observação: o form aceita múltiplos nomes de campos de preço (ex.: preco, valor, preco_m2, valor_ml…), via helper “pick” dentro do calcularOrcamento.
+
+
+🔹Anatomia do componente
+
+States principais:
+altura, largura, quantidade, markup, margemPassepartout
+moldura1/2/3, vidroSelecionado, fundoSelecionado, passepartoutSelecionado
+bagueteInternaSelecionada, impressoes, impressaoSelecionada
+chassis, incluirChassi, incluirImpressaoTela
+tipoSelecionado (direciona o “perfil”)
+diversoSelecionado, incluirImpressaoDiversos (modo Diversos)
+valorTotal, valorSemMarkup, reforcoInfo, dimensoesFinais, itensSomados
+
+Helpers
+
+norm() — normaliza strings p/ classificação de tipo
+
+cabeNaFolhaPassepartout() — valida folha (102 × 152 com giro)
+
+classificaDiverso() — interpreta o nome do serviço Diversos e liga “flags”:
+function classificaDiverso(d) {
+  const n = (d?.nome || '').toLowerCase();
+  return {
+    precisaChassi: /troca\s*de\s*chassi/.test(n),
+    precisaCanvas: /canvas/.test(n),
+    precisaMatte: /(papel\s*matte|matte|fosco)/.test(n),
+    precisaMoldura: /troca\s*de\s*moldura/.test(n),
+    precisaVidro: /troca\s*de\s*vidro/.test(n),
+    ehRetirarArte: /retirar\s*a\s*arte/.test(n),
+  };
+}
+
+
+
+🔹 Perfis por tipo (regras de UI/negócio)
+
+perfilDoTipo(nome) retorna um objeto com flags:
+
+showPassepartout, passepartoutSemMargem, showAberturas
+
+vidroFrontalCombo, vidroFundoComumFixo, vidroSomenteComum
+
+showFundoCombo, foamExtraAuto
+
+bagueteAuto, molduraUsoTipo, molduraUsos
+
+permiteM2M3
+
+Perfis prontos: superficie, entre_vidros, profundidade, flutuante, camisa_objeto, tela, outro.
+
+Modo Diversos: sobrescreve o perfil base dinamicamente conforme diversoSelecionado:
+
+oculta passepartout/fundo
+
+habilita vidro só se a categoria exigir
+
+mantém molduras só nas trocas de moldura
+
+checkbox “Incluir impressão” para Canvas/Matte
+
+🔹 Fluxo de cálculo
+
+useEffect principal observa todas as dependências do form.
+
+Monta regras especiais:
+
+Chassi 3 mm até 1 m², 5 mm acima (tela ou “troca de chassi”).
+
+Impressão opcional em diversos (canvas/matte).
+
+Foam AD Branco automático quando “troca de papel matte”.
+
+Chama calcularOrcamento({...}) com:
+
+insumos selecionados
+
+perfil (entre vidros, vidro comum, baguete auto etc.)
+
+numAberturas / preço abertura extra
+
+diversosSelecionados: no modo Diversos envia apenas diversoSelecionado.
+
+Recebe resultado e atualiza:
+
+valorTotal, valorSemMarkup
+
+reforcoInfo, excedePassepartout, dimensoesFinais
+
+lista de itensSomados (legendas do que entrou no total)
+
+
+🔹 Modo Diversos — como a UI se comporta
+
+Combo “Serviço (Diversos)” lista apenas 6 opções (de preferência vindas de /diversos mapeadas para nomes consolidados):
+
+Troca de Canvas
+
+Troca de Papel Matte
+
+Troca de Chassis
+
+Troca de Moldura
+
+Troca de Vidro
+
+Retirar arte
+
+A partir da seleção:
+
+Troca de Chassis → calcula perímetro chassi (+ serviço).
+
+Troca de Canvas → opcional “Incluir impressão (canvas)” por m² (+ serviço).
+
+Troca de Papel Matte → opcional impressão + Foam AD Branco automático como fundo extra (+ serviço).
+
+Troca de Moldura → habilita combos de molduras (M1/M2/M3) (+ serviço).
+
+Troca de Vidro → habilita combo de vidro (+ serviço).
+
+Retirar arte → só serviço (respeita quantidade/markup).
+
+A faixa “até/acima 50 cm” é inferida pelo maior lado (≤ 50 → até; > 50 → acima).
+O preço do serviço vem do registro de diversos compatível com a faixa.
+
+Importante: o back pode manter linhas por faixa (ex.: “TROCA DE CANVAS ATÉ 50CM” / “ACIMA 50CM”). O front consolida a UI (1 item “Troca de Canvas”) e seleciona o preço certo conforme a faixa.
+
+
+🔹 Contrato do calcularOrcamento (o que é enviado no modo Diversos)
+
+diversosSelecionados: [{ id, nome, faixa_aplicacao?, preco|valor }]
+O próprio cálculo valida a faixa via MAIOR_LADO_CM e soma ao custo unitário.
+
+Demais campos funcionam igual aos outros tipos.
+
+Retorno contém resultado.diversosInfo.itens (para listagem do que entrou) e custos.diversos.
+
+🔹 Pontos de extensão
+1) Adicionar nova categoria em “Diversos”
+
+Back: garantir que /api/diversos traga linhas com nome + faixa_aplicacao (“até 50cm”/“acima 50cm”) e preco.
+
+Front:
+
+Inclua o rótulo na lista consolidada (se não vier pronto do backend).
+
+Ajuste classificaDiverso() se a categoria ativar elementos de UI (vidro/moldura/impressão).
+
+(Opcional) Se exigir insumo extra, habilite o combo correspondente (seguindo os exemplos de Vidro/Moldura).
+
+2) Alterar regras de faixa
+
+Trocar o limiar de 50 cm no calcularOrcamento (usa MAIOR_LADO_CM) e no front se houver lógica paralela.
+
+3) Novos insumos que afetam Diversos
+
+Espelhe o padrão de impressão opcional:
+– detecte no classificaDiverso, habilite um checkbox, selecione o insumo por nome (ou ID) e passe via impressaoSelecionada.
+
+4) Molduras (M2/M3) & restrições
+
+As coerções (alumínio bloqueia M2/M3; M1 != Reta/PP → bloqueia M2/M3; M2="Caixa" → limpa M3) estão em 2 useEffects.
+Para mudar a regra, altere estes efeitos.
+
+5) Perfis por tipo
+
+Acrescente um novo perfil em PERFIS e mapeie no perfilDoTipo(nome).
+
+Para Diversos, a UI ignora quase tudo do perfil base e usa overrides via useMemo.
+
+
+🔹 Checklist rápido de testes
+
+ “Diversos” → Troca de Canvas com/sem “Incluir impressão”; total muda.
+
+ “Diversos” → Troca de Papel Matte com impressão e foam extra automático.
+
+ “Diversos” → Troca de Chassis (30×30cm → 3 mm; 120×100cm → 5 mm).
+
+ “Diversos” → Troca de Vidro: habilita combo, total inclui vidro.
+
+ “Diversos” → Troca de Moldura: habilita M1/M2/M3, respeita coerções.
+
+ “Diversos” → Retirar arte: só serviço.
+
+ Tipos normais (Superfície/Entre Vidros/…): continuam OK.
+
+ PP bloqueia quando excede folha; alerta exibido.
+
+ Reforço de caixa aplicado nas regras (limites internos).
+
+ Markup e Quantidade afetam totas em todos os modos.
+
+
+🔹 Dicas de integração backend
+
+Tipos: adicionar “Diversos” em tipos_orcamento.
+
+mt_diversos: manter colunas nome, preco (ou valor), faixa_aplicacao (“até 50cm” | “acima 50cm”).
+
+Rota /api/diversos: pode retornar todas as linhas; o front consolida a UI.
+(Se preferir, crie um endpoint que já consolida e entrega { categoria: 'Troca de Canvas', preco_ate, preco_acima }.)
+
+
+🔹 Variáveis & ambientes
+
+VITE_API_URL no frontend (opcional).
+
+Backend roda em :4000 por padrão (index.mjs).
+
+
+
+🔹 Exemplo de commit
+feat(orcamento): modo Diversos consolidado (6 categorias)
+- UI ajusta combos conforme categoria (vidro/moldura/chassi/impressão)
+- impressão opcional em canvas/matte; foam AD branco automático no matte
+- cálculo integra serviço por faixa (≤/> 50cm), quantidade e markup
+
+
+🔹 Backend – Diversos (catálogo consolidado)
+1) Tabelas e dados
+1.1. tipos_orcamento
+
+Garanta o tipo Diversos:
+INSERT INTO tipos_orcamento (nome, ativo)
+SELECT 'Diversos', 1
+WHERE NOT EXISTS (SELECT 1 FROM tipos_orcamento WHERE nome='Diversos');
+
+1.2. mt_diversos
+
+Estrutura recomendada (adapte aos nomes que já tem):
+ALTER TABLE mt_diversos
+  ADD COLUMN IF NOT EXISTS tipo_orcamento_id INT NULL,
+  ADD COLUMN IF NOT EXISTS faixa_aplicacao VARCHAR(50) NULL, -- "até 50cm" | "acima 50cm"
+  ADD COLUMN IF NOT EXISTS preco DECIMAL(10,2) NULL,
+  ADD INDEX idx_tipo_orcamento_id (tipo_orcamento_id);
+
+UPDATE mt_diversos
+SET tipo_orcamento_id = (SELECT id FROM tipos_orcamento WHERE nome='Diversos' LIMIT 1)
+WHERE tipo_orcamento_id IS NULL;
+
+-- (opcional) FK
+ALTER TABLE mt_diversos
+  ADD CONSTRAINT fk_mt_diversos_tipo
+  FOREIGN KEY (tipo_orcamento_id) REFERENCES tipos_orcamento(id)
+  ON UPDATE CASCADE ON DELETE SET NULL;
+
+Linhas esperadas (exemplos):
+
+“TROCA DE CANVAS ATÉ 50CM” — faixa_aplicacao = 'até 50cm', preco = ...
+
+“TROCA DE CANVAS ACIMA 50CM” — faixa_aplicacao = 'acima 50cm', preco = ...
+
+idem para Papel Matte, Chassis, Moldura, Vidro
+
+“RETIRAR A ARTE” — faixa pode ser NULL (preço único)
+
+A UI mostra só 6 categorias; o backend mantém as duas linhas por faixa quando fizer sentido.
+A seleção da faixa (até/acima) no cálculo é feita pelo maior lado (≤ 50 → “até 50cm”; > 50 → “acima 50cm”).
+
+2) Rotas
+2.1. Lista crua (já existente)
+
+GET /api/diversos → retorna as linhas de mt_diversos.
+
+Controller (se precisar):
+// controllers/diversosController.js
+import db from '../config/db.js';
+
+export async function getDiversos(req, res) {
+  try {
+    const { ativo, tipo_orcamento_id } = req.query;
+    const cond = [], params = [];
+    if (ativo !== undefined) { cond.push('d.ativo = ?'); params.push(Number(ativo) ? 1 : 0); }
+    if (tipo_orcamento_id) { cond.push('d.tipo_orcamento_id = ?'); params.push(tipo_orcamento_id); }
+    const where = cond.length ? `WHERE ${cond.join(' AND ')}` : '';
+    const sql = `
+      SELECT d.id, d.nome, d.faixa_aplicacao, d.preco, d.ativo
+      FROM mt_diversos d
+      ${where}
+      ORDER BY d.nome
+    `;
+    const [rows] = await db.query(sql, params);
+    res.json(rows);
+  } catch (e) {
+    console.error(e); res.status(500).json({ error: 'Erro ao listar diversos.' });
+  }
+}
+
+2.2. Catálogo consolidado (novo)
+
+GET /api/diversos/catalog → devolve as 6 categorias já “agrupadas” com preços até/acima 50cm.
+// controllers/diversosController.js (adicione)
+export async function getDiversosCatalog(req, res) {
+  try {
+    const [rows] = await db.query(`
+      SELECT id, nome, faixa_aplicacao, preco, IFNULL(ativo,1) AS ativo
+      FROM mt_diversos
+      WHERE IFNULL(ativo,1) = 1
+    `);
+
+    const CATS = [
+      { key: 'troca_canvas',  label: 'Troca de Canvas',   match: /troca.*canvas/i },
+      { key: 'troca_matte',   label: 'Troca de Papel Matte', match: /troca.*(papel\s*matte|matte|mate|fosco)/i },
+      { key: 'troca_chassi',  label: 'Troca de Chassis',  match: /troca.*chassi/i },
+      { key: 'troca_moldura', label: 'Troca de Moldura',  match: /troca.*moldura/i },
+      { key: 'troca_vidro',   label: 'Troca de Vidro',    match: /troca.*vidro/i },
+      { key: 'retirar_arte',  label: 'Retirar arte',      match: /retirar.*arte/i },
+    ];
+
+    const out = CATS.map(c => ({ key: c.key, label: c.label, ate50: null, acima50: null }));
+
+    const isAte50 = (faixa = '') => {
+      const f = String(faixa).toLowerCase();
+      return f.includes('até') || f.includes('ate') || f.includes('50');
+    };
+
+    rows.forEach(r => {
+      const cat = CATS.find(c => c.match.test(r.nome || ''));
+      if (!cat) return;
+      const bucket = out.find(o => o.key === cat.key);
+      const node = { id: r.id, nome: r.nome, preco: Number(r.preco || 0), faixa: r.faixa_aplicacao || null };
+      if (cat.key === 'retirar_arte') {
+        bucket.ate50 = node; bucket.acima50 = node; // preço único
+      } else if (isAte50(r.faixa_aplicacao)) {
+        bucket.ate50 = node;
+      } else {
+        bucket.acima50 = node;
+      }
+    });
+
+    res.json(out);
+  } catch (e) {
+    console.error(e); res.status(500).json({ error: 'Erro ao montar catálogo de diversos.' });
+  }
+}
+
+Rota:
+// routes/diversosRoutes.js
+import { Router } from 'express';
+import { getDiversos, getDiversosCatalog } from '../controllers/diversosController.js';
+const router = Router();
+
+router.get('/', getDiversos);
+router.get('/catalog', getDiversosCatalog);
+
+export default router;
+
+Registrar (já está no seu index.mjs, mas fica a referência):
+import diversosRoutes from './routes/diversosRoutes.js';
+app.use('/api/diversos', diversosRoutes);
+
+3) Como o frontend consome
+Opção A – usar catálogo consolidado (recomendado)
+// frontend load:
+const { data: catalog } = await axios.get(`${API}/diversos/catalog`);
+// monta combo com 6 itens:
+const opcoes = catalog.map(c => ({ key: c.key, label: c.label, ate50: c.ate50, acima50: c.acima50 }));
+// ao selecionar, o cálculo escolhe ate50/acima50 pelo MAIOR_LADO_CM (≤50 / >50)
+// e envia exatamente o item (id, nome, preco, faixa) para o calcularOrcamento
+
+Opção B – usar lista crua
+
+Carrega GET /api/diversos e faz o agrupamento no frontend (já temos regex/flags parecidos no form).
+
+O calcularOrcamento já valida a faixa com base no maior lado e soma preco.
+Para Retirar arte, a faixa é indiferente.
+
+4) Teste rápido (curl)
+# lista crua
+curl http://localhost:4000/api/diversos
+
+# catálogo consolidado
+curl http://localhost:4000/api/diversos/catalog
+
+Resposta (exemplo) /api/diversos/catalog:
+[
+  {
+    "key": "troca_canvas",
+    "label": "Troca de Canvas",
+    "ate50":   { "id": 12, "nome": "TROCA DE CANVAS ATÉ 50CM",   "preco": 50, "faixa": "até 50cm" },
+    "acima50": { "id": 13, "nome": "TROCA DE CANVAS ACIMA 50CM", "preco": 80, "faixa": "acima 50cm" }
+  },
+  { "key": "retirar_arte", "label": "Retirar arte", "ate50": { "id": 30, "nome": "RETIRAR A ARTE", "preco": 25, "faixa": null }, "acima50": { "id": 30, "nome": "RETIRAR A ARTE", "preco": 25, "faixa": null } }
+]
+
+5) Regras de negócio (resumo)
+
+Faixa: usar maior lado (cm).
+≤ 50 → usa preço “até 50cm”; > 50 → “acima 50cm”.
+
+Troca de Chassis: além do serviço, calcular chassi por perímetro (3 mm até 1 m², 5 mm acima).
+
+Troca de Canvas/Matte: opção “Incluir impressão”:
+
+Canvas → usa preço da impressão canvas por m².
+
+Matte → idem (papel matte) + Foam AD Branco automático como fundo extra.
+
+Troca de Moldura: habilita M1/M2/M3 e respeita coerções do form.
+
+Troca de Vidro: habilita combo de vidro e soma por m².
+
+Retirar arte: só o serviço (respeita quantidade/markup).
+
+
+6) Notas
+
+cors e express.json() já estão no seu index.mjs.
+
+Os nomes “até/acima” podem variar; o consolidado considera até/ate/50.
+
+Se preferir 100% por ID (sem regex), padronize os nomes no banco ou crie coluna categoria_key em mt_diversos (troca_canvas, troca_matte, …) e mapeie direto no SQL.
+
+se quiser, eu também te mando um patch prontinho com controllers/diversosController.js + routes/diversosRoutes.js nos caminhos já do seu projeto.
+
+
+====================
+
+📋 Relatório Consolidado — Projeto Art Emoldurados
+1. Estrutura Geral do Projeto
+
+Frontend (React + Vite + Tailwind + MUI + Framer Motion)
+
+Pastas: frontend/src/ com OrcamentoForm.jsx, Login.jsx, AuthSplit.jsx, App.jsx, etc.
+
+Repositório no GitHub: artemoldurados-admin/frontend
+.
+
+Deploy futuro → Vercel (mais prático, já conectado ao GitHub).
+
+Domínio: artemoldurados.com.br → apontará para app.artemoldurados.com.br.
+
+Backend
+
+Original: Express + MySQL (bd_emoldurados).
+
+Migração em andamento: Supabase (Postgres + Auth) substitui MySQL.
+
+Subdomínio planejado: api.artemoldurados.com.br.
+
+Banco de Dados
+
+Antigo: MySQL Workbench (bd_emoldurados.sql).
+
+Novo: Supabase/PostgreSQL.
+
+Status:
+
+✅ Schema criado com sucesso (sem AUTO_INCREMENT, CHARACTER SET, COMMENT).
+
+⚠️ Dados ainda sendo populados (INSERT de tabelas básicas e molduras iniciais).
+
+Próximo: carregar todas as mt_molduras via CSV.
+
+2. Login e Autenticação
+
+Frontend:
+
+Tela de login criada (Login.jsx + AuthSplit.jsx).
+
+Animação lateral para alternar entre Cliente e Administrador.
+
+Cliente → redireciona /orcamento.
+
+Admin → redireciona /admin, com submenu “Cadastrar cliente”.
+
+Backend/Infra:
+
+Supabase Auth configurado (usuários e perfis).
+
+Estrutura da tabela profiles no Supabase:
+
+id (UUID ligado a auth.users),
+
+nome, email, telefone,
+
+tipo (cliente | admin | funcionario),
+
+created_at.
+
+Fluxo esperado:
+
+Administrador cria cliente no /admin/usuarios/novo.
+
+Cliente faz login com email/senha.
+
+Acesso ao /orcamento.
+
+3. Orçamento
+
+Frontend (OrcamentoForm.jsx):
+
+Puxa listas dinâmicas (molduras, passepartout, vidros, fundos, extras).
+
+Cálculos automáticos: área útil, área externa, metragem linear da moldura, reforços.
+
+Tipos de orçamento suportados:
+
+Canvas (com ou sem chassi),
+
+Papel Matte,
+
+Caixa/Objeto,
+
+Entre Vidros,
+
+Passepartout (1 ou mais aberturas).
+
+Backend (antes MySQL, agora Supabase):
+
+Tabelas usadas:
+
+mt_molduras, mt_passepartouts, mt_vidros, mt_fundos,
+mt_impressoes, mt_chassis, mt_baguetes, mt_diversos, mt_camisa_objeto.
+
+Regras de reforço: estruturas_reforco.
+
+Cálculos confirmados em testes unitários (preços batendo com tabela).
+
+4. Migração para Supabase
+
+Já feito:
+
+Schema convertido e criado no Supabase (sem erros de AUTO_INCREMENT, COMMENT, etc.).
+
+Estruturas de todas as tabelas mt_* criadas.
+
+Autenticação Supabase disponível.
+
+Em andamento:
+
+Inserção de dados.
+
+Alguns INSERTs ainda dão erro (por conta de campos desajustados entre MySQL e Postgres).
+
+Melhor caminho: importação por CSV para cada tabela (principalmente mt_molduras com 100+ registros).
+
+5. Deploy
+
+Frontend:
+
+Vercel → conectado ao GitHub.
+
+Pipeline automático: cada push no main gera um build.
+
+Domínio: artemoldurados.com.br → apontar para app.artemoldurados.com.br.
+
+Backend (API + DB):
+
+Supabase → já provisiona Postgres + Auth + REST API (PostgREST).
+
+Opcional: manter backend Express para regras customizadas (ex.: orçamentos complexos).
+
+Domínio: api.artemoldurados.com.br.
+
+⚠️ Problema Atual
+
+Ao executar alguns INSERTs, erro de sintaxe (por restos do MySQL: COMMENT, diferenças de aspas, ou tipos).
+
+Solução recomendada:
+
+Importar dados menores (fundos, vidros, passepartout) → via INSERT (já corrigi).
+
+Importar molduras (maior tabela) → via CSV no Supabase Table Editor.
+
+É mais rápido e evita travar o SQL Editor.
+
+✅ Próximos Passos (minha sugestão)
+
+Rodar os INSERTs das tabelas pequenas (já prontos e ajustados).
+
+Gerar CSV completo das molduras (mt_molduras.csv) → importar pelo Supabase Table Editor.
+
+Testar o frontend conectado ao Supabase (usando supabase.js).
+
+Configurar o deploy na Vercel e ligar ao domínio.
+
+Validar login + orçamento em produção.
+
+
+=======
+Agora preciso dar continuidade em fazer rodar este projeto no Versel (frontend) e que está no GitHub mas não testei, não sabia como rodar. Estava funcionando no navegador: http://localhost:5173 e estava desenvolvendo no VsCode e Mysql Workbench

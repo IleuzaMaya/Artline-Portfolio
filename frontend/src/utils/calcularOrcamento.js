@@ -26,9 +26,13 @@ export async function calcularOrcamento({
   // extras do form
   fundoExtraSelecionado,
   camisaObjetoTabela = [],
+  diversosSelecionados = [],
 
   // perfil / comportamentos
   entreVidros = false,
+  // novos “forçadores” vindos do front/tipo
+  forcarCamisaObjetoTipo = false,
+  camisaEntreVidros = false,
   precoVidroComumM2 = null, // se não vier, cai no preço do vidro selecionado
   vidroSomenteComum = false,
   foamExtraAuto = false, // sem uso direto no cálculo
@@ -41,7 +45,6 @@ export async function calcularOrcamento({
   // chassis
   incluirChassi = false,
   chassiSelecionado = null,
-
 }) {
   const num = (v, d = 0) => {
     const n = Number(String(v ?? '').toString().replace(',', '.'));
@@ -53,6 +56,36 @@ export async function calcularOrcamento({
 
   const ALT = num(altura);
   const LAR = num(largura);
+  const MAIOR_LADO_CM = Math.max(ALT, LAR);
+  const perimetroObraM = perimetroM(LAR, ALT); // chassi usa a medida da obra (sem margem)
+
+  // === Diversos (lista de serviços unitários) ===
+  let custoDiversosUnit = 0;
+  const itensDiversos = [];
+
+  (Array.isArray(diversosSelecionados) ? diversosSelecionados : []).forEach((dv) => {
+    const preco = num(pick(dv, ['preco','valor','preco_unit','valor_unit']), 0);
+    if (preco <= 0) return;
+
+    const faixa = String(dv.faixa_aplicacao || dv.faixa || '').toLowerCase();
+    const okFaixa =
+      !faixa ||
+      (faixa.includes('até')   && MAIOR_LADO_CM <= 50) ||
+      (faixa.includes('acima') && MAIOR_LADO_CM > 50);
+
+    if (!okFaixa) return;
+
+    custoDiversosUnit += preco;
+    itensDiversos.push({
+      id: dv.id,
+      nome: dv.nome || 'Serviço',
+      faixa: dv.faixa_aplicacao || null,
+      valor: preco,
+    });
+  });
+
+  const diversosInfo = { itens: itensDiversos, valorTotal: custoDiversosUnit };
+
   const QTD = Math.max(1, num(quantidade, 1));
   const MARKUP = Math.max(0, num(markup, 0)) / 100;
   const MARGEM = Math.max(0, num(margemPassepartout, 0));
@@ -114,27 +147,31 @@ export async function calcularOrcamento({
     }
   }
 
-  // === chassi (Tela) ===
-    let chassiInfo = null;
-    if (incluirChassi && chassiSelecionado?.preco) {
-      const precoML = Number(chassiSelecionado.preco || chassiSelecionado.preco_ml || 0);
-      const custo = precoML * perimetro_m * (Number(quantidade) || 1);
-      custos.chassi = custo;
+  // === Chassi (Tela) ===
+  let chassiInfo = null;
+  let custoChassi = 0;
+  if (incluirChassi && chassiSelecionado) {
+    const precoMLChassi = num(pick(chassiSelecionado, ['preco_ml','preco','valor_ml','valor']), 0);
+    if (precoMLChassi > 0) {
+      custoChassi = precoMLChassi * perimetroObraM; // custo unitário
+      const esp = /5mm/i.test(chassiSelecionado.nome || '') ? '5 mm'
+             : (/3mm/i.test(chassiSelecionado.nome || '') ? '3 mm' : '');
       chassiInfo = {
-        mm: /5mm/i.test(chassiSelecionado.nome || '') ? '5mm' : (/3mm/i.test(chassiSelecionado.nome || '') ? '3mm' : ''),
         nome: chassiSelecionado.nome || 'Chassi',
-        precoML,
-        ml: perimetro_m,
+        espessura: esp, // novo
+        mm: esp,        // compat com o front atual
+        precoML: precoMLChassi,
+        ml: perimetroObraM,
       };
     }
-
+  }
 
   // Custos planos
   const custoVidroFrontal = areaPlanosM2 * precoVidroFrontalM2;
 
-  // Entre Vidros: adiciona vidro comum no “fundo”
+  // Entre Vidros: considerar flag do tipo/UX (camisaEntreVidros)
   let custoVidroFundoComum = 0;
-  if (entreVidros) {
+  if (entreVidros || camisaEntreVidros) {
     const precoBaseComum = precoVidroComum;
     custoVidroFundoComum = areaPlanosM2 * precoBaseComum;
   }
@@ -215,10 +252,11 @@ export async function calcularOrcamento({
     ? { necessita_reforco: true, nome: 'Reforço estrutural (moldura caixa)', valorTotal: valorReforco }
     : { necessita_reforco: false, nome: null, valorTotal: 0 };
 
-  // Camisa/Objeto: adicional por faixa
-  const isCamisaObjeto = /camisa|objeto/i.test(
-    tipoSelecionado?.nome || tipoSelecionado?.tipo || ''
-  );
+  // Camisa/Objeto: pode vir do tipo OU ser forçado pelo front
+  const isCamisaObjeto =
+    forcarCamisaObjetoTipo ||
+    /camisa|objeto/i.test(tipoSelecionado?.nome || tipoSelecionado?.tipo || '');
+
   let camisaObjetoExtra = 0;
   let camisaObjetoInfo = { aplicado: false };
 
@@ -259,7 +297,9 @@ export async function calcularOrcamento({
     custoAberturasExtras +
     custoImpressao +
     camisaObjetoExtra +
-    (aplicaReforco ? valorReforco : 0);
+    (aplicaReforco ? valorReforco : 0) +
+    custoChassi +
+    custoDiversosUnit;
 
   const valorSemMarkup = subtotalMateriaisUnit * QTD;
   const totalUnitario  = subtotalMateriaisUnit * (1 + MARKUP);
@@ -276,6 +316,7 @@ export async function calcularOrcamento({
     reforcoInfo,
     mensagemAviso: mensagemAviso || null,
     modoCobrancaPassepartout,
+    chassiInfo,
 
     larguraReforco: larguraInterna,
     alturaReforco:  alturaInterna,
@@ -285,6 +326,9 @@ export async function calcularOrcamento({
 
     riscoMolduraFina,
     camisaObjetoInfo,
+
+    // infos de Diversos para o front
+    diversosInfo, // { itens: [...], valorTotal }
 
     // Para o UI poder discriminar
     numAberturasConsideradas: ABERTURAS,
@@ -308,8 +352,10 @@ export async function calcularOrcamento({
       impressao: custoImpressao,
       camisaObjetoExtra,
 
-      chassi: 0,
+      // 👇 apenas UMA chave 'diversos'
+      diversos: custoDiversosUnit,
 
+      chassi: custoChassi,
       reforco: valorReforco,
 
       subtotalMateriaisUnit,
