@@ -5,8 +5,7 @@ import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 
-
-// helper: input de senha com botão de texto (sem dependências)
+// helper: input de senha com ícone 👀
 function PasswordInput({
   id,
   value,
@@ -15,12 +14,13 @@ function PasswordInput({
   autoComplete = "current-password",
 }) {
   const [show, setShow] = useState(false);
+
   return (
     <div className="relative">
       <input
         id={id}
         type={show ? "text" : "password"}
-        className="w-full border border-slate-300 rounded-xl px-4 py-2 pr-20 outline-none focus:ring-2 focus:ring-emerald-500"
+        className="w-full border border-slate-300 rounded-xl px-4 py-2 pr-14 outline-none focus:ring-2 focus:ring-emerald-500"
         value={value}
         onChange={onChange}
         required={required}
@@ -29,15 +29,14 @@ function PasswordInput({
       <button
         type="button"
         onClick={() => setShow((s) => !s)}
-        className="absolute right-2 top-1/2 -translate-y-1/2 text-xs px-2 py-1 rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-600"
+        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-600"
         aria-label={show ? "Ocultar senha" : "Mostrar senha"}
       >
-        {show ? "Ocultar" : "Mostrar"}
+        {show ? <EyeOff size={18} /> : <Eye size={18} />}
       </button>
     </div>
   );
 }
-
 
 
 export default function AuthSplit({ onAuth }) {
@@ -58,36 +57,47 @@ export default function AuthSplit({ onAuth }) {
   try {
     if (isAdmin) {
       // --- ADMIN ---
-      let email = form.usuario?.trim();
-      if (email && !email.includes("@") && ADMIN_DOMAIN) {
-        email = `${email}@${ADMIN_DOMAIN}`;
+      let login = form.usuario?.trim();
+      if (login && !login.includes("@") && ADMIN_DOMAIN) {
+        login = `${login}@${ADMIN_DOMAIN}`;
       }
-      if (!email) throw new Error("Informe o usuário (e/ou configure VITE_ADMIN_EMAIL_DOMAIN).");
+      if (!login) throw new Error("Informe o usuário (e/ou configure VITE_ADMIN_EMAIL_DOMAIN).");
 
+      // 1) autentica
       const { error } = await supabase.auth.signInWithPassword({
-        email,
+        email: login,
         password: form.senha,
       });
       if (error) throw error;
 
-      // Confirma papel em acessos_permitidos
+      // 2) pega o e-mail REAL da sessão
+      const { data: { user } = {} } = await supabase.auth.getUser();
+      const emailFromAuth = user?.email?.trim().toLowerCase();
+      if (!emailFromAuth) {
+        await supabase.auth.signOut();
+        throw new Error("Falha ao iniciar sessão.");
+      }
+
+      // 3) confere permissão usando o e-mail da sessão
       const { data: perm, error: e2 } = await supabase
         .from("acessos_permitidos")
         .select("role, ativo")
-        .eq("email", email)
+        .eq("email", emailFromAuth)      // <- usa o da sessão
         .maybeSingle();
+
       if (e2) throw e2;
       if (!perm || !perm.ativo || perm.role !== "admin") {
         await supabase.auth.signOut();
         throw new Error("Este usuário não tem permissão de administrador.");
       }
 
-      // ✅ só navega quando a sessão realmente existir
-      const { data: { session } = {} } = await supabase.auth.getSession();
-      if (!session) throw new Error("Falha ao iniciar sessão.");
+      // OK: limpa e navega
       setForm({ email: "", senha: "", usuario: "" });
       navigate("/admin", { replace: true });
+
     } else {
+
+
       // --- CLIENTE ---
       const { error } = await supabase.auth.signInWithPassword({
         email: form.email.trim(),
