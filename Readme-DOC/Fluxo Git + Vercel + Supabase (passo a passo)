@@ -1,0 +1,67 @@
+Este guia explica como versionar, publicar e atualizar seu projeto com Git/GitHub, Supabase (Postgres) e Vercel (frontend). Foi escrito para um monorepo com esta estrutura:
+
+raiz-do-repo/
+├─ backend/              # Express/Node (opcional)
+├─ frontend/             # App web (Vite/React, Next.js, etc.)
+└─ supabase/
+   └─ migrations/        # .sql de schema/dados (opcional)
+
+0) Pré‑requisitos
+
+Conta no GitHub, Vercel e Supabase.
+
+VSCode com Git instalado.
+
+Node 18+.
+
+1) Iniciar o repositório (VSCode ou terminal)
+
+Na raiz do projeto (não entre em frontend/), rode:
+# dentro da pasta raiz-do-repo
+git init
+# (se o repo no GitHub já existe, pule para “Adicionar remoto”)
+
+
+git add .
+git commit -m "setup inicial"
+
+Conecte ao GitHub (troque usuário/repo):
+git remote add origin https://github.com/<usuario>/<repo>.git
+git branch -M main
+git push -u origin main
+
+
+2) .gitignore sugerido
+
+Crie ./.gitignore na raiz:
+node_modules
+*.log
+.env
+.env.*
+.vercel
+.supabase
+.build
+.dist
+.next
+out
+dist
+
+3) Supabase – criar projeto e pegar chaves
+
+No Supabase Studio → New Project.
+
+Anote:
+
+Project URL (ex.: https://xxxx.supabase.co)
+
+Anon Key (para o frontend)
+
+Service Role Key (somente backend/servidor)
+
+Banco de dados → SQL Editor: execute seus scripts de schema e dados.
+
+Ex.: criar mt_molduras e rodar o script de 111 inserts com boolean.
+
+(Opcional) Políticas RLS para leitura pública
+
+Se esses dados não são sensíveis e o frontend precisa fazer select sem login:

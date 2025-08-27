@@ -1,12 +1,12 @@
-// frontend/src/OrcamentoForm.jsx
+// frontend/src/pages/OrcamentoForm.jsx
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import './App.css';
-import FloatingInput from './components/FloatingInput';
-import FloatingSelect from './components/FloatingSelect';
-import { calcularOrcamento } from './utils/calcularOrcamento';
+import FloatingInput from '../components/FloatingInput';
+import FloatingSelect from '../components/FloatingSelect';
+import { calcularOrcamento } from '../utils/calcularOrcamento';
 import { Alert } from '@mui/material';
-import MolduraThumb from './components/MolduraThumb';
+import MolduraThumb from '../components/MolduraThumb';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
 

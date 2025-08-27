@@ -1,0 +1,15 @@
+o cliente não recebe e-mail de reset do Supabase; quem recebe é o admin (via sua rota /solicitar-acesso já configurada com Gmail SMTP), e o admin decide:
+
+criar o usuário em Auth → Users, ou
+
+usar “Reset password” para esse e-mail e passar a nova senha para o cliente.
+
+Quando quiser ativar o reset automático do Supabase, é só restaurar o código antigo ( supabase.auth.resetPasswordForEmail(...) ).
+
+
+
+
+
+curl -X POST http://localhost:4000/admin/create-client \
+  -H "Content-Type: application/json" \
+  -d '{"email":"ileuza.maya@gmail.com","nome":"Cliente Teste"}'
