@@ -5,3 +5,7 @@ dist
 .vercel
 .supabase
 backend/.env
+
+frontend/.env
+frontend/.env.*
+backend/.env
