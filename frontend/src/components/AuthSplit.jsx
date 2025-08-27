@@ -3,6 +3,42 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
+
+
+// helper: input de senha com botão de texto (sem dependências)
+function PasswordInput({
+  id,
+  value,
+  onChange,
+  required = true,
+  autoComplete = "current-password",
+}) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input
+        id={id}
+        type={show ? "text" : "password"}
+        className="w-full border border-slate-300 rounded-xl px-4 py-2 pr-20 outline-none focus:ring-2 focus:ring-emerald-500"
+        value={value}
+        onChange={onChange}
+        required={required}
+        autoComplete={autoComplete}
+      />
+      <button
+        type="button"
+        onClick={() => setShow((s) => !s)}
+        className="absolute right-2 top-1/2 -translate-y-1/2 text-xs px-2 py-1 rounded border border-slate-300 bg-white hover:bg-slate-50 text-slate-600"
+        aria-label={show ? "Ocultar senha" : "Mostrar senha"}
+      >
+        {show ? "Ocultar" : "Mostrar"}
+      </button>
+    </div>
+  );
+}
+
+
 
 export default function AuthSplit({ onAuth }) {
   const [role, setRole] = useState("cliente");
@@ -159,13 +195,12 @@ export default function AuthSplit({ onAuth }) {
                 </div>
                 <div>
                   <label className="block text-sm text-slate-600 mb-1">Senha</label>
-                  <input
-                    type="password"
-                    className="w-full border border-slate-300 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
-                    value={form.senha}
-                    onChange={(e) => setForm((f) => ({ ...f, senha: e.target.value }))}
-                    required
-                  />
+                <PasswordInput
+                  id="senha-admin"
+                  value={form.senha}
+                  onChange={(e) => setForm((f) => ({ ...f, senha: e.target.value }))}
+                />
+
                 </div>
                 <button
                   type="submit"
@@ -195,14 +230,12 @@ export default function AuthSplit({ onAuth }) {
                 </div>
                 <div>
                   <label className="block text-sm text-slate-600 mb-1">Senha</label>
-                  <input
-                    type="password"
-                    className="w-full border border-slate-300 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
+                  <PasswordInput
+                    id="senha-cliente"
                     value={form.senha}
                     onChange={(e) => setForm((f) => ({ ...f, senha: e.target.value }))}
-                    autoComplete="current-password"
-                    required
                   />
+
                 </div>
                 <button
                   type="submit"
