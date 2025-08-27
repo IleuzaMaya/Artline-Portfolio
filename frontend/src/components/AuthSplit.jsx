@@ -15,59 +15,62 @@ export default function AuthSplit({ onAuth }) {
   const ADMIN_DOMAIN = import.meta.env.VITE_ADMIN_EMAIL_DOMAIN || "";
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setMsg(null);
-    setLoading(true);
+  e.preventDefault();
+  setMsg(null);
+  setLoading(true);
 
-    try {
-      if (isAdmin) {
-        // --- ADMIN ---
-        let email = form.usuario?.trim();
-        if (email && !email.includes("@") && ADMIN_DOMAIN) {
-          email = `${email}@${ADMIN_DOMAIN}`;
-        }
-        if (!email) throw new Error("Informe o usuário (e/ou configure VITE_ADMIN_EMAIL_DOMAIN).");
-
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password: form.senha,
-        });
-        if (error) throw error;
-
-        // Confirma permissão na tabela
-        const { data: perm, error: e2 } = await supabase
-          .from("acessos_permitidos")
-          .select("role, ativo")
-          .eq("email", email)
-          .maybeSingle();
-
-        if (e2) throw e2;
-        if (!perm || !perm.ativo || perm.role !== "admin") {
-          await supabase.auth.signOut();
-          throw new Error("Este usuário não tem permissão de administrador.");
-        }
-
-        onAuth?.(data);
-        setForm({ email: "", senha: "", usuario: "" });
-        navigate("/admin", { replace: true });
-      } else {
-        // --- CLIENTE ---
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: form.email.trim(),
-          password: form.senha,
-        });
-        if (error) throw error;
-
-        onAuth?.(data);
-        setForm({ email: "", senha: "", usuario: "" });
-        navigate("/orcamento", { replace: true });
+  try {
+    if (isAdmin) {
+      // --- ADMIN ---
+      let email = form.usuario?.trim();
+      if (email && !email.includes("@") && ADMIN_DOMAIN) {
+        email = `${email}@${ADMIN_DOMAIN}`;
       }
-    } catch (err) {
-      setMsg({ type: "error", text: err.message || "Falha no login." });
-    } finally {
-      setLoading(false);
+      if (!email) throw new Error("Informe o usuário (e/ou configure VITE_ADMIN_EMAIL_DOMAIN).");
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password: form.senha,
+      });
+      if (error) throw error;
+
+      // Confirma papel em acessos_permitidos
+      const { data: perm, error: e2 } = await supabase
+        .from("acessos_permitidos")
+        .select("role, ativo")
+        .eq("email", email)
+        .maybeSingle();
+      if (e2) throw e2;
+      if (!perm || !perm.ativo || perm.role !== "admin") {
+        await supabase.auth.signOut();
+        throw new Error("Este usuário não tem permissão de administrador.");
+      }
+
+      // ✅ só navega quando a sessão realmente existir
+      const { data: { session } = {} } = await supabase.auth.getSession();
+      if (!session) throw new Error("Falha ao iniciar sessão.");
+      setForm({ email: "", senha: "", usuario: "" });
+      navigate("/admin", { replace: true });
+    } else {
+      // --- CLIENTE ---
+      const { error } = await supabase.auth.signInWithPassword({
+        email: form.email.trim(),
+        password: form.senha,
+      });
+      if (error) throw error;
+
+      const { data: { session } = {} } = await supabase.auth.getSession();
+      if (!session) throw new Error("Falha ao iniciar sessão.");
+      setForm({ email: "", senha: "", usuario: "" });
+      navigate("/orcamento", { replace: true });
     }
-  };
+  } catch (err) {
+    setMsg({ type: "error", text: err.message || "Falha no login." });
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   return (
     <div className="min-h-screen w-full bg-slate-50 flex items-center justify-center p-4">

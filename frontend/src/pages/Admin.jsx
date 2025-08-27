@@ -1,5 +1,4 @@
 // frontend/src/pages/Admin.jsx
-import { useEffect, useState } from "react";
 import { useState } from "react";
 
 const API = import.meta.env.VITE_API_BASE || "http://localhost:4000";
@@ -36,9 +35,10 @@ export default function Admin() {
       body: JSON.stringify({ email }),
     });
     const j = await r.json().catch(() => ({}));
-    setToast(r.ok
-      ? { ok: true, msg: "E-mail de redefinição enviado." }
-      : { ok: false, msg: j.error || "Falha ao enviar redefinição." }
+    setToast(
+      r.ok
+        ? { ok: true, msg: "E-mail de redefinição enviado." }
+        : { ok: false, msg: j.error || "Falha ao enviar redefinição." }
     );
   };
 
@@ -74,11 +74,7 @@ export default function Admin() {
       </form>
 
       {toast && (
-        <div
-          className={`p-3 rounded ${
-            toast.ok ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700"
-          }`}
-        >
+        <div className={`p-3 rounded ${toast.ok ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700"}`}>
           {toast.msg}
         </div>
       )}
