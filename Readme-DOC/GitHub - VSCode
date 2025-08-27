@@ -1,0 +1,14 @@
+# garantir que .env NÃO vá pro git
+printf "\nfrontend/.env\nfrontend/.env.*\nbackend/.env\n" >> .gitignore
+git rm --cached frontend/.env 2>/dev/null || true
+git rm --cached backend/.env 2>/dev/null || true
+
+# adicionar os novos/renomeados
+git add -A
+
+# confirme o que vai subir
+git status
+
+# commit e push
+git commit -m "frontend: move Orçamento para /pages + add Admin/ResetPassword; ajustes de rotas"
+git push origin main

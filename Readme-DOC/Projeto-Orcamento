@@ -1,4 +1,4 @@
-🟩 OrcamentoForm.jsx — visão técnica & pontos de extensão
+🟩 Orcamento.jsx — visão técnica & pontos de extensão
 
 Componente React que:
 
@@ -453,7 +453,7 @@ se quiser, eu também te mando um patch prontinho com controllers/diversosContro
 
 Frontend (React + Vite + Tailwind + MUI + Framer Motion)
 
-Pastas: frontend/src/ com OrcamentoForm.jsx, Login.jsx, AuthSplit.jsx, App.jsx, etc.
+Pastas: frontend/src/ com Orcamento.jsx, Login.jsx, AuthSplit.jsx, App.jsx, etc.
 
 Repositório no GitHub: artemoldurados-admin/frontend
 .
@@ -520,7 +520,7 @@ Acesso ao /orcamento.
 
 3. Orçamento
 
-Frontend (OrcamentoForm.jsx):
+Frontend (Orcamento.jsx):
 
 Puxa listas dinâmicas (molduras, passepartout, vidros, fundos, extras).
 
