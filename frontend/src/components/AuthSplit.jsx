@@ -1,25 +1,24 @@
 // frontend/src/components/AuthSplit.jsx
-
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
 
 export default function AuthSplit({ onAuth }) {
-  const [role, setRole] = useState("cliente"); // 'cliente' | 'admin'
+  const [role, setRole] = useState("cliente");
   const [form, setForm] = useState({ email: "", senha: "", usuario: "" });
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
+  const navigate = useNavigate();
 
   const isAdmin = role === "admin";
   const ADMIN_DOMAIN = import.meta.env.VITE_ADMIN_EMAIL_DOMAIN || "";
-
-  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMsg(null);
     setLoading(true);
+
     try {
       if (isAdmin) {
         // --- ADMIN ---
@@ -35,32 +34,33 @@ export default function AuthSplit({ onAuth }) {
         });
         if (error) throw error;
 
-        // Confere na tabela se este e-mail é admin e está ativo
+        // Confirma permissão na tabela
         const { data: perm, error: e2 } = await supabase
-          .from('acessos_permitidos')
-          .select('role, ativo')
-          .eq('email', email)
+          .from("acessos_permitidos")
+          .select("role, ativo")
+          .eq("email", email)
           .maybeSingle();
 
         if (e2) throw e2;
-        if (!perm || !perm.ativo || perm.role !== 'admin') {
+        if (!perm || !perm.ativo || perm.role !== "admin") {
           await supabase.auth.signOut();
           throw new Error("Este usuário não tem permissão de administrador.");
         }
 
-        setMsg({ type: "success", text: "Login de administrador efetuado!" });
-        onAuth?.({ ...data, who: 'admin' });
-
-        const emailLogado = (isAdmin ? email : form.email).trim();
-
+        onAuth?.(data);
+        setForm({ email: "", senha: "", usuario: "" });
+        navigate("/admin", { replace: true });
       } else {
+        // --- CLIENTE ---
         const { data, error } = await supabase.auth.signInWithPassword({
           email: form.email.trim(),
           password: form.senha,
         });
         if (error) throw error;
-        setMsg({ type: "success", text: "Login efetuado!" });
+
         onAuth?.(data);
+        setForm({ email: "", senha: "", usuario: "" });
+        navigate("/orcamento", { replace: true });
       }
     } catch (err) {
       setMsg({ type: "error", text: err.message || "Falha no login." });
@@ -141,107 +141,96 @@ export default function AuthSplit({ onAuth }) {
 
           {/* FORM deslizante (inputs + botões mais compactos) */}
           <div className="relative w-full max-w-sm">
-            <div className="overflow-hidden">
-              <motion.div
-                className="flex"
-                initial={false}
-                animate={{ x: isAdmin ? "-100%" : "0%" }}
-                transition={{ type: "spring", stiffness: 300, damping: 35 }}
-                style={{ width: "200%" }}
-              >
-                {/* CLIENTE */}
-                <section className="w-1/2 pr-2.5 md:pr-3">
-                  <form onSubmit={handleSubmit} className="space-y-3.5">
-                    <div>
-                      <label className="block text-[12px] text-slate-600 mb-1">E-mail</label>
-                      <input
-                        type="email"
-                        className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
-                        value={form.email}
-                        onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                        autoComplete="username"
-                        required={!isAdmin}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[12px] text-slate-600 mb-1">Senha</label>
-                      <input
-                        type="password"
-                        className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
-                        value={form.senha}
-                        onChange={(e) => setForm((f) => ({ ...f, senha: e.target.value }))}
-                        autoComplete="current-password"
-                        required
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-lg transition disabled:opacity-60"
-                    >
-                      {loading && !isAdmin ? "Entrando..." : "Entrar"}
-                    </button>
+            {isAdmin ? (
+              // --- ADMIN ---
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1">Usuário (ou e-mail)</label>
+                  <input
+                    type="text"
+                    className="w-full border border-slate-300 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
+                    value={form.usuario}
+                    onChange={(e) => setForm((f) => ({ ...f, usuario: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1">Senha</label>
+                  <input
+                    type="password"
+                    className="w-full border border-slate-300 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
+                    value={form.senha}
+                    onChange={(e) => setForm((f) => ({ ...f, senha: e.target.value }))}
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl transition disabled:opacity-60"
+                >
+                  {loading ? "Validando..." : "Logar (Admin)"}
+                </button>
 
-                    <div className="text-center text-[12px] text-slate-500">
-                      <a
-                        href="#"
-                        onClick={async (e) => {
-                          e.preventDefault();
-                          if (!form.email) return setMsg({ type: "error", text: "Informe seu e-mail." });
-                          const { error } = await supabase.auth.resetPasswordForEmail(form.email, {
-                            redirectTo: window.location.origin + "/reset",
-                          });
-                          setMsg(
-                            error
-                              ? { type: "error", text: error.message }
-                              : { type: "success", text: "Enviamos um link de redefinição de senha." }
-                          );
-                        }}
-                        className="text-emerald-700 hover:underline"
-                      >
-                        Esqueceu a senha?
-                      </a>
-                    </div>
-                  </form>
-                </section>
+                <p className="text-center text-xs text-slate-500">
+                  Se não possuir acesso, contate o responsável.
+                </p>
+              </form>
+            ) : (
+              // --- CLIENTE ---
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1">E-mail</label>
+                  <input
+                    type="email"
+                    className="w-full border border-slate-300 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
+                    value={form.email}
+                    onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                    autoComplete="username"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-600 mb-1">Senha</label>
+                  <input
+                    type="password"
+                    className="w-full border border-slate-300 rounded-xl px-4 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
+                    value={form.senha}
+                    onChange={(e) => setForm((f) => ({ ...f, senha: e.target.value }))}
+                    autoComplete="current-password"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl transition disabled:opacity-60"
+                >
+                  {loading ? "Entrando..." : "Entrar"}
+                </button>
 
-                {/* ADMIN */}
-                <section className="w-1/2 pl-2.5 md:pl-3">
-                  <form onSubmit={handleSubmit} className="space-y-3.5">
-                    <div>
-                      <label className="block text-[12px] text-slate-600 mb-1">Usuário (ou e-mail)</label>
-                      <input
-                        type="text"
-                        className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
-                        value={form.usuario}
-                        onChange={(e) => setForm((f) => ({ ...f, usuario: e.target.value }))}
-                        required={isAdmin}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[12px] text-slate-600 mb-1">Senha</label>
-                      <input
-                        type="password"
-                        className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-500"
-                        value={form.senha}
-                        onChange={(e) => setForm((f) => ({ ...f, senha: e.target.value }))}
-                        required
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-lg transition disabled:opacity-60"
-                    >
-                      {loading && isAdmin ? "Validando..." : "Logar (Admin)"}
-                    </button>
-                    <p className="text-center text-[11px] text-slate-500">
-                      Se não possuir acesso, contate o responsável.
-                    </p>
-                  </form>
-                </section>
-              </motion.div>
-            </div>
+                <div className="text-center text-sm text-slate-500 space-y-1">
+                  <a
+                    href="#"
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      if (!form.email) return setMsg({ type: "error", text: "Informe seu e-mail." });
+                      const { error } = await supabase.auth.resetPasswordForEmail(form.email, {
+                        redirectTo: window.location.origin + "/reset",
+                      });
+                      setMsg(
+                        error
+                          ? { type: "error", text: error.message }
+                          : { type: "success", text: "Enviamos um link de redefinição de senha." }
+                      );
+                    }}
+                    className="text-emerald-700 hover:underline"
+                  >
+                    Esqueceu a senha?
+                  </a>
+                </div>
+              </form>
+            )}
           </div>
 
           {/* mensagens */}
