@@ -21,3 +21,10 @@ git push origin main
 git add frontend/src/components/AuthSplit.jsx frontend/src/App.jsx frontend/src/pages/Admin.jsx
 git commit -m "fix(router): um único BrowserRouter; login navega p/ /orcamento e /admin; tela /admin"
 git push origin main
+
+
+
+git status
+git add -A
+git commit -m "feat(login): vídeo com som + toggle sem libs; ajustes navegação"
+git push origin main
