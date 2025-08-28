@@ -1,9 +1,10 @@
 // frontend/src/components/AuthSplit.jsx
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Volume2, VolumeX } from "lucide-react";
+
 
 // helper: input de senha com ícone 👀
 function PasswordInput({
@@ -45,6 +46,29 @@ export default function AuthSplit({ onAuth }) {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
   const navigate = useNavigate();
+
+  // controle de áudio do vídeo
+  const videoRef = useRef(null);
+  const [soundOn, setSoundOn] = useState(false);
+
+  const toggleSound = async () => {
+    const v = videoRef.current;
+    if (!v) return;
+    try {
+      if (soundOn) {
+        v.muted = true;
+        setSoundOn(false);
+      } else {
+        v.muted = false;
+        v.volume = 0.7; // opcional
+        await v.play(); // importante após gesto do usuário
+        setSoundOn(true);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
 
   const isAdmin = role === "admin";
   const ADMIN_DOMAIN = import.meta.env.VITE_ADMIN_EMAIL_DOMAIN || "";
@@ -124,18 +148,30 @@ export default function AuthSplit({ onAuth }) {
         {/* COLUNA ESQUERDA — imagem/vídeo */}
         <div className="relative h-48 md:h-auto">
           <video
+            ref={videoRef}
             className="absolute inset-0 w-full h-full object-cover"
-            autoPlay muted loop playsInline
+            autoPlay
+            muted={!soundOn}     // começa mudo; libera som após clique
+            loop
+            playsInline
             onError={(ev) => (ev.currentTarget.style.display = "none")}
           >
             <source src="/fundo-login.mp4" type="video/mp4" />
           </video>
-          {/* se quiser um degradê por cima do vídeo, reative as cores abaixo */}
-          <motion.div
-            className="absolute inset-0"
-            initial={{ opacity: 0.9 }}
-            animate={{ opacity: 0.9 }}
-          />
+
+          {/* Botão de som sobre o vídeo */}
+          <button
+            type="button"
+            onClick={toggleSound}
+            className="absolute bottom-4 left-4 z-20 inline-flex items-center gap-2 rounded-full border border-white/30 bg-black/55 text-white text-xs px-3 py-1.5 backdrop-blur hover:bg-black/70"
+            aria-label={soundOn ? "Desligar som" : "Ligar som"}
+          >
+            {soundOn ? <Volume2 size={16} /> : <VolumeX size={16} />}
+            {soundOn ? "Som ligado" : "Ativar som"}
+          </button>
+
+          {/* overlay opcional */}
+          <motion.div className="absolute inset-0" initial={{ opacity: 0.9 }} animate={{ opacity: 0.9 }} />
         </div>
 
         {/* COLUNA DIREITA — conteúdo */}
