@@ -1,5 +1,5 @@
 // frontend/src/components/AuthSplit.jsx
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
@@ -16,6 +16,22 @@ const EyeOffIcon = (props) => (
     <path d="M1 12s4.5-7 11-7 11 7 11 7-4.5 7-11 7-11-7-11-7z"/>
     <circle cx="12" cy="12" r="3"/>
     <line x1="3" y1="3" x2="21" y2="21"/>
+  </svg>
+);
+
+// Ícones de volume (inline)
+const VolumeOnIcon = (props) => (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <polygon points="11 5 6 9 3 9 3 15 6 15 11 19 11 5"></polygon>
+    <path d="M15 9a4 4 0 0 1 0 6"></path>
+    <path d="M17.5 6.5a7 7 0 0 1 0 11"></path>
+  </svg>
+);
+const VolumeOffIcon = (props) => (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <polygon points="11 5 6 9 3 9 3 15 6 15 11 19 11 5"></polygon>
+    <line x1="23" y1="9" x2="17" y2="15"></line>
+    <line x1="17" y1="9" x2="23" y2="15"></line>
   </svg>
 );
 
@@ -51,6 +67,30 @@ export default function AuthSplit({ onAuth }) {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState(null);
   const navigate = useNavigate();
+
+  // dentro do componente AuthSplit (já tendo import { useState, useRef } from "react"; no topo)
+  const videoRef = useRef(null);
+  const [soundOn, setSoundOn] = useState(false);
+
+  const toggleSound = () => {
+    // Alterna o estado; quando ligar o som, chamamos play() logo depois
+    setSoundOn((on) => {
+      const next = !on;
+      // após o React atualizar o atributo muted, pedimos para tocar com áudio
+      if (next) {
+        // pequeno timeout garante que o DOM refletiu o novo muted={false}
+        setTimeout(() => {
+          const v = videoRef.current;
+          if (v) {
+            v.volume = 0.8;
+            v.play().catch(() => {});
+          }
+        }, 0);
+      }
+      return next;
+    });
+  };
+
 
   const isAdmin = role === "admin";
   const ADMIN_DOMAIN = import.meta.env.VITE_ADMIN_EMAIL_DOMAIN || "";
@@ -123,22 +163,54 @@ export default function AuthSplit({ onAuth }) {
   return (
     <div className="min-h-screen w-full bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 rounded-2xl overflow-hidden shadow-xl bg-white border border-slate-200">
-        {/* COLUNA ESQUERDA — vídeo SEM SOM */}
+        {/* COLUNA ESQUERDA — vídeo com botão de som */}
         <div className="relative h-48 md:h-auto">
           <video
+            ref={videoRef}
             className="absolute inset-0 w-full h-full object-cover"
             autoPlay
-            muted
+            muted={!soundOn}        // 👈 controlado só por estado
             loop
             playsInline
-            onCanPlay={(e) => { const v = e.currentTarget; v.muted = true; v.volume = 0; }}
-            onPlay={(e) => { const v = e.currentTarget; v.muted = true; v.volume = 0; }}
             onError={(ev) => (ev.currentTarget.style.display = "none")}
           >
             <source src="/fundo-login.mp4" type="video/mp4" />
           </video>
-          <motion.div className="absolute inset-0" initial={{ opacity: 0.9 }} animate={{ opacity: 0.9 }} />
+
+          {/* Botão som on/off — fica acima de tudo */}
+          <button
+            type="button"
+            onClick={toggleSound}
+            className="absolute z-20 top-3 left-3 bg-white/85 hover:bg-white text-slate-800 rounded-full p-2 shadow border border-slate-200"
+            aria-label={soundOn ? "Desligar som" : "Ligar som"}
+            title={soundOn ? "Desligar som" : "Ligar som"}
+          >
+            {soundOn ? (
+              // ícone volume ON (inline)
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="11 5 6 9 3 9 3 15 6 15 11 19 11 5"></polygon>
+                <path d="M15 9a4 4 0 0 1 0 6"></path>
+                <path d="M17.5 6.5a7 7 0 0 1 0 11"></path>
+              </svg>
+            ) : (
+              // ícone volume OFF (inline)
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="11 5 6 9 3 9 3 15 6 15 11 19 11 5"></polygon>
+                <line x1="23" y1="9" x2="17" y2="15"></line>
+                <line x1="17" y1="9" x2="23" y2="15"></line>
+              </svg>
+            )}
+          </button>
+
+          {/* Degradê/overlay atrás do botão e sem capturar cliques */}
+          <motion.div
+            className="absolute inset-0 pointer-events-none z-10"
+            initial={{ opacity: 0.9 }}
+            animate={{ opacity: 0.9 }}
+          />
         </div>
+
+
 
         {/* COLUNA DIREITA — conteúdo */}
         <div className="px-6 py-7 md:px-9 md:py-9">
@@ -150,7 +222,7 @@ export default function AuthSplit({ onAuth }) {
           {/* SWITCH */}
           <div className="relative mx-auto w-full max-w-sm bg-slate-100 rounded-full p-1 flex">
             <button
-              className={`relative z-10 flex-1 py-1.5 text-[13px] font-medium transition ${isAdmin ? "text-slate-500" : "text-emerald-900"}`}
+              className={`relative z-10 flex-1 py-1.5 text-[13px] font-medium transition ${!isAdmin ? "text-emerald-900" : "text-slate-500"}`}
               onClick={() => setRole("cliente")}
               aria-pressed={!isAdmin}
             >
