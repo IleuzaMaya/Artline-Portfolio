@@ -3,7 +3,27 @@ import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Volume2, VolumeX } from "lucide-react";
+import { Volume2, VolumeX } from "lucide-react";
+
+// Ícones inline (sem libs)
+const EyeIcon = (props) => (
+  <svg viewBox="0 0 24 24" width="18" height="18"
+       fill="none" stroke="currentColor" strokeWidth="2"
+       strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M1 12s4.5-7 11-7 11 7 11 7-4.5 7-11 7-11-7-11-7z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
+);
+
+const EyeOffIcon = (props) => (
+  <svg viewBox="0 0 24 24" width="18" height="18"
+       fill="none" stroke="currentColor" strokeWidth="2"
+       strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <path d="M1 12s4.5-7 11-7 11 7 11 7-4.5 7-11 7-11-7-11-7z"/>
+    <circle cx="12" cy="12" r="3"/>
+    <line x1="3" y1="3" x2="21" y2="21"/>
+  </svg>
+);
 
 
 // helper: input de senha com ícone 👀
@@ -33,7 +53,7 @@ function PasswordInput({
         className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-600"
         aria-label={show ? "Ocultar senha" : "Mostrar senha"}
       >
-        {show ? <EyeOff size={18} /> : <Eye size={18} />}
+        {show ? <EyeOffIcon /> : <EyeIcon />}
       </button>
     </div>
   );
