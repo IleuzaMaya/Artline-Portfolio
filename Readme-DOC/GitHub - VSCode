@@ -12,3 +12,12 @@ git status
 # commit e push
 git commit -m "frontend: move Orçamento para /pages + add Admin/ResetPassword; ajustes de rotas"
 git push origin main
+
+
+
+=======
+
+
+git add frontend/src/components/AuthSplit.jsx frontend/src/App.jsx frontend/src/pages/Admin.jsx
+git commit -m "fix(router): um único BrowserRouter; login navega p/ /orcamento e /admin; tela /admin"
+git push origin main
