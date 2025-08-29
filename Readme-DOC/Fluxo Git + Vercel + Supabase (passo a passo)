@@ -65,3 +65,6 @@ Ex.: criar mt_molduras e rodar o script de 111 inserts com boolean.
 (Opcional) Políticas RLS para leitura pública
 
 Se esses dados não são sensíveis e o frontend precisa fazer select sem login:
+
+
+

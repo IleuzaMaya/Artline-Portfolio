@@ -28,3 +28,66 @@ git status
 git add -A
 git commit -m "feat(login): vídeo com som + toggle sem libs; ajustes navegação"
 git push origin main
+
+
+git switch main
+git pull
+cd frontend
+echo "deploy $(date)" > src/__deploy__.txt
+git add src/__deploy__.txt
+git commit -m "ci(vercel): trigger fresh build from main"
+git push origin main
+
+
+================
+
+
+git config --local user.name  "Ileuza Maya"
+git config --local user.email "artemoldurados@gmail.com"  
+echo "// trigger $(date)" >> frontend/src/__deploy_trigger__.txt
+git add -A
+git commit -m "ci(vercel): trigger build from main"
+git push origin main
+
+
+npm i -g supabase
+
+
+supabase init
+supabase functions new hello
+
+==========
+
+DEPLOY VsCode para Vercel
+
+# na raiz do repositório
+git pull
+git commit --allow-empty -m "chore: trigger deploy"
+git push origin main
+
+=============
+
+
+Como “forçar” um deploy pela linha de comando
+
+# na raiz do repositório
+git pull
+git commit --allow-empty -m "chore: trigger deploy"
+git push origin main
+
+Deploys da Versel - Atualizar no Terminal:
+
+# na raiz do repositório
+git add -A
+git commit -m "ajustes de layout"
+git push origin main
+
+Sem mudanças de código, dá pra forçar rebuild com commit vazio:
+
+git commit --allow-empty -m "chore: redeploy"
+git push origin main
+
+
+Deploy Hook:
+# dispara deploy sem mexer no código
+curl -X POST "https://api.vercel.com/v1/integrations/deploy/SEU_DEPLOY_HOOK_ID"

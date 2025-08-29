@@ -1,7 +1,13 @@
 // frontend/src/pages/Admin.jsx
 import { useState } from "react";
 
-const API = import.meta.env.VITE_API_BASE || "http://localhost:4000";
+// Em produção usamos as rotas serverless do Vercel (/api).
+// Em dev (localhost) você pode manter um backend local se quiser.
+const API =
+  typeof window !== "undefined" && window.location.hostname === "localhost"
+    ? "http://localhost:4000"
+    : ""; // produção: caminho relativo
+
 
 export default function Admin() {
   const [email, setEmail] = useState("");
@@ -12,7 +18,7 @@ export default function Admin() {
   const createClient = async (e) => {
     e.preventDefault();
     setToast(null);
-    const r = await fetch(`${API}/admin/create-client`, {
+    const r = await fetch(`${API}/api/admin/create-client`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, nome, senha: senha || undefined }),
@@ -29,7 +35,7 @@ export default function Admin() {
   const resetPassword = async (e) => {
     e.preventDefault();
     setToast(null);
-    const r = await fetch(`${API}/admin/reset-password`, {
+    const r = await fetch(`${API}/api/admin/reset-password`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email }),
