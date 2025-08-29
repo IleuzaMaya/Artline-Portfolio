@@ -1,4 +1,4 @@
-/* App.css */
+/* ========== App.css ========== */
 
 /* Container de cada grupo com label flutuante */
 .floating-group {
@@ -10,12 +10,15 @@
 input, select, textarea, button { font-size: 16px; }
 
 @media (max-width: 768px) {
-  input, select, textarea { min-height: 44px; padding: 10px 12px; border-radius: 10px; }
+  input, select, textarea {
+    min-height: 44px;
+    padding: 10px 12px;
+    border-radius: 10px;
+  }
 }
 
-/* se algum overlay estiver por cima do <select>, garanta que o select receba o clique */
+/* (geral) não atrapalha o z-index específico do select abaixo */
 select { position: relative; z-index: 1; }
-
 
 /* Input e select com padding superior para a label */
 .floating-input,
@@ -23,11 +26,11 @@ select { position: relative; z-index: 1; }
   width: 100%;
   padding: 1.25rem 0.75rem 0.5rem;
   font-size: 1rem;
-  background-color: white;
+  background-color: #fff;
   border: 1px solid #d1d5db;
   border-radius: 0.5rem;
   outline: none;
-  transition: border-color 0.2s ease-in-out;
+  transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
 }
 
 /* Floating label padrão */
@@ -37,11 +40,11 @@ select { position: relative; z-index: 1; }
   left: 0.75rem;
   font-size: 1rem;
   color: #6b7280;
-  background-color: white;
+  background-color: #fff;
   padding: 0 0.25rem;
-  pointer-events: none;
+  pointer-events: none;         /* NUNCA intercepta clique do select */
   transition: all 0.2s ease-out;
-  z-index: 10;
+  z-index: 1;                   /* abaixo do select */
 }
 
 /* Label sobe quando o input está focado ou preenchido */
@@ -52,27 +55,22 @@ select { position: relative; z-index: 1; }
   left: 0.65rem;
   font-size: 0.75rem;
   color: #2563eb;
-  background-color: white;
-  z-index: 20;
+  background-color: #fff;
+  z-index: 2;
 }
 
-/* Foco no input */
+/* Foco */
 .floating-input:focus,
 .floating-select:focus {
   border-color: #2563eb;
   box-shadow: 0 0 0 1px #2563eb;
 }
 
-/* Erro visual opcional */
+/* Erro visual */
 .floating-input.error,
-.floating-select.error {
-  border-color: #dc2626;
-}
-
+.floating-select.error { border-color: #dc2626; }
 .floating-input.error:focus,
-.floating-select.error:focus {
-  box-shadow: 0 0 0 1px #dc2626;
-}
+.floating-select.error:focus { box-shadow: 0 0 0 1px #dc2626; }
 
 /* ---- FIX SELECTS: label sempre flutuada e sem sobrepor ---- */
 .floating-group select.floating-select + .floating-label {
@@ -81,25 +79,28 @@ select { position: relative; z-index: 1; }
   font-size: 0.75rem;
   color: #6b7280;
   background: #fff;
-  z-index: 20;
+  z-index: 2;                   /* continua abaixo do select (30) */
 }
 
 /* Mais espaço no topo do select para não colidir com a label */
-.floating-select {
-  padding-top: 1.75rem; /* antes 1.25rem */
+.floating-select { padding-top: 1.75rem; }
+
+/* --------- FIX DEFINITIVO: select por cima e clicável --------- */
+.floating-group .floating-select {
+  position: relative;
+  z-index: 30;                  /* acima da label e overlays leves */
+  pointer-events: auto;
+  transform: translateZ(0);     /* previne bug de stacking no iOS */
 }
 
-.floating-group:focus-within select.floating-select + .floating-label {
-  color: #2563eb;
-}
+/* Placeholder/primeira opção do select */
+.floating-select option[disabled] { color: #9ca3af; }
 
-
-/* Preview da moldura + zoom */
+/* ---------- Preview/Modal (seu CSS) ---------- */
 .preview-moldura { margin: 12px 0 18px; display:flex; align-items:center; gap:12px; }
 .preview-moldura img { cursor: zoom-in; border-radius: 8px; border:1px solid #e5e7eb; width:112px; height:80px; object-fit:cover; }
 
 .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:1000; }
-/* Modal de zoom: imagem maior e sombra mais forte */
 .modal-backdrop img {
   max-width: 98vw;
   max-height: 98vh;
@@ -107,7 +108,4 @@ select { position: relative; z-index: 1; }
   box-shadow: 0 20px 60px rgba(0,0,0,.35);
 }
 
-/* Dá um espaço depois do último preview de moldura */
-.preview-moldura:last-of-type {
-  margin-bottom: 1.5rem; /* ~24px */
-}
+.preview-moldura:last-of-type { margin-bottom: 1.5rem; }

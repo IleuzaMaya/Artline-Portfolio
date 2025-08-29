@@ -15,7 +15,7 @@ export default function FloatingInput({
   error = false,
   autoComplete = 'off',
   disabled = false,
-  enterKeyHint = 'next',      // opcional: 'next' | 'done' | 'go'...
+  enterKeyHint = 'next',
 }) {
   const isNumber = type === 'number';
   const isEmail  = type === 'email';
@@ -30,7 +30,7 @@ export default function FloatingInput({
         value={value ?? ''}
         onChange={onChange}
 
-        /* números: decimal com ponto ou vírgula; evita mudar com scroll/setas */
+        {/* números: decimal com ponto ou vírgula; evita mudar com scroll/setas */}
         step={isNumber ? step : undefined}
         min={isNumber ? min : undefined}
         max={isNumber ? max : undefined}
@@ -41,7 +41,7 @@ export default function FloatingInput({
           if (e.key === 'ArrowUp' || e.key === 'ArrowDown') e.preventDefault();
         } : undefined}
 
-        placeholder=" "           /* importante para a label flutuante */
+        placeholder=" "
         required={required}
         autoComplete={autoComplete}
         disabled={disabled}
