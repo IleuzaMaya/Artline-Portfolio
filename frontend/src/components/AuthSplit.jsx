@@ -164,7 +164,13 @@ export default function AuthSplit({ onAuth }) {
     <div className="min-h-screen w-full bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 rounded-2xl overflow-hidden shadow-xl bg-white border border-slate-200">
         {/* COLUNA ESQUERDA — vídeo com botão de som */}
-        <div className="relative h-48 md:h-64 overflow-hidden rounded-2xl bg-black">
+        <div className="
+          relative overflow-hidden rounded-2xl bg-black
+          h-40 sm:h-48                  /* mobile: altura fixa amigável */
+          md:h-auto md:aspect-[4/3]     /* desktop: usa proporção 4:3 */
+          lg:aspect-video               /* telas maiores: 16:9 */
+          md:max-h-[420px] xl:max-h-[460px]  /* tampa o crescimento exagerado */
+          ">
           <video
             ref={videoRef}
             className="absolute inset-0 w-full h-full object-cover"
