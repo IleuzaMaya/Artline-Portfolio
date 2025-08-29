@@ -1,4 +1,6 @@
 // frontend/src/components/FloatingInput.jsx
+
+// frontend/src/components/FloatingInput.jsx
 import React from 'react';
 
 export default function FloatingInput({
@@ -29,8 +31,6 @@ export default function FloatingInput({
         className={`floating-input${error ? ' error' : ''}`}
         value={value ?? ''}
         onChange={onChange}
-
-        {/* números: decimal com ponto ou vírgula; evita mudar com scroll/setas */}
         step={isNumber ? step : undefined}
         min={isNumber ? min : undefined}
         max={isNumber ? max : undefined}
@@ -40,7 +40,6 @@ export default function FloatingInput({
         onKeyDown={isNumber ? (e) => {
           if (e.key === 'ArrowUp' || e.key === 'ArrowDown') e.preventDefault();
         } : undefined}
-
         placeholder=" "
         required={required}
         autoComplete={autoComplete}
