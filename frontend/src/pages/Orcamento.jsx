@@ -802,6 +802,8 @@ export default function OrcamentoForm() {
         options={tiposOrcamento || []}
         value={tipoSelecionado}
         setValue={(v) => { resetDependentes(); setTipoSelecionado(v); }}
+        labelKey="nome"
+        valueKey="id"
       />
 
       <div className="grid grid-cols-3 gap-4">
@@ -882,6 +884,8 @@ export default function OrcamentoForm() {
             value={passepartoutSelecionado}
             setValue={setPassepartoutSelecionado}
             disabled={ppBloqueado}
+            labelKey="nome"      // use "descricao" se sua API vier assim
+            valueKey="id"
           />
 
           <FloatingInput
@@ -916,6 +920,8 @@ export default function OrcamentoForm() {
           value={fundoSelecionado}
           setValue={setFundoSelecionado}
           disabled={fundo.length === 1 || fundoBloqueado}
+          labelKey="nome"
+          valueKey="id"
         />
       )}
 
@@ -927,6 +933,8 @@ export default function OrcamentoForm() {
           value={vidroSelecionado}
           setValue={setVidroSelecionado}
           disabled={perfil.vidroSomenteComum || vidros.length === 1}
+          labelKey="nome"
+          valueKey="id"
         />
       )}
       {perfil.vidroFrontalCombo && perfil.vidroFundoComumFixo && (
@@ -988,6 +996,7 @@ export default function OrcamentoForm() {
             value={moldura1}
             setValue={(v) => { setMoldura1(v); setMoldura2(null); setMoldura3(null); }}
             labelKey="display"
+            valueKey="id"
           />
 
           {(perfil.permiteM2M3 && !ehAluminio(moldura1) && ehRetaOuPP(moldura1)) && (
@@ -998,6 +1007,7 @@ export default function OrcamentoForm() {
                 value={moldura2}
                 setValue={setMoldura2}
                 labelKey="display"
+                valueKey="id"
               />
               {!ehCaixa?.(moldura2) && (
                 <FloatingSelect
@@ -1006,6 +1016,7 @@ export default function OrcamentoForm() {
                   value={moldura3}
                   setValue={setMoldura3}
                   labelKey="display"
+                  valueKey="id"
                 />
               )}
             </>
@@ -1041,8 +1052,9 @@ export default function OrcamentoForm() {
             options={baguetes || []}
             value={bagueteInternaSelecionada}
             setValue={setBagueteInternaSelecionada}
+            labelKey="nome"
+            valueKey="id"
           />
-        </div>
       )}
 
       {/* ALERTAS */}
