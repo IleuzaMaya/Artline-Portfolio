@@ -1055,6 +1055,7 @@ export default function OrcamentoForm() {
             labelKey="nome"
             valueKey="id"
           />
+        </div>
       )}
 
       {/* ALERTAS */}
