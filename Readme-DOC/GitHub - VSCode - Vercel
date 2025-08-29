@@ -100,6 +100,13 @@ git add supabase/functions/admin-create-client/index.ts supabase/functions/admin
 git commit -m "feat(edge-fns): implement admin-create-client and admin-reset-password"
 git push origin main
 
+ou
+
+git add -A
+git commit -m "fix(ui): selects clicáveis (z-index/pointer-events) + iOS form sizing"
+git push origin main
+
+
 ========
 
 Comitar tudo:

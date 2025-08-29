@@ -164,10 +164,10 @@ export default function AuthSplit({ onAuth }) {
     <div className="min-h-screen w-full bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 rounded-2xl overflow-hidden shadow-xl bg-white border border-slate-200">
         {/* COLUNA ESQUERDA — vídeo com botão de som */}
-        <div className="relative aspect-[16/9] md:h-auto overflow-hidden rounded-2xl bg-black">
+        <div className="relative h-48 md:h-64 overflow-hidden rounded-2xl bg-black">
           <video
             ref={videoRef}
-            className="absolute inset-0 w-full h-full object-contain md:object-cover"
+            className="absolute inset-0 w-full h-full object-cover"
             autoPlay
             muted={!soundOn}        // 👈 controlado só por estado
             loop
@@ -206,8 +206,8 @@ export default function AuthSplit({ onAuth }) {
           {/* Degradê/overlay atrás do botão e sem capturar cliques */}
           <motion.div
             className="absolute inset-0 pointer-events-none z-10"
-            initial={{ opacity: 0.9 }}
-            animate={{ opacity: 0.9 }}
+            initial={{ opacity: 0.20 }}
+            animate={{ opacity: 0.20 }}
           />
         </div>
 
