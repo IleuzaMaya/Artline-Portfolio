@@ -162,45 +162,44 @@ export default function AuthSplit({ onAuth }) {
 
   return (
     <div className="min-h-screen w-full bg-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 rounded-2xl overflow-hidden shadow-xl bg-white border border-slate-200">
-        {/* COLUNA ESQUERDA — vídeo com botão de som */}
-        <div className="
-          relative overflow-hidden rounded-2xl bg-black
-          h-40 sm:h-48                  /* mobile: altura fixa amigável */
-          md:h-auto md:aspect-[4/3]     /* desktop: usa proporção 4:3 */
-          lg:aspect-video               /* telas maiores: 16:9 */
-          md:max-h-[420px] xl:max-h-[460px]  /* tampa o crescimento exagerado */
-          ">
+      {/* CARD / GRID */}
+      <div className="
+        w-full max-w-5xl
+        grid grid-cols-1 md:grid-cols-2
+        items-stretch              /* 👉 colunas esticam igualmente */
+        md:min-h-[420px]           /* 👉 altura confortável no desktop */
+        rounded-2xl overflow-hidden shadow-xl
+        bg-white border border-slate-200
+      ">
+        {/* COLUNA ESQUERDA — VÍDEO */}
+        <div className="relative overflow-hidden bg-black h-40 sm:h-48 md:h-full">
           <video
             ref={videoRef}
             className="absolute inset-0 w-full h-full object-cover"
             autoPlay
-            muted={!soundOn}        // 👈 controlado só por estado
+            muted={!soundOn}
             loop
             playsInline
             poster="/fundo-login-poster.jpg"
-            onError={(ev) => (ev.currentTarget.style.display = "none")}
+            onError={(ev) => (ev.currentTarget.style.display = 'none')}
           >
             <source src="/fundo-login.mp4" type="video/mp4" />
           </video>
 
-          {/* Botão som on/off — fica acima de tudo */}
           <button
             type="button"
             onClick={toggleSound}
             className="absolute z-20 top-3 left-3 bg-white/85 hover:bg-white text-slate-800 rounded-full p-2 shadow border border-slate-200"
-            aria-label={soundOn ? "Desligar som" : "Ligar som"}
-            title={soundOn ? "Desligar som" : "Ligar som"}
+            aria-label={soundOn ? 'Desligar som' : 'Ligar som'}
+            title={soundOn ? 'Desligar som' : 'Ligar som'}
           >
             {soundOn ? (
-              // ícone volume ON (inline)
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="11 5 6 9 3 9 3 15 6 15 11 19 11 5"></polygon>
                 <path d="M15 9a4 4 0 0 1 0 6"></path>
                 <path d="M17.5 6.5a7 7 0 0 1 0 11"></path>
               </svg>
             ) : (
-              // ícone volume OFF (inline)
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="11 5 6 9 3 9 3 15 6 15 11 19 11 5"></polygon>
                 <line x1="23" y1="9" x2="17" y2="15"></line>
@@ -209,14 +208,12 @@ export default function AuthSplit({ onAuth }) {
             )}
           </button>
 
-          {/* Degradê/overlay atrás do botão e sem capturar cliques */}
           <motion.div
             className="absolute inset-0 pointer-events-none z-10"
-            initial={{ opacity: 0.20 }}
-            animate={{ opacity: 0.20 }}
+            initial={{ opacity: 0.2 }}
+            animate={{ opacity: 0.2 }}
           />
         </div>
-
 
 
         {/* COLUNA DIREITA — conteúdo */}
