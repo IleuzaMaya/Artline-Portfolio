@@ -1,12 +1,6 @@
 // frontend/src/pages/Admin.jsx
 import { useState } from "react";
-
-// Em produção usamos as rotas serverless do Vercel (/api).
-// Em dev (localhost) você pode manter um backend local se quiser.
-const API =
-  typeof window !== "undefined" && window.location.hostname === "localhost"
-    ? "http://localhost:4000"
-    : ""; // produção: caminho relativo
+import { supabase } from "../lib/supabase";
 
 
 export default function Admin() {
@@ -18,34 +12,25 @@ export default function Admin() {
   const createClient = async (e) => {
     e.preventDefault();
     setToast(null);
-    const r = await fetch(`${API}/api/admin/create-client`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, nome, senha: senha || undefined }),
+    const { data, error } = await supabase.functions.invoke("admin-create-client", {
+      body: { email, nome, senha: senha || null }
     });
-    const j = await r.json().catch(() => ({}));
-    if (r.ok) {
+    if (error) setToast({ ok: false, msg: error.message });
+    else {
       setToast({ ok: true, msg: "Convite enviado / usuário criado." });
       setEmail(""); setNome(""); setSenha("");
-    } else {
-      setToast({ ok: false, msg: j.error || "Falha ao criar usuário." });
     }
+
   };
 
   const resetPassword = async (e) => {
     e.preventDefault();
     setToast(null);
-    const r = await fetch(`${API}/api/admin/reset-password`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
+    const { error } = await supabase.functions.invoke("admin-reset-password", {
+      body: { email }
     });
-    const j = await r.json().catch(() => ({}));
-    setToast(
-      r.ok
-        ? { ok: true, msg: "E-mail de redefinição enviado." }
-        : { ok: false, msg: j.error || "Falha ao enviar redefinição." }
-    );
+    setToast(error ? { ok:false, msg:error.message } : { ok:true, msg:"E-mail de redefinição enviado." });
+
   };
 
   return (

@@ -164,14 +164,15 @@ export default function AuthSplit({ onAuth }) {
     <div className="min-h-screen w-full bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 rounded-2xl overflow-hidden shadow-xl bg-white border border-slate-200">
         {/* COLUNA ESQUERDA — vídeo com botão de som */}
-        <div className="relative h-48 md:h-auto">
+        <div className="relative aspect-[16/9] md:h-auto overflow-hidden rounded-2xl bg-black">
           <video
             ref={videoRef}
-            className="absolute inset-0 w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-contain md:object-cover"
             autoPlay
             muted={!soundOn}        // 👈 controlado só por estado
             loop
             playsInline
+            poster="/fundo-login-poster.jpg"
             onError={(ev) => (ev.currentTarget.style.display = "none")}
           >
             <source src="/fundo-login.mp4" type="video/mp4" />

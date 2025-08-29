@@ -6,6 +6,17 @@
   margin-bottom: 1.5rem;
 }
 
+/* iOS: inputs/selects legíveis e clicáveis */
+input, select, textarea, button { font-size: 16px; }
+
+@media (max-width: 768px) {
+  input, select, textarea { min-height: 44px; padding: 10px 12px; border-radius: 10px; }
+}
+
+/* se algum overlay estiver por cima do <select>, garanta que o select receba o clique */
+select { position: relative; z-index: 1; }
+
+
 /* Input e select com padding superior para a label */
 .floating-input,
 .floating-select {

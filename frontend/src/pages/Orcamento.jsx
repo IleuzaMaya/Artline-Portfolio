@@ -7,7 +7,9 @@ import { calcularOrcamento } from '../utils/calcularOrcamento';
 import { Alert } from '@mui/material';
 import MolduraThumb from '../components/MolduraThumb';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+
+// Base das Edge Functions do Supabase em produção/preview
+const API = `${import.meta.env.VITE_SUPABASE_URL.replace(/\/$/, "")}/functions/v1`;
 
 export default function OrcamentoForm() {
   // helper para garantir array
