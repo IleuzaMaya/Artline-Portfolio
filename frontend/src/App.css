@@ -4,19 +4,15 @@
 .floating-group { 
   position: relative;
   margin-bottom: 1.5rem; 
-  isolation: isolate; 
 }
 
 
 /* iOS: inputs/selects legíveis e clicáveis */
 input, select, textarea, button { font-size: 16px; }
 
-@media (max-width: 768px) {
-  input, select, textarea {
-    min-height: 44px;
-    padding: 10px 12px;
-    border-radius: 10px;
-  }
+/* mobile: tamanho confortável */
+@media (max-width:768px){
+  input,select,textarea{ min-height:44px; padding:10px 12px; border-radius:10px; }
 }
 
 /* (geral) não atrapalha o z-index específico do select abaixo */
@@ -24,41 +20,45 @@ select { position: relative; z-index: 1; }
 
 /* Input e select com padding superior para a label */
 .floating-input,
-.floating-select {
-  width: 100%;
-  padding: 1.25rem 0.75rem 0.5rem;
-  font-size: 1rem;
-  background-color: #fff;
-  border: 1px solid #d1d5db;
-  border-radius: 0.5rem;
-  outline: none;
-  transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+.floating-select{
+  width:100%;
+  padding:1.25rem .75rem .5rem;
+  font-size:1rem;
+  background:#fff;
+  border:1px solid #d1d5db;
+  border-radius:.5rem;
+  outline:none;
+  transition:border-color .2s, box-shadow .2s;
+
+  /* iOS: remove skin/arrow nativa que às vezes bloqueia o tap */
+  -webkit-appearance:none;
+  appearance:none;
+  background-image:none;
+  cursor:pointer;
+  touch-action:manipulation;
 }
 
 /* Floating label padrão */
-.floating-label {
-  position: absolute;
-  top: 0.9rem;
-  left: 0.75rem;
-  font-size: 1rem;
-  color: #6b7280;
-  background-color: #fff;
-  padding: 0 0.25rem;
-  pointer-events: none;         /* NUNCA intercepta clique do select */
-  transition: all 0.2s ease-out;
-  z-index: 1;                   /* abaixo do select */
+.floating-label{
+  position:absolute;
+  top:.9rem; left:.75rem;
+  font-size:1rem;
+  color:#6b7280;
+  background:#fff;
+  padding:0 .25rem;
+  pointer-events:none;       /* nunca intercepta o clique */
+  transition:all .2s ease-out;
+  z-index:0;                 /* fica atrás do select */
 }
 
 /* Label sobe quando o input está focado ou preenchido */
 .floating-group:focus-within .floating-label,
-.floating-input:not(:placeholder-shown) + .floating-label,
-.floating-select:valid + .floating-label {
-  top: -0.5rem;
-  left: 0.65rem;
-  font-size: 0.75rem;
-  color: #2563eb;
-  background-color: #fff;
-  z-index: 2;
+.floating-input:not(:placeholder-shown)+.floating-label,
+.floating-select:valid+.floating-label{
+  top:-.5rem; left:.65rem;
+  font-size:.75rem;
+  color:#2563eb;
+  z-index:0;
 }
 
 /* Foco */
@@ -68,11 +68,17 @@ select { position: relative; z-index: 1; }
   box-shadow: 0 0 0 1px #2563eb;
 }
 
-/* Erro visual */
-.floating-input.error,
-.floating-select.error { border-color: #dc2626; }
-.floating-input.error:focus,
-.floating-select.error:focus { box-shadow: 0 0 0 1px #dc2626; }
+/* foco/erro */
+.floating-input:focus,.floating-select:focus{ border-color:#2563eb; box-shadow:0 0 0 1px #2563eb; }
+.floating-input.error,.floating-select.error{ border-color:#dc2626; }
+.floating-input.error:focus,.floating-select.error:focus{ box-shadow:0 0 0 1px #dc2626; }
+
+/* SELECT específico: fica acima da label e de qualquer overlay leve */
+.floating-group .floating-select{
+  position:relative;
+  z-index:1;                 /* simples e suficiente */
+  /* REMOVIDO: translateZ(0) */
+}
 
 /* ---- FIX SELECTS: label sempre flutuada e sem sobrepor ---- */
 .floating-group select.floating-select + .floating-label {
