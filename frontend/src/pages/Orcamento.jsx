@@ -1,6 +1,6 @@
 // frontend/src/pages/Orcamento.jsx
 import { useEffect, useMemo, useState } from 'react';
-import axios from 'axios';  
+import { edge as api } from '../lib/edgeApi';  
 import FloatingInput from '../components/FloatingInput';
 import FloatingSelect from '../components/FloatingSelect';
 import { calcularOrcamento } from '../utils/calcularOrcamento';
@@ -16,15 +16,6 @@ const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const FUNCTIONS_URL =
   (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL || SUPABASE_URL.replace('.supabase.co', '.functions.supabase.co'))
     .replace(/\/$/, '');
-
-const api = axios.create({
-  baseURL: FUNCTIONS_URL,            // ex.: https://<ref>.functions.supabase.co
-  headers: {
-    Authorization: `Bearer ${ANON}`, // obrigatório nas Edge Functions
-    apikey: ANON,
-    'Content-Type': 'application/json',
-  },
-});
 
 
 export default function OrcamentoForm() {
@@ -463,7 +454,7 @@ export default function OrcamentoForm() {
     const tela = /tela/i.test(tipoSelecionado?.nome || '');
     setIncluirChassi(!!tela);
     setIncluirImpressaoTela(false);
-  }, [tipoSelecionado, vidros, fundo, perfil, API, ehCamisa]);
+  }, [tipoSelecionado, vidros, fundo, perfil, ehCamisa]);
 
   // defaults quando há item único
   useEffect(() => {
