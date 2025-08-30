@@ -380,34 +380,35 @@ export default function OrcamentoForm() {
 
   // carregamentos iniciais
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [tipos, impr, v, f, pp, bg, camis, chs, divs] = await Promise.all([
-        api.get("/tipos-orcamento"),
-        api.get("/impressoes"),
-        api.get("/vidros"),
-        api.get("/fundos"),
-        api.get("/passepartouts"),
-        api.get("/baguetes"),
-        api.get("/camisas").catch(() => ({ data: [] })),
-        api.get("/chassis").catch(() => ({ data: [] })),
-        api.get("/diversos").catch(() => ({ data: [] })),
+  const load = async () => {
+    try {
+      const [tipos, impr, v, f, pp, bg, camis, chs, divs] = await Promise.all([
+        edge.get("/tipos-orcamento"),
+        edge.get("/impressoes"),
+        edge.get("/vidros"),
+        edge.get("/fundos"),
+        edge.get("/passepartouts"),
+        edge.get("/baguetes"),
+        edge.get("/camisas").catch(() => ({ data: [] })),
+        edge.get("/chassis").catch(() => ({ data: [] })),
+        edge.get("/diversos").catch(() => ({ data: [] })),
       ]);
-        setTiposOrcamento(asArray(tipos.data));
-        setImpressoes(asArray(impr.data));
-        setVidros(asArray(v.data));
-        setFundo(asArray(f.data));
-        setPassepartouts(asArray(pp.data));
-        setBaguetes(asArray(bg.data));
-        setCamisaObjetoTabela(asArray(camis.data));
-        setChassis(asArray(chs.data));
-        setDiversosBrutos(asArray(divs.data));
-      } catch (err) {
-        console.error('Erro ao carregar listas iniciais:', err);
-      }
-    };
-    load();
-  }, []);
+      setTiposOrcamento(asArray(tipos.data));
+      setImpressoes(asArray(impr.data));
+      setVidros(asArray(v.data));
+      setFundo(asArray(f.data));
+      setPassepartouts(asArray(pp.data));
+      setBaguetes(asArray(bg.data));
+      setCamisaObjetoTabela(asArray(camis.data));
+      setChassis(asArray(chs.data));
+      setDiversosBrutos(asArray(divs.data));
+    } catch (err) {
+      console.error("Erro ao carregar listas iniciais:", err);
+    }
+  };
+  load();
+}, []);
+
 
   // quando troca o tipo, recarrega molduras + aplica regras
   useEffect(() => {
@@ -417,7 +418,7 @@ export default function OrcamentoForm() {
   const params = { uso };
   if (uso === 'camisa' && ehCamisa) params.permiteA = 1;
 
-  api.get('/molduras', { params })
+  edge.get("/molduras", { params })
     .then((res) => {
       const lista = asArray(res.data);
       const listaFmt = (lista || []).map(m => ({

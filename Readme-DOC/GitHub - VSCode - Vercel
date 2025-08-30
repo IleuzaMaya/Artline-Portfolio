@@ -95,7 +95,7 @@ curl -X POST "https://api.vercel.com/v1/integrations/deploy/SEU_DEPLOY_HOOK_ID"
 
 =====
 
-Comitar
+Commit Vercel:
 git add supabase/functions/admin-create-client/index.ts supabase/functions/admin-reset-password/index.ts
 git commit -m "feat(edge-fns): implement admin-create-client and admin-reset-password"
 git push origin main
@@ -109,7 +109,17 @@ git push origin main
 
 ========
 
-Comitar tudo:
+Commit Supab
+supabase functions deploy tipos-orcamento --project-ref nwtfynwrmhggbeudwpus
+supabase ase:functions deploy molduras         --project-ref nwtfynwrmhggbeudwpus
+
+
+
+============
+
+
+
+Commit
 
 cd ~/Downloads/IleuzaMaya/art-emoldurados-webapp
 

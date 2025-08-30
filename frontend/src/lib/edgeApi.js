@@ -1,14 +1,16 @@
 // frontend/src/lib/edgeApi.js
 import axios from "axios";
 
-const baseURL = `${import.meta.env.VITE_SUPABASE_URL.replace(/\/$/, "")}/functions/v1`;
-const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const URL =
+  (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL?.replace(/\/$/, "")) ||
+  (import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, "")?.replace(".supabase.co", ".functions.supabase.co"));
+
+const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const edge = axios.create({
-  baseURL,
+  baseURL: URL,
   headers: {
-    Authorization: `Bearer ${anon}`,
-    apikey: anon,
-    "Content-Type": "application/json",
+    Authorization: `Bearer ${ANON}`,
+    apikey: ANON,
   },
 });
