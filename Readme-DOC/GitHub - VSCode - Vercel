@@ -154,7 +154,6 @@ git add frontend/src/components/FloatingSelect.jsx frontend/src/App.css frontend
 git commit -m "fix(ui): FloatingSelect mapeando por valueKey e toque iOS; fecha div de Baguete"
 git push origin main
 
-
 supabase link --project-ref nwtfynwrmhggbeudwpus
 
 
@@ -163,3 +162,4 @@ supabase link --project-ref nwtfynwrmhggbeudwpus
 
 Variáveis de ambiente = Environment Variables:
 Na Vercel (Project → Settings → Environment Variables)  
+

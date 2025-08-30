@@ -790,16 +790,18 @@ export default function OrcamentoForm() {
   }, [isCaixaM1, tipoSelecionado, isTela]);
 
   return (
-    <div className="max-w-4xl mx-auto mt-8 p-6 bg-white shadow rounded">
-      <h1 className="text-2xl font-bold text-center text-blue-900 mb-4">
-        Orçamento de Emoldurado
-      </h1>
+    <div className="max-w-3xl mx-auto mt-6 p-4 bg-white shadow rounded">  {/* antes: max-w-4xl mt-8 p-6 */}
+    <h1 className="text-xl font-bold text-center text-blue-900 mb-3">
+      Orçamento de Emoldurado
+    </h1>
+
 
       <FloatingInput
         label="Markup (%)"
         type="number"
         value={markup}
         onChange={(e) => setMarkup(Number(e.target.value))}
+        size="sm"
       />
 
       <FloatingSelect
@@ -809,15 +811,17 @@ export default function OrcamentoForm() {
         setValue={(v) => { resetDependentes(); setTipoSelecionado(v); }}
         labelKey="nome"
         valueKey="id"
+        size="sm"
       />
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-3">
         <FloatingInput
           label="Altura (cm)"
           type="number"
           step="0.01"
           value={altura}
           onChange={(e) => setAltura(e.target.value)}
+          size="sm"
         />
         <FloatingInput
           label="Largura (cm)"
@@ -825,12 +829,14 @@ export default function OrcamentoForm() {
           step="0.01"
           value={largura}
           onChange={(e) => setLargura(e.target.value)}
+          size="sm"
         />
         <FloatingInput
           label="Quantidade"
           type="number"
           value={quantidade}
           onChange={(e) => setQuantidade(Number(e.target.value))}
+          size="sm"
         />
       </div>
 
@@ -873,7 +879,7 @@ export default function OrcamentoForm() {
 
       {/* Passe-partout (quando aplicável) */}
       {perfil.showPassepartout && (
-        <div className="grid grid-cols-2 gap-4 mt-4">
+        <div className="grid grid-cols-2 gap-3 mt-4">
           {(dimensoesFinais?.mensagemAviso || previewExcedePP) && (
             <div className="col-span-2">
               <Alert severity="info" className="mt-1">
@@ -891,6 +897,7 @@ export default function OrcamentoForm() {
             disabled={ppBloqueado}
             labelKey="nome"      // use "descricao" se sua API vier assim
             valueKey="id"
+            size="sm"
           />
 
           <FloatingInput
@@ -900,6 +907,7 @@ export default function OrcamentoForm() {
             value={margemPassepartout}
             onChange={(e) => setMargemPassepartout(e.target.value)}
             disabled={ppBloqueado || perfil.passepartoutSemMargem}
+            size="sm"
           />
 
           {perfil.showAberturas && !ppBloqueado && (
@@ -911,6 +919,7 @@ export default function OrcamentoForm() {
                 value={numAberturas}
                 onChange={(e) => setNumAberturas(Math.max(1, Number(e.target.value) || 1))}
                 disabled={!passepartoutSelecionado}
+                size="sm"
               />
             </div>
           )}
@@ -927,6 +936,7 @@ export default function OrcamentoForm() {
           disabled={fundo.length === 1 || fundoBloqueado}
           labelKey="nome"
           valueKey="id"
+          size="sm"
         />
       )}
 
@@ -940,6 +950,7 @@ export default function OrcamentoForm() {
           disabled={perfil.vidroSomenteComum || vidros.length === 1}
           labelKey="nome"
           valueKey="id"
+          size="sm"
         />
       )}
       {perfil.vidroFrontalCombo && perfil.vidroFundoComumFixo && (
@@ -994,7 +1005,7 @@ export default function OrcamentoForm() {
 
       {/* Molduras (oculta no Diversos, exceto quando categoria exige) */}
       {(!isDiversosTipo || diversoSelecionado?.id === 'troca_moldura') && (
-        <div className="grid grid-cols-3 gap-4 mt-4">
+        <div className="grid grid-cols-3 gap-3 mt-4">
           <FloatingSelect
             label="Moldura 1"
             options={molduras || []}
@@ -1002,6 +1013,7 @@ export default function OrcamentoForm() {
             setValue={(v) => { setMoldura1(v); setMoldura2(null); setMoldura3(null); }}
             labelKey="display"
             valueKey="id"
+            size="sm"
           />
 
           {(perfil.permiteM2M3 && !ehAluminio(moldura1) && ehRetaOuPP(moldura1)) && (
@@ -1013,6 +1025,7 @@ export default function OrcamentoForm() {
                 setValue={setMoldura2}
                 labelKey="display"
                 valueKey="id"
+                size="sm"
               />
               {!ehCaixa?.(moldura2) && (
                 <FloatingSelect
@@ -1022,6 +1035,7 @@ export default function OrcamentoForm() {
                   setValue={setMoldura3}
                   labelKey="display"
                   valueKey="id"
+                  size="sm"
                 />
               )}
             </>
@@ -1038,7 +1052,7 @@ export default function OrcamentoForm() {
         {[{ m: moldura1, rot: 'Moldura 1' }, { m: moldura2, rot: 'Moldura 2' }, { m: moldura3, rot: 'Moldura 3' }]
           .filter(x => x.m)
           .map(({ m, rot }) => (
-            <div key={`${rot}-${m.id || m.codigo_principal || m.nome}`} className="preview-moldura flex items-start gap-4">
+            <div key={`${rot}-${m.id || m.codigo_principal || m.nome}`} className="preview-moldura flex items-start gap-3">
               <MolduraThumb moldura={m} onZoom={(url) => setZoomImg(url)} />
               <div className="text-sm">
                 <div className="font-medium">{rot}: {m.nome}</div>
@@ -1059,6 +1073,7 @@ export default function OrcamentoForm() {
             setValue={setBagueteInternaSelecionada}
             labelKey="nome"
             valueKey="id"
+            size="sm"
           />
         </div>  
       )}
@@ -1097,6 +1112,7 @@ export default function OrcamentoForm() {
             setValue={setImpressaoSelecionada}
             labelKey="nome"
             valueKey="id"
+            size="sm"
           />
         </div>
       )}
@@ -1111,6 +1127,7 @@ export default function OrcamentoForm() {
             setValue={(v) => { setDiversoSelecionado(v); setIncluirImpressaoDiversos(false); }}
             labelKey="nome"
             valueKey="id"
+            size="sm"
           />
 
           {(() => {
@@ -1123,22 +1140,29 @@ export default function OrcamentoForm() {
                     options={vidros || []}
                     value={vidroSelecionado}
                     setValue={setVidroSelecionado}
+                    size="sm"
                   />
                 )}
 
-                {id === 'troca_moldura' && (
-                  <div className="grid grid-cols-3 gap-4">
-                    <FloatingSelect label="Moldura 1" options={molduras||[]} value={moldura1} setValue={(v)=>{setMoldura1(v); setMoldura2(null); setMoldura3(null);}} labelKey="display"/>
+                { id === 'troca_moldura' && (
+                  <div className="grid grid-cols-3 gap-3">
+                    <FloatingSelect label="Moldura 1" options={molduras||[]} value={moldura1}
+                      setValue={(v)=>{ setMoldura1(v); setMoldura2(null); setMoldura3(null); }}
+                      labelKey="display" size="sm" />
+
                     {(!ehAluminio(moldura1) && ehRetaOuPP(moldura1)) && (
                       <>
-                        <FloatingSelect label="Moldura 2 (opcional)" options={molduras||[]} value={moldura2} setValue={setMoldura2} labelKey="display"/>
+                        <FloatingSelect label="Moldura 2 (opcional)" options={molduras||[]}
+                          value={moldura2} setValue={setMoldura2} labelKey="display" size="sm" />
                         {!ehCaixa?.(moldura2) && (
-                          <FloatingSelect label="Moldura 3 (opcional)" options={molduras||[]} value={moldura3} setValue={setMoldura3} labelKey="display"/>
+                          <FloatingSelect label="Moldura 3 (opcional)" options={molduras||[]}
+                            value={moldura3} setValue={setMoldura3} labelKey="display" size="sm" />
                         )}
                       </>
                     )}
                   </div>
                 )}
+
 
                 {(id === 'troca_canvas' || id === 'troca_matte') && (
                   <label className="inline-flex items-center gap-2 text-sm">
