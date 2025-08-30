@@ -374,15 +374,15 @@ export default function OrcamentoForm() {
   const load = async () => {
     try {
       const [tipos, impr, v, f, pp, bg, camis, chs, divs] = await Promise.all([
-        edge.get("/tipos-orcamento"),
-        edge.get("/impressoes"),
-        edge.get("/vidros"),
-        edge.get("/fundos"),
-        edge.get("/passepartouts"),
-        edge.get("/baguetes"),
-        edge.get("/camisas").catch(() => ({ data: [] })),
-        edge.get("/chassis").catch(() => ({ data: [] })),
-        edge.get("/diversos").catch(() => ({ data: [] })),
+        api.get("/tipos-orcamento"),
+        api.get("/impressoes"),
+        api.get("/vidros"),
+        api.get("/fundos"),
+        api.get("/passepartouts"),
+        api.get("/baguetes"),
+        api.get("/camisas").catch(() => ({ data: [] })),
+        api.get("/chassis").catch(() => ({ data: [] })),
+        api.get("/diversos").catch(() => ({ data: [] })),
       ]);
       setTiposOrcamento(asArray(tipos.data));
       setImpressoes(asArray(impr.data));
@@ -409,9 +409,13 @@ export default function OrcamentoForm() {
   const params = { uso };
   if (uso === 'camisa' && ehCamisa) params.permiteA = 1;
 
-  edge.get("/molduras", { params })
-    .then((res) => {
-      const lista = asArray(res.data);
+  api.get("/molduras", { params })
+   .then(async (res) => {
+     let lista = asArray(res.data);
+     if (!Array.isArray(lista) || lista.length === 0) {
+       const resAll = await api.get("/molduras"); // fallback usando a própria edge
+       lista = asArray(resAll.data);
+     }
       const listaFmt = (lista || []).map(m => ({
         ...m,
         display: m.codigo_principal ? `${m.codigo_principal} — ${m.nome}` : m.nome,

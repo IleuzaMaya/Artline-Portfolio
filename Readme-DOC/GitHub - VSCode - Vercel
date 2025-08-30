@@ -159,3 +159,7 @@ supabase link --project-ref nwtfynwrmhggbeudwpus
 
 
 
+========
+
+Variáveis de ambiente = Environment Variables:
+Na Vercel (Project → Settings → Environment Variables)  
