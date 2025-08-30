@@ -8,8 +8,25 @@ import { Alert } from '@mui/material';
 import MolduraThumb from '../components/MolduraThumb';
 
 
-// Base das Edge Functions do Supabase em produção/preview
-const API = `${import.meta.env.VITE_SUPABASE_URL.replace(/\/$/, "")}/functions/v1`;
+// Supabase envs
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, "");
+const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// URL das Edge Functions (subdomínio correto)
+// VITE_SUPABASE_FUNCTIONS_URL direto no Vercel:
+//   https://<project-ref>.functions.supabase.co
+const FUNCTIONS_URL =
+  (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL?.replace(/\/$/, "")) ||
+  SUPABASE_URL?.replace(".supabase.co", ".functions.supabase.co");
+
+// Cliente axios para as funções (com bearer obrigatório)
+const api = axios.create({
+  baseURL: FUNCTIONS_URL,
+  headers: {
+    Authorization: `Bearer ${ANON}`,
+    apikey: ANON,
+  },
+});
 
 export default function OrcamentoForm() {
   // helper para garantir array
@@ -367,16 +384,16 @@ export default function OrcamentoForm() {
     const load = async () => {
       try {
         const [tipos, impr, v, f, pp, bg, camis, chs, divs] = await Promise.all([
-          axios.get(`${API}/tipos-orcamento`),
-          axios.get(`${API}/impressoes`),
-          axios.get(`${API}/vidros`),
-          axios.get(`${API}/fundos`),
-          axios.get(`${API}/passepartouts`),
-          axios.get(`${API}/baguetes`),
-          axios.get(`${API}/camisas`).catch(() => ({ data: [] })),
-          axios.get(`${API}/chassis`).catch(() => ({ data: [] })),
-          axios.get(`${API}/diversos`).catch(() => ({ data: [] })),
-        ]);
+        api.get("/tipos-orcamento"),
+        api.get("/impressoes"),
+        api.get("/vidros"),
+        api.get("/fundos"),
+        api.get("/passepartouts"),
+        api.get("/baguetes"),
+        api.get("/camisas").catch(() => ({ data: [] })),
+        api.get("/chassis").catch(() => ({ data: [] })),
+        api.get("/diversos").catch(() => ({ data: [] })),
+      ]);
         setTiposOrcamento(asArray(tipos.data));
         setImpressoes(asArray(impr.data));
         setVidros(asArray(v.data));
@@ -404,7 +421,7 @@ export default function OrcamentoForm() {
     // Camisa "É camisa?" → libera alumínio (uso_tipo 'A') além de caixa
     if (uso === 'camisa' && ehCamisa) params.permiteA = 1;
 
-    axios.get(`${API}/molduras`, { params })
+    api.get("/molduras", { params })
       .then(async (res) => {
         let lista = asArray(res.data);
         if (!Array.isArray(lista) || lista.length === 0) {
