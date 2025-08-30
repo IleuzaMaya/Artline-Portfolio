@@ -17,3 +17,6 @@ backend/.env
 frontend/.env
 frontend/.env.*
 backend/.env
+
+# Supabase temp
+supabase/.temp/

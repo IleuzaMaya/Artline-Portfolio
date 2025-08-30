@@ -20,3 +20,25 @@ entrypoint = "./functions/admin-reset-password/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/admin-reset-password/*.html" ]
+
+[functions.tipos-orcamento]
+enabled = true
+verify_jwt = true
+import_map = "./functions/tipos-orcamento/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/tipos-orcamento/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/tipos-orcamento/*.html" ]
+
+[functions.molduras]
+enabled = true
+verify_jwt = true
+import_map = "./functions/molduras/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/molduras/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/molduras/*.html" ]

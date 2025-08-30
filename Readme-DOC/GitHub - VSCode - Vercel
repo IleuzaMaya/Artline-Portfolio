@@ -129,3 +129,23 @@ supabase functions deploy admin-reset-password
 
 
 
+cd frontend
+npm run build   # testa local (ou pnpm/yarn), mostra o mesmo erro que a Vercel
+
+
+
+ls frontend/src/*css
+git status -s
+
+
+Commit Sugerido
+
+git add frontend/src/components/FloatingSelect.jsx frontend/src/App.css frontend/src/pages/Orcamento.jsx
+git commit -m "fix(ui): FloatingSelect mapeando por valueKey e toque iOS; fecha div de Baguete"
+git push origin main
+
+
+supabase link --project-ref nwtfynwrmhggbeudwpus
+
+
+

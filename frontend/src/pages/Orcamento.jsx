@@ -1,6 +1,6 @@
 // frontend/src/pages/Orcamento.jsx
 import { useEffect, useMemo, useState } from 'react';
-import { edge } from '../lib/edgeApi';
+import axios from 'axios';  
 import FloatingInput from '../components/FloatingInput';
 import FloatingSelect from '../components/FloatingSelect';
 import { calcularOrcamento } from '../utils/calcularOrcamento';
@@ -9,24 +9,23 @@ import MolduraThumb from '../components/MolduraThumb';
 
 
 // Supabase envs
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL?.replace(/\/$/, "");
+const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
 const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// URL das Edge Functions (subdomínio correto)
-// VITE_SUPABASE_FUNCTIONS_URL direto no Vercel:
-//   https://<project-ref>.functions.supabase.co
+// Se existir VITE_SUPABASE_FUNCTIONS_URL, usa; senão troca o domínio para .functions.
 const FUNCTIONS_URL =
-  (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL?.replace(/\/$/, "")) ||
-  SUPABASE_URL?.replace(".supabase.co", ".functions.supabase.co");
+  (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL || SUPABASE_URL.replace('.supabase.co', '.functions.supabase.co'))
+    .replace(/\/$/, '');
 
-// Cliente axios para as funções (com bearer obrigatório)
 const api = axios.create({
-  baseURL: FUNCTIONS_URL,
+  baseURL: FUNCTIONS_URL,            // ex.: https://<ref>.functions.supabase.co
   headers: {
-    Authorization: `Bearer ${ANON}`,
+    Authorization: `Bearer ${ANON}`, // obrigatório nas Edge Functions
     apikey: ANON,
+    'Content-Type': 'application/json',
   },
 });
+
 
 export default function OrcamentoForm() {
   // helper para garantir array
@@ -412,33 +411,26 @@ export default function OrcamentoForm() {
 
   // quando troca o tipo, recarrega molduras + aplica regras
   useEffect(() => {
-    if (!tipoSelecionado) return;
+  if (!tipoSelecionado) return;
 
-    // Backend novo: aceita 'uso' e opcional 'permiteA'
-    const uso = mapTipoParaUso(tipoSelecionado?.nome || '');
-    const params = { uso };
+  const uso = mapTipoParaUso(tipoSelecionado?.nome || '');
+  const params = { uso };
+  if (uso === 'camisa' && ehCamisa) params.permiteA = 1;
 
-    // Camisa "É camisa?" → libera alumínio (uso_tipo 'A') além de caixa
-    if (uso === 'camisa' && ehCamisa) params.permiteA = 1;
-
-    api.get("/molduras", { params })
-      .then(async (res) => {
-        let lista = asArray(res.data);
-        if (!Array.isArray(lista) || lista.length === 0) {
-          const resAll = await axios.get(`${API}/molduras`);
-          lista = asArray(resAll.data);
-        }
-        const listaFmt = lista.map(m => ({
-          ...m,
-          display: m.codigo_principal ? `${m.codigo_principal} — ${m.nome}` : m.nome,
-          imagem_url: m.imagem_url || m.image_url || m.url_imagem || m.imagem || null,
-        }));
-        setMolduras(listaFmt);
-      })
-      .catch(err => {
-        console.error('Erro ao carregar molduras:', err);
-        setMolduras([]);
-      });
+  api.get('/molduras', { params })
+    .then((res) => {
+      const lista = asArray(res.data);
+      const listaFmt = (lista || []).map(m => ({
+        ...m,
+        display: m.codigo_principal ? `${m.codigo_principal} — ${m.nome}` : m.nome,
+        imagem_url: m.imagem_url || m.image_url || m.url_imagem || m.imagem || null,
+      }));
+      setMolduras(listaFmt);
+    })
+    .catch(err => {
+      console.error('Erro ao carregar molduras:', err);
+      setMolduras([]);
+    });
 
     if (perfil.vidroSomenteComum || perfil.vidroFundoComumFixo) {
       const comum = vidros.find(v => /comum/i.test(v.nome || v.descricao || ''));
@@ -1072,7 +1064,7 @@ export default function OrcamentoForm() {
             labelKey="nome"
             valueKey="id"
           />
-        </div>  // 👈 ESTA linha fecha a <div>
+        </div>  
       )}
 
       {/* ALERTAS */}
