@@ -85,14 +85,14 @@ select { position: relative; z-index: 1; }
 }
 
 /* Mais espaço no topo do select para não colidir com a label */
-.floating-select { 
-  -webkit-appearance: none;
+.floating-select {
+  -webkit-appearance: none;  /* iOS: remove skin nativa que às vezes buga o toque */
   appearance: none;
-  background-image: none;
+  background-image: none;    /* evita seta nativa por cima */
   cursor: pointer;
-  touch-action: manipulation;
-  padding-top: 1.75rem; 
+  touch-action: manipulation; /* melhora resposta ao toque */
 }
+
 
 /* --------- FIX DEFINITIVO: select por cima e clicável --------- */
 .floating-group .floating-select {
