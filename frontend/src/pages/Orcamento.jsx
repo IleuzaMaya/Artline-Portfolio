@@ -1,6 +1,6 @@
 // frontend/src/pages/Orcamento.jsx
 import { useEffect, useMemo, useState } from 'react';
-import axios from 'axios';
+import { edge } from '../lib/edgeApi';
 import FloatingInput from '../components/FloatingInput';
 import FloatingSelect from '../components/FloatingSelect';
 import { calcularOrcamento } from '../utils/calcularOrcamento';
