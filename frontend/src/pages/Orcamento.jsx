@@ -814,7 +814,7 @@ export default function OrcamentoForm() {
         size="sm"
       />
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-4">
         <FloatingInput
           label="Altura (cm)"
           type="number"
@@ -879,7 +879,7 @@ export default function OrcamentoForm() {
 
       {/* Passe-partout (quando aplicável) */}
       {perfil.showPassepartout && (
-        <div className="grid grid-cols-2 gap-3 mt-4">
+        <div className="grid grid-cols-2 gap-4 mt-4">
           {(dimensoesFinais?.mensagemAviso || previewExcedePP) && (
             <div className="col-span-2">
               <Alert severity="info" className="mt-1">
@@ -1005,7 +1005,7 @@ export default function OrcamentoForm() {
 
       {/* Molduras (oculta no Diversos, exceto quando categoria exige) */}
       {(!isDiversosTipo || diversoSelecionado?.id === 'troca_moldura') && (
-        <div className="grid grid-cols-3 gap-3 mt-4">
+        <div className="grid grid-cols-3 gap-4 mt-4">
           <FloatingSelect
             label="Moldura 1"
             options={molduras || []}
@@ -1052,7 +1052,7 @@ export default function OrcamentoForm() {
         {[{ m: moldura1, rot: 'Moldura 1' }, { m: moldura2, rot: 'Moldura 2' }, { m: moldura3, rot: 'Moldura 3' }]
           .filter(x => x.m)
           .map(({ m, rot }) => (
-            <div key={`${rot}-${m.id || m.codigo_principal || m.nome}`} className="preview-moldura flex items-start gap-3">
+            <div key={`${rot}-${m.id || m.codigo_principal || m.nome}`} className="preview-moldura flex items-start gap-4">
               <MolduraThumb moldura={m} onZoom={(url) => setZoomImg(url)} />
               <div className="text-sm">
                 <div className="font-medium">{rot}: {m.nome}</div>
@@ -1145,7 +1145,7 @@ export default function OrcamentoForm() {
                 )}
 
                 { id === 'troca_moldura' && (
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-3 gap-4">
                     <FloatingSelect label="Moldura 1" options={molduras||[]} value={moldura1}
                       setValue={(v)=>{ setMoldura1(v); setMoldura2(null); setMoldura3(null); }}
                       labelKey="display" size="sm" />

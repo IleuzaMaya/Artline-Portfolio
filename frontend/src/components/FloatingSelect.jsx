@@ -6,43 +6,37 @@ export default function FloatingSelect({
   setValue,
   labelKey = "nome",
   valueKey = "id",
-  size = "md",          // 👈 novo
-  className = "",
   disabled = false,
+  size = "md",
 }) {
-  const S = size === "sm"
-    ? { select: "h-9 text-sm px-3 py-2", label: "text-xs", gap: "mb-2" }
-    : { select: "h-11 text-base px-4 py-3", label: "text-sm", gap: "mb-3" };
+  const sz = size === "sm" ? "h-9 text-sm" : "h-11";
 
   return (
-    <div className={`relative ${S.gap}`}>
-      <select
-        disabled={disabled}
-        className={[
-          "w-full rounded-lg border border-gray-300 bg-white outline-none",
-          "focus:ring-2 focus:ring-blue-500 focus:border-blue-500",
-          S.select,
-          className,
-        ].join(" ")}
-        value={value?.[valueKey] ?? ""}
-        onChange={(e) => {
-          const v = options.find(o => String(o[valueKey]) === e.target.value) || null;
-          setValue?.(v);
-        }}
+    <div className="relative z-0 overflow-visible"> {/* garante que nada seja clipado */}
+      {/* LABEL não intercepta clique */}
+      <label
+        className="absolute -top-2 left-3 px-1 text-xs text-gray-500 bg-white pointer-events-none"
       >
-        <option value="" disabled>Selecione…</option>
-        {options.map(o => (
-          <option key={o[valueKey]} value={o[valueKey]}>
-            {o[labelKey] ?? o[valueKey]}
+        {label}
+      </label>
+
+      {/* SELECT acima do label e vizinhos */}
+      <select
+        className={`block w-full mt-3 bg-white border rounded-lg px-3 ${sz} relative z-10
+                    focus:outline-none focus:ring-2 focus:ring-blue-500`}
+        value={value?.[valueKey] ?? ""}
+        onChange={(e) =>
+          setValue(options.find(o => String(o[valueKey]) === e.target.value) || null)
+        }
+        disabled={disabled}
+      >
+        <option value="">Selecione...</option>
+        {options.map(opt => (
+          <option key={opt[valueKey]} value={opt[valueKey]}>
+            {opt[labelKey]}
           </option>
         ))}
       </select>
-      {label && (
-        <label className={[
-          "pointer-events-none absolute -top-2 left-3 bg-white px-1 text-gray-600",
-          S.label,
-        ].join(" ")}>{label}</label>
-      )}
     </div>
   );
 }
