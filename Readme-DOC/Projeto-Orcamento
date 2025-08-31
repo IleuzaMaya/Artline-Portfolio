@@ -610,5 +610,3 @@ Configurar o deploy na Vercel e ligar ao domínio.
 Validar login + orçamento em produção.
 
 
-=======
-Agora preciso dar continuidade em fazer rodar este projeto no Versel (frontend) e que está no GitHub mas não testei, não sabia como rodar. Estava funcionando no navegador: http://localhost:5173 e estava desenvolvendo no VsCode e Mysql Workbench

@@ -352,7 +352,7 @@ export async function calcularOrcamento({
       impressao: custoImpressao,
       camisaObjetoExtra,
 
-      // 👇 apenas UMA chave 'diversos'
+      // apenas UMA chave 'diversos'
       diversos: custoDiversosUnit,
 
       chassi: custoChassi,

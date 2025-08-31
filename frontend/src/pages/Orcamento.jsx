@@ -411,18 +411,32 @@ export default function OrcamentoForm() {
 
   api.get("/molduras", { params })
    .then(async (res) => {
-     let lista = asArray(res.data);
-     if (!Array.isArray(lista) || lista.length === 0) {
-       const resAll = await api.get("/molduras"); // fallback usando a própria edge
-       lista = asArray(resAll.data);
-     }
-      const listaFmt = (lista || []).map(m => ({
-        ...m,
-        display: m.codigo_principal ? `${m.codigo_principal} — ${m.nome}` : m.nome,
-        imagem_url: m.imagem_url || m.image_url || m.url_imagem || m.imagem || null,
-      }));
+      let lista = asArray(res.data);
+      if (!Array.isArray(lista) || lista.length === 0) {
+        const resAll = await api.get("/molduras");
+        lista = asArray(resAll.data);
+      }
+
+      const pick = (...vals) =>
+        vals.find(v => v !== undefined && v !== null && String(v).trim() !== "") ?? "";
+
+      const listaFmt = (lista || []).map((m) => {
+        const codigo = pick(m.codigo_principal, m.codigo, m.cod, m.referencia);
+        const nomeSafe = pick(m.nome, m.descricao, m.nome_moldura, m.modelo, m.titulo);
+        const display = [codigo, nomeSafe].filter(Boolean).join(" — ") || nomeSafe || codigo || "Sem nome";
+        const imagem_url = pick(m.imagem_url, m.image_url, m.url_imagem, m.imagem, m.foto, m.foto_url, null);
+
+        return {
+          ...m,
+          nome: pick(m.nome, nomeSafe, codigo, "Sem nome"), // garante m.nome para outras telas
+          display,
+          imagem_url,
+        };
+      });
+
       setMolduras(listaFmt);
     })
+
     .catch(err => {
       console.error('Erro ao carregar molduras:', err);
       setMolduras([]);
@@ -1052,16 +1066,32 @@ export default function OrcamentoForm() {
       <div className="mt-5 flex flex-col gap-6">
         {[{ m: moldura1, rot: 'Moldura 1' }, { m: moldura2, rot: 'Moldura 2' }, { m: moldura3, rot: 'Moldura 3' }]
           .filter(x => x.m)
-          .map(({ m, rot }) => (
-            <div key={`${rot}-${m.id || m.codigo_principal || m.nome}`} className="preview-moldura flex items-start gap-4">
-              <MolduraThumb moldura={m} onZoom={(url) => setZoomImg(url)} />
-              <div className="text-sm">
-                <div className="font-medium">{rot}: {m.nome}</div>
-                {m.codigo_principal && <div className="text-gray-500">{m.codigo_principal}</div>}
+          .map(({ m, rot }) => {
+            const nomeM =
+              (m?.nome && m.nome.trim()) ||
+              (m?.display && m.display.trim()) ||
+              (m?.codigo_principal && m.codigo_principal.trim()) ||
+              "Moldura";
+
+            return (
+              <div
+                key={`${rot}-${m?.id ?? m?.codigo_principal ?? nomeM}`}
+                className="preview-moldura flex items-start gap-4"
+              >
+                <MolduraThumb moldura={m} onZoom={(url) => setZoomImg(url)} />
+                <div className="text-sm">
+                  <div className="font-medium">
+                    {rot}: {nomeM}
+                  </div>
+                  {m?.codigo_principal && (
+                    <div className="text-gray-500">{m.codigo_principal}</div>
+                  )}
+                </div>
               </div>
-            </div>
-        ))}
+            );
+          })}
       </div>
+
 
 
       {/* Baguete (auto, mas editável) — aparece quando houver caixa/uso */}
