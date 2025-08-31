@@ -16,7 +16,8 @@ input, select, textarea, button { font-size: 16px; }
 }
 
 /* (geral) não atrapalha o z-index específico do select abaixo */
-select { position: relative; z-index: 1; }
+/* ajuda o Safari a não "clipar" o dropdown nativo */
+select { position: relative; z-index: 10; }
 
 /* Input e select com padding superior para a label */
 .floating-input,

@@ -1149,15 +1149,18 @@ export default function OrcamentoForm() {
                   <div className="grid grid-cols-3 gap-4">
                     <FloatingSelect label="Moldura 1" options={molduras||[]} value={moldura1}
                       setValue={(v)=>{ setMoldura1(v); setMoldura2(null); setMoldura3(null); }}
-                      labelKey="display" size="sm" />
+                      labelKey="display" 
+                      size="sm" />
 
                     {(!ehAluminio(moldura1) && ehRetaOuPP(moldura1)) && (
                       <>
                         <FloatingSelect label="Moldura 2 (opcional)" options={molduras||[]}
-                          value={moldura2} setValue={setMoldura2} labelKey="display" size="sm" />
+                          value={moldura2} setValue={setMoldura2} labelKey="display" 
+                          size="sm" />
                         {!ehCaixa?.(moldura2) && (
                           <FloatingSelect label="Moldura 3 (opcional)" options={molduras||[]}
-                            value={moldura3} setValue={setMoldura3} labelKey="display" size="sm" />
+                            value={moldura3} setValue={setMoldura3} labelKey="display" 
+                            size="sm" />
                         )}
                       </>
                     )}
