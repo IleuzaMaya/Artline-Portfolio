@@ -1,9 +1,9 @@
 /**
  * Calcula orçamento de emoldurados com regras de:
- * - Moldura Caixa: reforço automático acima de certos limites
+ * - Moldura Caixa: reforço por tabela; fallback percentual
  * - Passepartout: checagem de folha (102 × 152) com rotação e margem
- * - Baguete interna: perímetro com perda técnica implícita na moldura
- * - Entre Vidros: adiciona vidro comum no fundo (além do vidro frontal escolhido)
+ * - Baguete interna: perímetro com perda técnica
+ * - Entre Vidros: adiciona vidro comum no fundo
  * - Aberturas extras no Passe-partout (preço fixo por abertura adicional)
  * - Markup e quantidade
  */
@@ -30,13 +30,12 @@ export async function calcularOrcamento({
 
   // perfil / comportamentos
   entreVidros = false,
-  // novos “forçadores” vindos do front/tipo
   forcarCamisaObjetoTipo = false,
   camisaEntreVidros = false,
-  precoVidroComumM2 = null, // se não vier, cai no preço do vidro selecionado
+  precoVidroComumM2 = null,
   vidroSomenteComum = false,
-  foamExtraAuto = false, // sem uso direto no cálculo
-  bagueteAuto = false,   // idem, custo vem do item selecionado
+  foamExtraAuto = false,
+  bagueteAuto = false,
 
   // passe-partout
   numAberturas = 1,
@@ -45,6 +44,9 @@ export async function calcularOrcamento({
   // chassis
   incluirChassi = false,
   chassiSelecionado = null,
+
+  // reforço (tabela vinda do back/edge)
+  reforcoTabela = [],
 }) {
   const num = (v, d = 0) => {
     const n = Number(String(v ?? '').toString().replace(',', '.'));
@@ -57,24 +59,20 @@ export async function calcularOrcamento({
   const ALT = num(altura);
   const LAR = num(largura);
   const MAIOR_LADO_CM = Math.max(ALT, LAR);
-  const perimetroObraM = perimetroM(LAR, ALT); // chassi usa a medida da obra (sem margem)
+  const perimetroObraM = perimetroM(LAR, ALT);
 
-  // === Diversos (lista de serviços unitários) ===
+  // === Diversos (unitários) ===
   let custoDiversosUnit = 0;
   const itensDiversos = [];
-
   (Array.isArray(diversosSelecionados) ? diversosSelecionados : []).forEach((dv) => {
     const preco = num(pick(dv, ['preco','valor','preco_unit','valor_unit']), 0);
     if (preco <= 0) return;
-
     const faixa = String(dv.faixa_aplicacao || dv.faixa || '').toLowerCase();
     const okFaixa =
       !faixa ||
       (faixa.includes('até')   && MAIOR_LADO_CM <= 50) ||
       (faixa.includes('acima') && MAIOR_LADO_CM > 50);
-
     if (!okFaixa) return;
-
     custoDiversosUnit += preco;
     itensDiversos.push({
       id: dv.id,
@@ -83,7 +81,6 @@ export async function calcularOrcamento({
       valor: preco,
     });
   });
-
   const diversosInfo = { itens: itensDiversos, valorTotal: custoDiversosUnit };
 
   const QTD = Math.max(1, num(quantidade, 1));
@@ -104,16 +101,16 @@ export async function calcularOrcamento({
   const perimetroAberturaM = perimetroM(LAR, ALT);
 
   // preços planos
-  const precoVidroSelM2 = num(pick(vidroSelecionado || {}, ['preco_m2','valor_m2','preco','valor']), 0);
-  const precoFundoM2    = num(pick(fundoSelecionado || {}, ['preco_m2','valor_m2','preco','valor']), 0);
+  const precoVidroSelM2   = num(pick(vidroSelecionado || {}, ['preco_m2','valor_m2','preco','valor']), 0);
+  const precoFundoM2      = num(pick(fundoSelecionado || {}, ['preco_m2','valor_m2','preco','valor']), 0);
   const precoFundoExtraM2 = num(pick(fundoExtraSelecionado || {}, ['preco_m2','valor_m2','preco','valor']), 0);
-  const precoImpM2      = num(pick(impressaoSelecionada || {}, ['preco_m2','valor_m2','preco','valor']), 0);
+  const precoImpM2        = num(pick(impressaoSelecionada || {}, ['preco_m2','valor_m2','preco','valor']), 0);
 
-  // preço do vidro comum (fallback para o selecionado)
+  // vidro comum (fallback)
   const precoVidroComum = num(precoVidroComumM2, precoVidroSelM2);
   const precoVidroFrontalM2 = vidroSomenteComum ? precoVidroComum : precoVidroSelM2;
 
-  // Passe-partout: preferir ML; fallback m²
+  // Passe-partout: ML preferencial; fallback m²
   const precoPP_ML = num(pick(passepartoutSelecionado || {}, ['preco_ml','valor_ml']), 0);
   const precoPP_M2 = num(pick(passepartoutSelecionado || {}, ['preco_m2','valor_m2','preco','valor']), 0);
 
@@ -153,13 +150,13 @@ export async function calcularOrcamento({
   if (incluirChassi && chassiSelecionado) {
     const precoMLChassi = num(pick(chassiSelecionado, ['preco_ml','preco','valor_ml','valor']), 0);
     if (precoMLChassi > 0) {
-      custoChassi = precoMLChassi * perimetroObraM; // custo unitário
+      custoChassi = precoMLChassi * perimetroObraM;
       const esp = /5mm/i.test(chassiSelecionado.nome || '') ? '5 mm'
              : (/3mm/i.test(chassiSelecionado.nome || '') ? '3 mm' : '');
       chassiInfo = {
         nome: chassiSelecionado.nome || 'Chassi',
-        espessura: esp, // novo
-        mm: esp,        // compat com o front atual
+        espessura: esp,
+        mm: esp,
         precoML: precoMLChassi,
         ml: perimetroObraM,
       };
@@ -169,7 +166,6 @@ export async function calcularOrcamento({
   // Custos planos
   const custoVidroFrontal = areaPlanosM2 * precoVidroFrontalM2;
 
-  // Entre Vidros: considerar flag do tipo/UX (camisaEntreVidros)
   let custoVidroFundoComum = 0;
   if (entreVidros || camisaEntreVidros) {
     const precoBaseComum = precoVidroComum;
@@ -178,7 +174,7 @@ export async function calcularOrcamento({
   const custoVidro = custoVidroFrontal + custoVidroFundoComum;
 
   const custoFundo      = areaPlanosM2 * precoFundoM2;
-  const custoFundoExtra = areaPlanosM2 * precoFundoExtraM2; // Foam extra (flutuante/camisa)
+  const custoFundoExtra = areaPlanosM2 * precoFundoExtraM2;
   const custoImpressao  = areaObraM2   * precoImpM2;
 
   // Passe-partout (ML preferencial; fallback m²)
@@ -203,7 +199,7 @@ export async function calcularOrcamento({
     : 0;
 
   // Molduras em camadas — perímetro EXTERNO por camada + perda (chanfro)
-  const coefPerdaChanfroPorCanto = 1; // cm → convertido para m
+  const coefPerdaChanfroPorCanto = 1; // cm → m
   const camadas = [moldura1, moldura2, moldura3].filter(Boolean);
   let larguraExterna = larguraInterna, alturaExterna = alturaInterna;
   let custosCamadas = [], custoMoldurasTotal = 0;
@@ -228,17 +224,16 @@ export async function calcularOrcamento({
   const custoBagueteInterna =
     usaBaguete && num(precoBagueteML, 0) > 0 ? perimetroInternoM * num(precoBagueteML, 0) : 0;
 
-  // Reforço (só caixa)
+  // Reforço (config fallback percentual)
   const regraReforco = {
     habilitado: true,
     limiteMaiorLadoCm: 70,
     limitePerimetroCm: 240,
-    tipoCobranca: 'percentual',
     valor: 0.08,
     minimoAbsoluto: 25,
   };
 
-  // === Reforço (prioriza tabela; se não achar, cai no fallback percentual) ===
+  // === Reforço: prioriza tabela; se não houver match, usa fallback percentual ===
   const maiorLadoInterno = Math.max(larguraInterna, alturaInterna);
   const perimetroInternoCm = perimetroInternoM * 100;
 
@@ -246,10 +241,9 @@ export async function calcularOrcamento({
   let valorReforco = 0;
   let reforcoInfo = { necessita_reforco: false, nome: null, valorTotal: 0 };
 
-  // usa o isCaixa já declarado anteriormente
   if (isCaixa && Array.isArray(reforcoTabela) && reforcoTabela.length) {
-    const W = larguraInterna; // cm
-    const H = alturaInterna;  // cm
+    const W = larguraInterna;
+    const H = alturaInterna;
 
     const pickNum = (r, keys) => {
       for (const k of keys) {
@@ -265,14 +259,14 @@ export async function calcularOrcamento({
       const wMax = pickNum(r, ["largura_max_cm","w_max","max_largura"]) || Infinity;
       const hMin = pickNum(r, ["altura_min_cm","h_min","min_altura"]);
       const hMax = pickNum(r, ["altura_max_cm","h_max","max_altura"]) || Infinity;
+      // aceita rotação
       return (W >= wMin && W <= wMax && H >= hMin && H <= hMax) ||
-            (H >= wMin && H <= wMax && W >= hMin && W <= hMax); // aceita rotação
+             (H >= wMin && H <= wMax && W >= hMin && W <= hMax);
     });
 
     if (match) {
       valorReforco = pickNum(match, [
-        "metragem_linear_reforco", // seu campo
-        "preco_total", "valor", "custo_total"
+        "metragem_linear_reforco", "preco_total", "valor", "custo_total"
       ]);
       if (valorReforco > 0) {
         aplicaReforco = true;
@@ -285,82 +279,16 @@ export async function calcularOrcamento({
     }
   }
 
-  // Fallback percentual, caso a tabela não cubra a medida
-  if (isCaixa && !aplicaReforco) {
-    const regraReforco = {
-      habilitado: true,
-      limiteMaiorLadoCm: 70,
-      limitePerimetroCm: 240,
-      valor: 0.08,
-      minimoAbsoluto: 25,
-    };
-    if (regraReforco.habilitado) {
-      if (maiorLadoInterno >= regraReforco.limiteMaiorLadoCm ||
-          perimetroInternoCm >= regraReforco.limitePerimetroCm) {
-        aplicaReforco = true;
-        const base = custosCamadas[0]?.custo ?? custoMoldurasTotal;
-        valorReforco = Math.max(regraReforco.minimoAbsoluto, base * regraReforco.valor);
-        reforcoInfo = {
-          necessita_reforco: true,
-          nome: "Reforço estrutural (moldura caixa)",
-          valorTotal: valorReforco
-        };
-      }
-    }
-  }
-
-
-  // Fallback antigo (percentual) se tabela não cobriu
-  if (isCaixa && !aplicaReforco) {
-    const regraReforco = {
-      habilitado: true,
-      limiteMaiorLadoCm: 70,
-      limitePerimetroCm: 240,
-      tipoCobranca: 'percentual',
-      valor: 0.08,
-      minimoAbsoluto: 25,
-    };
-    if (regraReforco.habilitado) {
-      if (maiorLadoInterno >= regraReforco.limiteMaiorLadoCm ||
-          perimetroInternoCm >= regraReforco.limitePerimetroCm) {
-        aplicaReforco = true;
-        const base = custosCamadas[0]?.custo ?? custoMoldurasTotal;
-        valorReforco = Math.max(regraReforco.minimoAbsoluto, base * regraReforco.valor);
-        reforcoInfo = { necessita_reforco: true, nome: "Reforço estrutural (moldura caixa)", valorTotal: valorReforco };
-      }
-    }
-  }
-
-  const reforcoInfo = aplicaReforco
-    ? { necessita_reforco: true, nome: 'Reforço estrutural (moldura caixa)', valorTotal: valorReforco }
-    : { necessita_reforco: false, nome: null, valorTotal: 0 };
-
-  // Camisa/Objeto: pode vir do tipo OU ser forçado pelo front
-  const isCamisaObjeto =
-    forcarCamisaObjetoTipo ||
-    /camisa|objeto/i.test(tipoSelecionado?.nome || tipoSelecionado?.tipo || '');
-
-  let camisaObjetoExtra = 0;
-  let camisaObjetoInfo = { aplicado: false };
-
-  if (isCamisaObjeto && Array.isArray(camisaObjetoTabela) && camisaObjetoTabela.length) {
-    const ate1 = camisaObjetoTabela.find(r =>
-      /até/i.test(r.faixa_aplicacao || r.faixa || '') ||
-      String(r.faixa_aplicacao || '').includes('1')
-    );
-    const acima1 = camisaObjetoTabela.find(r => /acima/i.test(r.faixa_aplicacao || r.faixa || ''));
-
-    const linha = areaObraM2 <= 1 ? ate1 : (acima1 || ate1);
-    if (linha) {
-      const precoM2 = num(pick(linha, ['preco_m2','valor_m2']), 0);
-      const precoFixo = num(pick(linha, ['preco','valor']), 0);
-      camisaObjetoExtra = precoM2 > 0 ? (precoM2 * areaObraM2) : precoFixo;
-      camisaObjetoInfo = {
-        aplicado: true,
-        faixa: areaObraM2 <= 1 ? 'até 1 m²' : 'acima de 1 m²',
-        base: precoM2 > 0 ? precoM2 : precoFixo,
-        modo: precoM2 > 0 ? 'm2' : 'fixo',
-        valor: camisaObjetoExtra,
+  if (isCaixa && !aplicaReforco && regraReforco.habilitado) {
+    if (maiorLadoInterno >= regraReforco.limiteMaiorLadoCm ||
+        perimetroInternoCm >= regraReforco.limitePerimetroCm) {
+      aplicaReforco = true;
+      const base = custosCamadas[0]?.custo ?? custoMoldurasTotal;
+      valorReforco = Math.max(regraReforco.minimoAbsoluto, base * regraReforco.valor);
+      reforcoInfo = {
+        necessita_reforco: true,
+        nome: "Reforço estrutural (moldura caixa)",
+        valorTotal: valorReforco
       };
     }
   }
@@ -408,10 +336,9 @@ export async function calcularOrcamento({
     areaTotalM2: areaPlanosM2,
 
     riscoMolduraFina,
-    camisaObjetoInfo,
 
     // infos de Diversos para o front
-    diversosInfo, // { itens: [...], valorTotal }
+    diversosInfo,
 
     // Para o UI poder discriminar
     numAberturasConsideradas: ABERTURAS,
@@ -433,7 +360,6 @@ export async function calcularOrcamento({
       passepartoutAberturasExtra: custoAberturasExtras,
 
       impressao: custoImpressao,
-      camisaObjetoExtra,
 
       // apenas UMA chave 'diversos'
       diversos: custoDiversosUnit,
