@@ -12,17 +12,15 @@ export default function FloatingSelect({
   const sz = size === "sm" ? "h-9 text-sm" : "h-11";
 
   return (
-    <div className="relative z-0 overflow-visible"> {/* garante que nada seja clipado */}
-      {/* LABEL não intercepta clique */}
+    <div className="relative mb-3 overflow-visible">   {/* espaçamento + não clipa */}
       <label
         className="absolute -top-2 left-3 px-1 text-xs text-gray-500 bg-white pointer-events-none"
       >
         {label}
       </label>
 
-      {/* SELECT acima do label e vizinhos */}
       <select
-        className={`block w-full mt-3 bg-white border rounded-lg px-3 ${sz} relative z-10
+        className={`block w-full mt-3 bg-white border rounded-lg px-3 ${sz} relative z-20
                     focus:outline-none focus:ring-2 focus:ring-blue-500`}
         value={value?.[valueKey] ?? ""}
         onChange={(e) =>

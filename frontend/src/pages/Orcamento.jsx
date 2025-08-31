@@ -790,7 +790,8 @@ export default function OrcamentoForm() {
   }, [isCaixaM1, tipoSelecionado, isTela]);
 
   return (
-    <div className="max-w-3xl mx-auto mt-6 p-4 bg-white shadow rounded">  {/* antes: max-w-4xl mt-8 p-6 */}
+    <div className="max-w-3xl mx-auto mt-6 p-4 bg-white shadow rounded overflow-visible">
+
     <h1 className="text-xl font-bold text-center text-blue-900 mb-3">
       Orçamento de Emoldurado
     </h1>
