@@ -238,20 +238,18 @@ export async function calcularOrcamento({
     minimoAbsoluto: 25,
   };
 
-  // === Reforço (prioriza tabela; se não achar, cai no fallback antigo) ===
+  // === Reforço (prioriza tabela; se não achar, cai no fallback percentual) ===
   const maiorLadoInterno = Math.max(larguraInterna, alturaInterna);
   const perimetroInternoCm = perimetroInternoM * 100;
 
-  let aplicaReforco = false, valorReforco = 0;
+  let aplicaReforco = false;
+  let valorReforco = 0;
   let reforcoInfo = { necessita_reforco: false, nome: null, valorTotal: 0 };
 
-  const isCaixa =
-    (moldura1?.uso_tipo === 'C') ||
-    /caixa/i.test(moldura1?.tipo || moldura1?.categoria || '');
-
+  // usa o isCaixa já declarado anteriormente
   if (isCaixa && Array.isArray(reforcoTabela) && reforcoTabela.length) {
-    const W = larguraInterna; // cm (com margem)
-    const H = alturaInterna;  // cm (com margem)
+    const W = larguraInterna; // cm
+    const H = alturaInterna;  // cm
 
     const pickNum = (r, keys) => {
       for (const k of keys) {
@@ -286,6 +284,31 @@ export async function calcularOrcamento({
       }
     }
   }
+
+  // Fallback percentual, caso a tabela não cubra a medida
+  if (isCaixa && !aplicaReforco) {
+    const regraReforco = {
+      habilitado: true,
+      limiteMaiorLadoCm: 70,
+      limitePerimetroCm: 240,
+      valor: 0.08,
+      minimoAbsoluto: 25,
+    };
+    if (regraReforco.habilitado) {
+      if (maiorLadoInterno >= regraReforco.limiteMaiorLadoCm ||
+          perimetroInternoCm >= regraReforco.limitePerimetroCm) {
+        aplicaReforco = true;
+        const base = custosCamadas[0]?.custo ?? custoMoldurasTotal;
+        valorReforco = Math.max(regraReforco.minimoAbsoluto, base * regraReforco.valor);
+        reforcoInfo = {
+          necessita_reforco: true,
+          nome: "Reforço estrutural (moldura caixa)",
+          valorTotal: valorReforco
+        };
+      }
+    }
+  }
+
 
   // Fallback antigo (percentual) se tabela não cobriu
   if (isCaixa && !aplicaReforco) {
