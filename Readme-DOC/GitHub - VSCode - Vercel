@@ -1,79 +1,3 @@
-# garantir que .env NÃO vá pro git
-printf "\nfrontend/.env\nfrontend/.env.*\nbackend/.env\n" >> .gitignore
-git rm --cached frontend/.env 2>/dev/null || true
-git rm --cached backend/.env 2>/dev/null || true
-
-# adicionar os novos/renomeados
-git add -A
-
-# confirme o que vai subir
-git status
-
-# commit e push
-git commit -m "frontend: move Orçamento para /pages + add Admin/ResetPassword; ajustes de rotas"
-git push origin main
-
-
-
-=======
-
-
-git add frontend/src/components/AuthSplit.jsx frontend/src/App.jsx frontend/src/pages/Admin.jsx
-git commit -m "fix(router): um único BrowserRouter; login navega p/ /orcamento e /admin; tela /admin"
-git push origin main
-
-
-
-git status
-git add -A
-git commit -m "feat(login): vídeo com som + toggle sem libs; ajustes navegação"
-git push origin main
-
-
-git switch main
-git pull
-cd frontend
-echo "deploy $(date)" > src/__deploy__.txt
-git add src/__deploy__.txt
-git commit -m "ci(vercel): trigger fresh build from main"
-git push origin main
-
-
-================
-
-
-git config --local user.name  "Ileuza Maya"
-git config --local user.email "artemoldurados@gmail.com"  
-echo "// trigger $(date)" >> frontend/src/__deploy_trigger__.txt
-git add -A
-git commit -m "ci(vercel): trigger build from main"
-git push origin main
-
-
-npm i -g supabase
-
-
-supabase init
-supabase functions new hello
-
-==========
-
-DEPLOY VsCode para Vercel
-
-# na raiz do repositório
-git pull
-git commit --allow-empty -m "chore: trigger deploy"
-git push origin main
-
-=============
-
-
-Como “forçar” um deploy pela linha de comando
-
-# na raiz do repositório
-git pull
-git commit --allow-empty -m "chore: trigger deploy"
-git push origin main
 
 Deploys da Versel - Atualizar no Terminal:
 
@@ -83,84 +7,28 @@ git commit -m "ajustes de layout"
 git push origin main
 
 
-Sem mudanças de código, dá pra forçar rebuild com commit vazio:
-git commit --allow-empty -m "chore: redeploy"
-git push origin main
-
-
-Deploy Hook:
-# dispara deploy sem mexer no código
-curl -X POST "https://api.vercel.com/v1/integrations/deploy/SEU_DEPLOY_HOOK_ID"
-
-
-=====
-
 Commit Vercel:
-git add supabase/functions/admin-create-client/index.ts supabase/functions/admin-reset-password/index.ts
-git commit -m "feat(edge-fns): implement admin-create-client and admin-reset-password"
-git push origin main
 
-ou
-
-git add -A
-git commit -m "fix(ui): selects clicáveis (z-index/pointer-events) + iOS form sizing"
-git push origin main
-
-
-========
-
-Commit Supab
-supabase functions deploy tipos-orcamento --project-ref nwtfynwrmhggbeudwpus
-supabase ase:functions deploy molduras         --project-ref nwtfynwrmhggbeudwpus
-
-
-
-============
-
-
-
-Commit
-
-cd ~/Downloads/IleuzaMaya/art-emoldurados-webapp
-
-ls -la supabase/functions/admin-create-client/index.ts \
-       supabase/functions/admin-reset-password/index.ts
-
-git add supabase/functions/admin-create-client/index.ts \
-        supabase/functions/admin-reset-password/index.ts
-git commit -m "feat(edge-fns): admin-create-client & admin-reset-password (create user + reset link)"
-git push origin main
-
-supabase projects list | grep nwtfynwrmhggbeudwpus || supabase login
-supabase link --project-ref nwtfynwrmhggbeudwpus
-
-supabase functions deploy admin-create-client
-supabase functions deploy admin-reset-password
-
+chmod +x commit-frontend.sh
 
 
 cd frontend
 npm run build   # testa local (ou pnpm/yarn), mostra o mesmo erro que a Vercel
 
 
-
-ls frontend/src/*css
-git status -s
-
-
-Commit Sugerido
-
-git add frontend/src/components/FloatingSelect.jsx frontend/src/App.css frontend/src/pages/Orcamento.jsx
-git commit -m "fix(ui): FloatingSelect mapeando por valueKey e toque iOS; fecha div de Baguete"
-git push origin main
-
-supabase link --project-ref nwtfynwrmhggbeudwpus
-
 Commit só função determinada:
 supabase functions deploy catalogo --project-ref nwtfynwrmhggbeudwpus
 
 ========
 
+Commit Supab
+
+supabase link --project-ref nwtfynwrmhggbeudwpus
+
+========
+
+
 Variáveis de ambiente = Environment Variables:
 Na Vercel (Project → Settings → Environment Variables)  
+
 

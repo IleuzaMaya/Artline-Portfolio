@@ -534,6 +534,45 @@ export default function OrcamentoForm() {
     return pickPreco(escolhido);
   };
 
+
+    // === Reforço: estado + derivados ===
+  const [reforcoTabela, setReforcoTabela] = useState([]);
+
+  // Moldura 1 é "caixa"?
+  const isCaixaM1 = useMemo(() => {
+    const m = moldura1;
+    const tipo = (m?.tipo || m?.tipo_moldura || m?.categoria || '').toLowerCase();
+    return !!(m && (m.uso_tipo === 'C' || /caixa/.test(tipo)));
+  }, [moldura1]);
+
+  // Largura da face da Moldura 1 em cm (usa mm se existir)
+  const larguraM1cm = useMemo(() => {
+    const mm = Number(moldura1?.largura_mm || 0);
+    if (mm) return mm / 10;
+    const cm = Number(moldura1?.largura || 0);
+    return Number.isFinite(cm) ? cm : 0;
+  }, [moldura1]);
+
+  // Parâmetro para a tabela de reforço: 'matte' ou 'canvas'
+  const tipoReforco = useMemo(() => {
+    const n = (tipoSelecionado?.nome || '').toLowerCase();
+    if (/tela/.test(n)) return 'canvas';
+    // por padrão tratamos como matte (foto/superfície, camisa/objeto, entre-vidros, etc.)
+    return 'matte';
+  }, [tipoSelecionado?.nome]);
+
+  // Busca a tabela de reforço quando fizer sentido
+  useEffect(() => {
+    if (!isCaixaM1) { setReforcoTabela([]); return; }
+
+    let cancel = false;
+    api.get('/reforco', { params: { tipo: tipoReforco } })
+      .then(({ data }) => { if (!cancel) setReforcoTabela(Array.isArray(data) ? data : []); })
+      .catch(() => { if (!cancel) setReforcoTabela([]); });
+
+    return () => { cancel = true; };
+  }, [isCaixaM1, tipoReforco]);
+
   // cálculo do orçamento
   useEffect(() => {
     async function atualizarOrcamento() {
@@ -772,24 +811,8 @@ export default function OrcamentoForm() {
     chassis,
     ehCamisa,
     entreVidrosNoCamisa,
+    reforcoTabela,
   ]);
-
-  // ======= derivadas e alertas =======
-
-  const [reforcoTabela, setReforcoTabela] = useState([]);
-
-  useEffect(() => {
-    const isCaixaM1 =
-      (moldura1?.uso_tipo === 'C') ||
-      /caixa/i.test(moldura1?.tipo || moldura1?.categoria || '');
-
-    if (!isCaixaM1) { setReforcoTabela([]); return; }
-
-    api.get("/reforco") // opcional: { params: { tipo: 'matte' | 'canvas' } }
-      .then(({ data }) => setReforcoTabela(Array.isArray(data) ? data : []))
-      .catch(() => setReforcoTabela([]));
-  }, [moldura1]);
-
 
   const LIMIAR_RISCO_CM = 2.9;
   const needsReforco = Boolean(reforcoInfo?.necessita_reforco);
