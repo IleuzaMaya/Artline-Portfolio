@@ -8,29 +8,33 @@
  * @param {number} larguraMolduraPrincipal - em cm
  * @returns {Object} { nome, custo_total_reforco, alertaRisco }
  */
-export function buscarReforcoIdeal(larguraFinal, alturaFinal, usoTipo, larguraMolduraPrincipal) {
-  const area = (larguraFinal * alturaFinal) / 10000; // m²
-  let nome = '';
-  let custo_total_reforco = 0;
-  let alertaRisco = false;
 
-  if (usoTipo === 'C') {
-    if (area >= 0.6 && area <= 0.85) {
-      nome = 'Reforço leve (0.6m² a 0.85m²)';
-      custo_total_reforco = 15;
-    } else if (area > 0.85 && area <= 1.2) {
-      nome = 'Reforço médio (0.85m² a 1.2m²)';
-      custo_total_reforco = 22;
-    } else if (area > 1.2) {
-      nome = 'Reforço estrutural (acima de 1.2m²)';
-      custo_total_reforco = 35;
-    }
-  } else {
-    // Outras molduras: apenas alerta de risco
-    if (area > 0.6 && larguraMolduraPrincipal < 2) {
-      alertaRisco = true;
-    }
-  }
 
-  return { nome, custo_total_reforco, alertaRisco };
+export function buscarReforcoIdealPorTabela(larguraCm, alturaCm, reforcoTabela = []) {
+  const W = Number(larguraCm) || 0;
+  const H = Number(alturaCm) || 0;
+  if (!W || !H || !Array.isArray(reforcoTabela) || !reforcoTabela.length)
+    return { nome: "", custo_total_reforco: 0, alertaRisco: false };
+
+  const num = (v, d = 0) => {
+    const n = Number(String(v ?? "").replace(",", "."));
+    return Number.isFinite(n) ? n : d;
+  };
+
+  const row = reforcoTabela.find((r) => {
+    const wMin = num(r.largura_min_cm, 0);
+    const wMax = num(r.largura_max_cm, Infinity);
+    const hMin = num(r.altura_min_cm, 0);
+    const hMax = num(r.altura_max_cm, Infinity);
+    return (W >= wMin && W <= wMax && H >= hMin && H <= hMax) ||
+           (H >= wMin && H <= wMax && W >= hMin && W <= hMax);
+  });
+
+  if (!row) return { nome: "", custo_total_reforco: 0, alertaRisco: false };
+
+  return {
+    nome: row.observacoes || "Reforço estrutural",
+    custo_total_reforco: num(row.metragem_linear_reforco, 0),
+    alertaRisco: false,
+  };
 }

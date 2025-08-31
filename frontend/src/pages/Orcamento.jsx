@@ -626,6 +626,9 @@ export default function OrcamentoForm() {
           camisaEntreVidros:
             Boolean((isCamisaObjeto && entreVidrosNoCamisa) || (isEntreVidros && ehCamisa)),
 
+          // Reforço
+          reforcoTabela,
+
         });
 
         if (!resultado) return;
@@ -772,14 +775,21 @@ export default function OrcamentoForm() {
   ]);
 
   // ======= derivadas e alertas =======
-  const isCaixaM1 = useMemo(
-    () => (moldura1?.uso_tipo === 'C') || /caixa/i.test(moldura1?.tipo || moldura1?.categoria || ''),
-    [moldura1]
-  );
-  const larguraM1cm = useMemo(() => {
-    const mm = parseFloat(moldura1?.largura_mm || 0);
-    return mm > 0 ? mm / 10 : parseFloat(moldura1?.largura || 0);
+
+  const [reforcoTabela, setReforcoTabela] = useState([]);
+
+  useEffect(() => {
+    const isCaixaM1 =
+      (moldura1?.uso_tipo === 'C') ||
+      /caixa/i.test(moldura1?.tipo || moldura1?.categoria || '');
+
+    if (!isCaixaM1) { setReforcoTabela([]); return; }
+
+    api.get("/reforco") // opcional: { params: { tipo: 'matte' | 'canvas' } }
+      .then(({ data }) => setReforcoTabela(Array.isArray(data) ? data : []))
+      .catch(() => setReforcoTabela([]));
   }, [moldura1]);
+
 
   const LIMIAR_RISCO_CM = 2.9;
   const needsReforco = Boolean(reforcoInfo?.necessita_reforco);

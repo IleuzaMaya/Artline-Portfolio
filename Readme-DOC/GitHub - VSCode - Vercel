@@ -156,7 +156,8 @@ git push origin main
 
 supabase link --project-ref nwtfynwrmhggbeudwpus
 
-
+Commit só função determinada:
+supabase functions deploy catalogo --project-ref nwtfynwrmhggbeudwpus
 
 ========
 

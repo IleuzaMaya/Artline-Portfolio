@@ -237,17 +237,77 @@ export async function calcularOrcamento({
     valor: 0.08,
     minimoAbsoluto: 25,
   };
+
+  // === Reforço (prioriza tabela; se não achar, cai no fallback antigo) ===
   const maiorLadoInterno = Math.max(larguraInterna, alturaInterna);
   const perimetroInternoCm = perimetroInternoM * 100;
+
   let aplicaReforco = false, valorReforco = 0;
-  if (isCaixa && regraReforco.habilitado) {
-    if (maiorLadoInterno >= regraReforco.limiteMaiorLadoCm ||
-        perimetroInternoCm >= regraReforco.limitePerimetroCm) {
-      aplicaReforco = true;
-      const base = custosCamadas[0]?.custo ?? custoMoldurasTotal;
-      valorReforco = Math.max(regraReforco.minimoAbsoluto, base * regraReforco.valor);
+  let reforcoInfo = { necessita_reforco: false, nome: null, valorTotal: 0 };
+
+  const isCaixa =
+    (moldura1?.uso_tipo === 'C') ||
+    /caixa/i.test(moldura1?.tipo || moldura1?.categoria || '');
+
+  if (isCaixa && Array.isArray(reforcoTabela) && reforcoTabela.length) {
+    const W = larguraInterna; // cm (com margem)
+    const H = alturaInterna;  // cm (com margem)
+
+    const pickNum = (r, keys) => {
+      for (const k of keys) {
+        const v = r?.[k];
+        const n = Number(String(v ?? "").replace(",", "."));
+        if (Number.isFinite(n)) return n;
+      }
+      return 0;
+    };
+
+    const match = reforcoTabela.find((r) => {
+      const wMin = pickNum(r, ["largura_min_cm","w_min","min_largura"]);
+      const wMax = pickNum(r, ["largura_max_cm","w_max","max_largura"]) || Infinity;
+      const hMin = pickNum(r, ["altura_min_cm","h_min","min_altura"]);
+      const hMax = pickNum(r, ["altura_max_cm","h_max","max_altura"]) || Infinity;
+      return (W >= wMin && W <= wMax && H >= hMin && H <= hMax) ||
+            (H >= wMin && H <= wMax && W >= hMin && W <= hMax); // aceita rotação
+    });
+
+    if (match) {
+      valorReforco = pickNum(match, [
+        "metragem_linear_reforco", // seu campo
+        "preco_total", "valor", "custo_total"
+      ]);
+      if (valorReforco > 0) {
+        aplicaReforco = true;
+        reforcoInfo = {
+          necessita_reforco: true,
+          nome: match.observacoes || "Reforço estrutural",
+          valorTotal: valorReforco,
+        };
+      }
     }
   }
+
+  // Fallback antigo (percentual) se tabela não cobriu
+  if (isCaixa && !aplicaReforco) {
+    const regraReforco = {
+      habilitado: true,
+      limiteMaiorLadoCm: 70,
+      limitePerimetroCm: 240,
+      tipoCobranca: 'percentual',
+      valor: 0.08,
+      minimoAbsoluto: 25,
+    };
+    if (regraReforco.habilitado) {
+      if (maiorLadoInterno >= regraReforco.limiteMaiorLadoCm ||
+          perimetroInternoCm >= regraReforco.limitePerimetroCm) {
+        aplicaReforco = true;
+        const base = custosCamadas[0]?.custo ?? custoMoldurasTotal;
+        valorReforco = Math.max(regraReforco.minimoAbsoluto, base * regraReforco.valor);
+        reforcoInfo = { necessita_reforco: true, nome: "Reforço estrutural (moldura caixa)", valorTotal: valorReforco };
+      }
+    }
+  }
+
   const reforcoInfo = aplicaReforco
     ? { necessita_reforco: true, nome: 'Reforço estrutural (moldura caixa)', valorTotal: valorReforco }
     : { necessita_reforco: false, nome: null, valorTotal: 0 };
