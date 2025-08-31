@@ -535,7 +535,7 @@ export default function OrcamentoForm() {
   };
 
 
-    // === Reforço: estado + derivados ===
+  // === Reforço: estado + derivados ===
   const [reforcoTabela, setReforcoTabela] = useState([]);
 
   // Moldura 1 é "caixa"?
@@ -556,9 +556,7 @@ export default function OrcamentoForm() {
   // Parâmetro para a tabela de reforço: 'matte' ou 'canvas'
   const tipoReforco = useMemo(() => {
     const n = (tipoSelecionado?.nome || '').toLowerCase();
-    if (/tela/.test(n)) return 'canvas';
-    // por padrão tratamos como matte (foto/superfície, camisa/objeto, entre-vidros, etc.)
-    return 'matte';
+    return /tela/.test(n) ? 'canvas' : 'matte';
   }, [tipoSelecionado?.nome]);
 
   // Busca a tabela de reforço quando fizer sentido
@@ -566,12 +564,14 @@ export default function OrcamentoForm() {
     if (!isCaixaM1) { setReforcoTabela([]); return; }
 
     let cancel = false;
-    api.get('/reforco', { params: { tipo: tipoReforco } })
+    edge.get('/reforco', { params: { tipo: tipoReforco } })
       .then(({ data }) => { if (!cancel) setReforcoTabela(Array.isArray(data) ? data : []); })
       .catch(() => { if (!cancel) setReforcoTabela([]); });
 
     return () => { cancel = true; };
   }, [isCaixaM1, tipoReforco]);
+
+
 
   // cálculo do orçamento
   useEffect(() => {
