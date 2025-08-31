@@ -4,34 +4,42 @@ export default function FloatingSelect({
   options = [],
   value,
   setValue,
-  labelKey = "nome",
-  valueKey = "id",
+  labelKey = "label",
+  valueKey = "value",
   disabled = false,
-  size = "md",
+  size = "sm",            // "sm" | "md"
+  placeholder = "Selecione...",
+  className = "",
+  id,
 }) {
-  const sz = size === "sm" ? "h-9 text-sm" : "h-11";
+  const sz = size === "sm"
+    ? "h-9 text-sm px-3"
+    : "h-11 text-base px-3";
+
+  const _id = id || `fs-${label?.toString().replace(/\s+/g, "-").toLowerCase()}`;
 
   return (
-    <div className="relative mb-3 overflow-visible">   {/* espaçamento + não clipa */}
-      <label
-        className="absolute -top-2 left-3 px-1 text-xs text-gray-500 bg-white pointer-events-none"
-      >
-        {label}
-      </label>
-
+    <div className={`mb-3 ${className}`}>
+      {label && (
+        <label htmlFor={_id} className="block text-gray-600 text-xs mb-1">
+          {label}
+        </label>
+      )}
       <select
-        className={`block w-full mt-3 bg-white border rounded-lg px-3 ${sz} relative z-20
-                    focus:outline-none focus:ring-2 focus:ring-blue-500`}
-        value={value?.[valueKey] ?? ""}
-        onChange={(e) =>
-          setValue(options.find(o => String(o[valueKey]) === e.target.value) || null)
-        }
+        id={_id}
+        className={`block w-full bg-white border rounded-lg ${sz} focus:outline-none focus:ring-2 focus:ring-blue-500 relative z-10`}
+        value={value?.[valueKey] ?? value ?? ""}
+        onChange={(e) => {
+          const v = e.target.value;
+          const found = options.find(o => String(o?.[valueKey]) === v);
+          setValue(found ?? v);
+        }}
         disabled={disabled}
       >
-        <option value="">Selecione...</option>
-        {options.map(opt => (
-          <option key={opt[valueKey]} value={opt[valueKey]}>
-            {opt[labelKey]}
+        <option value="">{placeholder}</option>
+        {(options || []).map((opt, i) => (
+          <option key={opt?.[valueKey] ?? i} value={String(opt?.[valueKey])}>
+            {opt?.[labelKey] ?? opt?.toString?.() ?? ""}
           </option>
         ))}
       </select>
