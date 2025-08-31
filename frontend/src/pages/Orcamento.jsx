@@ -387,7 +387,15 @@ export default function OrcamentoForm() {
       setTiposOrcamento(asArray(tipos.data));
       setImpressoes(asArray(impr.data));
       setVidros(asArray(v.data));
-      setFundo(asArray(f.data));
+
+      const filtraFundos = (arr) =>
+        (arr || []).filter(x =>
+          (x?.ativo ?? true) &&
+          Number(x?.preco_m2 ?? x?.valor_m2 ?? x?.preco ?? x?.valor ?? 0) > 0
+        );
+
+      setFundo(filtraFundos(asArray(f.data)));
+
       setPassepartouts(asArray(pp.data));
       setBaguetes(asArray(bg.data));
       setCamisaObjetoTabela(asArray(camis.data));
