@@ -303,6 +303,7 @@ export async function calcularOrcamento(params = {}) {
   }
 
   // ----------- fase 9: reforço (tabela + sarrafo ml) -----------
+ 
   const LIMIAR_REFORCO_M2 = 0.3149; // 47 x 67 cm
 
   const temCaixaExterna = [moldura1, moldura2, moldura3].some((m) => {
@@ -310,6 +311,38 @@ export async function calcularOrcamento(params = {}) {
     const tipoTxt = String(m?.tipo || m?.categoria || m?.descricao || "");
     return uso === "C" || /caixa/i.test(tipoTxt);
   });
+
+  // usa área “com PP” quando existir; senão a interna
+  const areaParaReforcoM2 = areaRefM2;
+  const abaixoDoLimiar = areaParaReforcoM2 <= LIMIAR_REFORCO_M2;
+
+  let reforcoInfo = null;
+
+  if (temCaixaExterna && Array.isArray(reforcoTabela) && reforcoTabela.length && !abaixoDoLimiar) {
+    const menor = Math.min(wRef, hRef);
+    const maior = Math.max(wRef, hRef);
+
+    const reg = pickReforcoRegistro(reforcoTabela, menor, maior);
+    if (reg) {
+      let ml = num(reg.metragem_linear_reforco ?? reg.ml ?? reg.metragem ?? 0);
+      if (ml > 20) ml = ml / 100; // se vier em cm, converte para m
+
+      const precoML = num(precoSarrafoML);
+      const valorTotal = +(ml * precoML).toFixed(2);
+
+      reforcoInfo = {
+        necessita_reforco: true,
+        registroId: reg.id ?? null,
+        nome: reg.observacoes || "Estrutura de reforço",
+        ml,
+        precoML,
+        valorTotal,
+      };
+
+      custos.reforco = valorTotal;
+    }
+  }
+
 
   // medidas para reforço: usa COM PP quando existir, senão a interna
   const larguraRefCm = Number(larguraComPassepartoutCm ?? larguraCm ?? 0);
