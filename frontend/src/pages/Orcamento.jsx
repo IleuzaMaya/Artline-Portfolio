@@ -1164,13 +1164,15 @@ export default function OrcamentoForm() {
       )}
 
       {/* ALERTAS */}
-      {mostrarAlertaRisco && (
+
+      {/*mostrarAlertaRisco && ( 
         <div className="mt-3">
           <Alert severity="warning">
             ⚠️ Área grande com moldura fina (&lt; {LIMIAR_RISCO_CM} cm) e sem caixa. Avalie reforço ou troque a moldura.
           </Alert>
         </div>
-      )}
+      )*/}
+
       {mostrarCustoReforco && (
         <div className="mt-3">
           <Alert severity="info">
@@ -1187,7 +1189,7 @@ export default function OrcamentoForm() {
         return riscoPesoVidro ? (
           <div className="mt-3">
             <Alert severity="warning">
-              ⚠️ Moldura 1 com face ≤ 2,5&nbsp;cm e tipo {usoTipoM1 === 'A' ? 'Alumínio' : 'Normal'} com vidro selecionado.
+              ⚠️ Área grande com moldura fina. Moldura 1 com face ≤ 2,5&nbsp;cm e tipo {usoTipoM1 === 'A' ? 'Alumínio' : 'Normal'} com vidro selecionado.
               Esta combinação pode não suportar o peso do vidro. Verificar com o responsável.
             </Alert>
           </div>
