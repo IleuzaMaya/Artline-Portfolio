@@ -49,11 +49,29 @@ export async function calcularOrcamento({
   // reforço (tabela vinda do back/edge)
   reforcoTabela = [],
 }) {
+  
   const num = (v, d = 0) => {
-    const n = Number(String(v ?? '').toString().replace(',', '.'));
+    if (v === null || v === undefined) return d;
+    // remove tudo que não é dígito, vírgula, ponto ou sinal
+    const s = String(v).replace(/[^\d,.\-]/g, "");
+    // remove separadores de milhar (pontos antes de 3 dígitos)
+    const semMilhar = s.replace(/\.(?=\d{3}(?:\D|$))/g, "");
+    // usa vírgula como decimal
+    const norm = semMilhar.replace(",", ".");
+    const n = Number(norm);
     return Number.isFinite(n) ? n : d;
   };
-  const pick = (o, ks = []) => ks.map(k => o?.[k]).find(v => Number.isFinite(num(v)));
+
+  const pickNum = (o, keys, d = 0) => {
+    for (const k of keys) {
+      if (o && o[k] != null) {
+        const n = num(o[k], NaN);
+        if (Number.isFinite(n)) return n;
+      }
+    }
+    return d;
+  };
+  
   const toM2 = (wCm, hCm) => (wCm / 100) * (hCm / 100);
   const perimetroM = (wCm, hCm) => (2 * (wCm + hCm)) / 100;
 
@@ -138,17 +156,29 @@ export async function calcularOrcamento({
   };
 
   // Preço por metro linear da moldura — cobre os nomes mais comuns
-  const precoMetroMoldura = (m) =>
-    num(
-      pick(m || {}, [
-        'preco_ml', 'valor_ml',                // ML comum
-        'preco_metro', 'valor_metro',
-        'preco_por_metro', 'valor_por_metro',
-        'preco_por_ml', 'valor_por_ml',
-        'preco', 'valor'                       // fallback genérico
-      ]),
-      0
-    );
+  const precoMetroMoldura = (m = {}) => {
+    // tenta em campos numéricos “normais”
+    const direto = pickNum(m, [
+      "preco_ml","valor_ml",
+      "preco_metro","valor_metro",
+      "preco_por_metro","valor_por_metro",
+      "preco_por_ml","valor_por_ml",
+      "preco_m","valor_m",
+      "preco","valor"
+    ], 0);
+    if (direto > 0) return direto;
+
+    // fallback: tenta extrair número de alguma string (ex.: "R$ 12,90 / ml")
+    for (const k of Object.keys(m)) {
+      const v = m[k];
+      if (v && typeof v === "string" && /preco|valor|preç|€/i.test(k + v)) {
+        const match = v.replace(/[^\d,.\-]/g, "").replace(/\.(?=\d{3}(?:\D|$))/g, "").replace(",", ".");
+        const n = Number(match);
+        if (Number.isFinite(n) && n > 0) return n;
+      }
+    }
+    return 0;
+  };
 
   // Checagem da folha de PP
   const FOLHA_PP = { menor: 102, maior: 152, seguranca: 2 };
@@ -236,6 +266,18 @@ export async function calcularOrcamento({
     custosCamadas.push({ idx: idx + 1, larguraFaceCm: wFace, perimetroM: pCamadaM, perdaChanfroM, precoML, custo });
     custoMoldurasTotal += custo;
   });
+
+  // Depois do forEach das camadas, adicione:
+  if (camadas.length) {
+    console.debug("[DEBUG molduras] camadas", custosCamadas.map(c => ({
+      camada: c.idx,
+      precoML: c.precoML,
+      perimetroM: c.perimetroM.toFixed(3),
+      perdaChanfroM: c.perdaChanfroM.toFixed(3),
+      custo: c.custo.toFixed(2),
+    })));
+    console.debug("[DEBUG molduras] total molduras =", custoMoldurasTotal.toFixed(2));
+  }
 
   // Baguete interna (quando caixa ou tipo indica)
   const isCaixa =
