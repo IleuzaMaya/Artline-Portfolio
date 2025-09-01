@@ -343,50 +343,6 @@ export async function calcularOrcamento(params = {}) {
     }
   }
 
-
-  // medidas para reforço: usa COM PP quando existir, senão a interna
-  const larguraRefCm = Number(larguraComPassepartoutCm ?? larguraCm ?? 0);
-  const alturaRefCm  = Number(alturaComPassepartoutCm  ?? alturaCm  ?? 0);
-
-  const toM2 = (wCm, hCm) => (Math.max(0, wCm) / 100) * (Math.max(0, hCm) / 100);
-  const areaParaReforcoM2 = toM2(larguraRefCm, alturaRefCm);
-  const abaixoDoLimiar = areaParaReforcoM2 <= LIMIAR_REFORCO_M2;
-
-  let reforcoInfo = null;
-
-  if (temCaixa && Array.isArray(reforcoTabela) && reforcoTabela.length) {
-    // área de referência PARA reforço = “com PP” quando existir; senão interna
-    const areaParaReforco = areaRefM2;
-    const abaixoDoLimiar = areaParaReforco <= LIMIAR_REFORCO_M2;
-
-    if (!abaixoDoLimiar) {
-      const menor = Math.min(wRef, hRef);
-      const maior = Math.max(wRef, hRef);
-
-      const reg = pickReforcoRegistro(reforcoTabela, menor, maior);
-
-      if (reg) {
-        let ml = num(reg.metragem_linear_reforco);
-        // heurística: se veio em cm (valores grandes), converte para m
-        if (ml > 20) ml = ml / 100;
-
-        const precoML = num(precoSarrafoML);
-        const valorTotal = +(ml * precoML).toFixed(2);
-
-        reforcoInfo = {
-          necessita_reforco: true,
-          registroId: reg.id ?? null,
-          nome: reg.observacoes || "Estrutura de reforço",
-          ml,
-          precoML,
-          valorTotal,
-        };
-
-        custos.reforco = valorTotal;
-      }
-    }
-  }
-
   // ----------- fase 10: Camisa / Objeto -----------
   let camisaObjetoInfo = null;
   if (forcarCamisaObjetoTipo) {
