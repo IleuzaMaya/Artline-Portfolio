@@ -78,7 +78,26 @@ export default function OrcamentoForm() {
 
   // Baguete interna (ml)
   const [baguetes, setBaguetes] = useState([]);
+  const [corBaguetePassepartout, setCorBaguetePassepartout] = useState("");
+
   const [bagueteInternaSelecionada, setBagueteInternaSelecionada] = useState(null);
+  // Sarrafo (preço ML para reforço)
+  const [sarrafoLista, setSarrafoLista] = useState([]);
+  const precoSarrafoML = useMemo(() => {
+    const s = (sarrafoLista || [])[0] || null;
+    const raw = s?.preco ?? s?.valor ?? s?.preco_ml ?? s?.valor_ml ?? 0;
+    // parse seguro:
+    const n = Number(String(raw).replace(/\.(?=\d{3}(?:\D|$))/g,"").replace(",","."));
+    return Number.isFinite(n) ? n : 0;
+  }, [sarrafoLista]);
+
+  // Vidro comum (m²) — para Entre Vidros somar frente selecionado + fundo comum
+  const precoVidroComumM2 = useMemo(() => {
+    const comum = (vidros || []).find(v => /comum/i.test(v?.nome || v?.descricao || ""));
+    const raw = comum?.preco_m2 ?? comum?.valor_m2 ?? comum?.preco ?? comum?.valor ?? 0;
+    const n = Number(String(raw).replace(/\.(?=\d{3}(?:\D|$))/g,"").replace(",","."));
+    return Number.isFinite(n) ? n : 0;
+  }, [vidros]);
 
   // Chassi (apenas para Tela)
   const [chassis, setChassis] = useState([]);
@@ -378,7 +397,7 @@ export default function OrcamentoForm() {
   useEffect(() => {
   const load = async () => {
     try {
-      const [tipos, impr, v, f, pp, bg, camis, chs, divs] = await Promise.all([
+      const [tipos, impr, v, f, pp, bg, camis, chs, divs, sarr] = await Promise.all([
         api.get("/tipos-orcamento"),
         api.get("/impressoes"),
         api.get("/vidros"),
@@ -388,10 +407,12 @@ export default function OrcamentoForm() {
         api.get("/camisas").catch(() => ({ data: [] })),
         api.get("/chassis").catch(() => ({ data: [] })),
         api.get("/diversos").catch(() => ({ data: [] })),
+        api.get("/sarrafo").catch(() => ({ data: [] })),
       ]);
       setTiposOrcamento(asArray(tipos.data));
       setImpressoes(asArray(impr.data));
       setVidros(asArray(v.data));
+      setSarrafoLista(asArray(sarr.data));
 
       const filtraFundos = (arr) =>
         (arr || []).filter(x =>
@@ -680,6 +701,10 @@ export default function OrcamentoForm() {
           // Reforço
           reforcoTabela,
 
+          // preços auxiliares
+          precoSarrafoML,
+          precoVidroComumM2,
+
         });
 
         if (!resultado) return;
@@ -717,9 +742,18 @@ export default function OrcamentoForm() {
         if (moldura3 && c.moldurasCamadas?.[2]?.custo > 0) {
           itens.push(`Moldura 3: ${moldura3.nome}${moldura3.codigo_principal ? ` (${moldura3.codigo_principal})` : ''}`);
         }
+
         if (c.bagueteInterna > 0 && bagueteInternaSelecionada) {
-          itens.push(`Baguete interna${bagueteInternaSelecionada?.nome ? `: ${bagueteInternaSelecionada.nome}` : ''}`);
+          const corTxt =
+            /passepartout/i.test(bagueteInternaSelecionada?.nome || "") &&
+            corBaguetePassepartout?.trim()
+              ? ` — cor: ${corBaguetePassepartout.trim()}`
+              : "";
+          itens.push(
+            `Baguete interna${bagueteInternaSelecionada?.nome ? `: ${bagueteInternaSelecionada.nome}` : ''}${corTxt}`
+          );
         }
+
         if (c.vidro > 0 && vidroSelecionado) {
           if (perfil.vidroFundoComumFixo) {
             itens.push(`Vidro (frente): ${vidroSelecionado.nome || vidroSelecionado.descricao || 'selecionado'}`);
@@ -755,6 +789,16 @@ export default function OrcamentoForm() {
         }
         if (resultado.reforcoInfo?.necessita_reforco && Number(resultado.reforcoInfo?.valorTotal) > 0) {
           itens.push('Reforço (moldura caixa)');
+
+          if (resultado.reforcoInfo?.necessita_reforco && Number(resultado.reforcoInfo?.valorTotal) > 0) {
+          const r = resultado.reforcoInfo;
+          if (Number(r.ml) > 0 && Number(r.precoML) > 0) {
+            itens.push(
+              `Reforço (moldura caixa): ${Number(r.ml).toFixed(2)} m × R$ ${Number(r.precoML).toFixed(2).replace('.', ',')} = R$ ${Number(r.valorTotal).toFixed(2).replace('.', ',')}`
+            );
+          } else {
+            itens.push(`Reforço (moldura caixa)`);
+          }
         }
         if (resultado.camisaObjetoInfo?.aplicado) {
           const info = resultado.camisaObjetoInfo;
@@ -764,6 +808,15 @@ export default function OrcamentoForm() {
         if (Array.isArray(resultado.diversosInfo?.itens) && resultado.diversosInfo.itens.length) {
           resultado.diversosInfo.itens.forEach((it) => {
             itens.push(`Serviço: ${it.nome}${it.faixa ? ` (${it.faixa})` : ''}`);
+          });
+        }
+
+        // Diversos (lista local usada para compor o texto)
+        if (Array.isArray(diversosPayload) && diversosPayload.length) {
+          diversosPayload.forEach((it) => {
+            itens.push(
+              `Serviço: ${it.nome}${it.faixa_aplicacao ? ` (${it.faixa_aplicacao})` : ''} — R$ ${Number(it.preco).toFixed(2).replace('.', ',')}`
+            );
           });
         }
 
@@ -1096,7 +1149,7 @@ export default function OrcamentoForm() {
                 valueKey="id"
                 size="sm"
               />
-              {!ehCaixa?.(moldura2) && (
+              {!ehCaixa(moldura2) && (
                 <FloatingSelect
                   label="Moldura 3 (opcional)"
                   options={molduras || []}
@@ -1150,17 +1203,28 @@ export default function OrcamentoForm() {
 
       {/* Baguete (auto, mas editável) — aparece quando houver caixa/uso */}
       {usaBagueteInterna && !isTela && (
-        <div className="mt-6">
-          <FloatingSelect
-            label="Baguete interna (ml)"
-            options={baguetes || []}
-            value={bagueteInternaSelecionada}
-            setValue={setBagueteInternaSelecionada}
-            labelKey="nome"
-            valueKey="id"
-            size="sm"
-          />
-        </div>  
+         <div className="mt-6">
+           <FloatingSelect
+             label="Baguete interna (ml)"
+             options={baguetes || []}
+             value={bagueteInternaSelecionada}
+             setValue={setBagueteInternaSelecionada}
+             labelKey="nome"
+             valueKey="id"
+             size="sm"
+           />
+          {bagueteInternaSelecionada &&
+           /passepartout/i.test(bagueteInternaSelecionada?.nome || "") && (
+             <div className="mt-3">
+               <FloatingInput
+                 label="Cor do passe-partout (baguete interna)"
+                 value={corBaguetePassepartout}
+                 onChange={(e) => setCorBaguetePassepartout(e.target.value)}
+                 size="sm"
+               />
+             </div>
+          )}
+         </div>  
       )}
 
       {/* ALERTAS */}
@@ -1262,7 +1326,7 @@ export default function OrcamentoForm() {
                         <FloatingSelect label="Moldura 2 (opcional)" options={molduras||[]}
                           value={moldura2} setValue={setMoldura2} labelKey="display" 
                           size="sm" />
-                        {!ehCaixa?.(moldura2) && (
+                        {!ehCaixa(moldura2) && (
                           <FloatingSelect label="Moldura 3 (opcional)" options={molduras||[]}
                             value={moldura3} setValue={setMoldura3} labelKey="display" 
                             size="sm" />
