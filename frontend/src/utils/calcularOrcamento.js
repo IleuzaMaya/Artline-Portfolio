@@ -303,10 +303,21 @@ export async function calcularOrcamento(params = {}) {
   }
 
   // ----------- fase 9: reforço (tabela + sarrafo ml) -----------
-  const LIMIAR_REFORCO_M2 = 0.32156; // 47,5 × 67,5 cm
-  const temCaixa = [moldura1, moldura2, moldura3].some(
-    (m) => (m?.uso_tipo || "").toUpperCase() === "C" || /caixa/i.test(String(m?.tipo || m?.categoria || m?.descricao || ""))
-  );
+  const LIMIAR_REFORCO_M2 = 0.3149; // 47 x 67 cm
+
+  const temCaixaExterna = [moldura1, moldura2, moldura3].some((m) => {
+    const uso = String(m?.uso_tipo || "").toUpperCase();
+    const tipoTxt = String(m?.tipo || m?.categoria || m?.descricao || "");
+    return uso === "C" || /caixa/i.test(tipoTxt);
+  });
+
+  // medidas para reforço: usa COM PP quando existir, senão a interna
+  const larguraRefCm = Number(larguraComPassepartoutCm ?? larguraCm ?? 0);
+  const alturaRefCm  = Number(alturaComPassepartoutCm  ?? alturaCm  ?? 0);
+
+  const toM2 = (wCm, hCm) => (Math.max(0, wCm) / 100) * (Math.max(0, hCm) / 100);
+  const areaParaReforcoM2 = toM2(larguraRefCm, alturaRefCm);
+  const abaixoDoLimiar = areaParaReforcoM2 <= LIMIAR_REFORCO_M2;
 
   let reforcoInfo = null;
 
