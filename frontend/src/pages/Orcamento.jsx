@@ -8,16 +8,6 @@ import { Alert } from '@mui/material';
 import MolduraThumb from '../components/MolduraThumb';
 
 
-// Supabase envs
-const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
-const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-// Se existir VITE_SUPABASE_FUNCTIONS_URL, usa; senão troca o domínio para .functions.
-const FUNCTIONS_URL =
-  (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL || SUPABASE_URL.replace('.supabase.co', '.functions.supabase.co'))
-    .replace(/\/$/, '');
-
-
 export default function OrcamentoForm() {
   // helper para garantir array
   const asArray = (data) =>
@@ -366,7 +356,7 @@ export default function OrcamentoForm() {
 
   // Se M2 virar "Caixa", limpa/desabilita M3
   useEffect(() => {
-    if (ehCaixa?.(moldura2) && moldura3) setMoldura3(null);
+    if (ehCaixa(moldura2) && moldura3) setMoldura3(null);
   }, [moldura2]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // carregamentos iniciais
@@ -572,7 +562,7 @@ export default function OrcamentoForm() {
     if (!isCaixaM1) { setReforcoTabela([]); return; }
 
     let cancel = false;
-    edge.get('/reforco', { params: { tipo: tipoReforco } })
+    api.get('/reforco', { params: { tipo: tipoReforco } })
       .then(({ data }) => { if (!cancel) setReforcoTabela(Array.isArray(data) ? data : []); })
       .catch(() => { if (!cancel) setReforcoTabela([]); });
 
@@ -590,8 +580,7 @@ export default function OrcamentoForm() {
           (Math.max(0, parseFloat(largura) || 0) / 100);
 
         let impressaoParam = null;
-        const isTela = /tela/i.test(tipoSelecionado?.nome || '');
-
+      
         if (isTela) {
           impressaoParam = incluirImpressaoTela ? impressaoCanvas : null;
         } else if (isDiversosTipo && incluirImpressaoDiversos) {
@@ -647,6 +636,7 @@ export default function OrcamentoForm() {
           // extras
           fundoExtraSelecionado: foamExtraDiversos || foamExtra,
           camisaObjetoTabela,
+          camisaObjetoExtra: 0,
 
           // Diversos
           diversosSelecionados: diversosPayload,
