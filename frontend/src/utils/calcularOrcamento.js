@@ -15,180 +15,168 @@
 // Saída: valores + breakdown + dimensões finais + flags
 // =======================================================
 
-/** Parser numérico robusto (milhar/decimal, vírgula/ponto). */
-const num = (v, d = 0) => {
-  if (v === null || v === undefined) return d;
-  const s = String(v).replace(/[^\d,.\-]/g, "");
-  const semMilhar = s.replace(/\.(?=\d{3}(?:\D|$))/g, "");
-  const norm = semMilhar.replace(",", ".");
-  const n = Number(norm);
-  return Number.isFinite(n) ? n : d;
-};
+// frontend/src/utils/calcularOrcamento.js
 
-/** Tenta as chaves em ordem e devolve o primeiro número válido. */
-const pickNum = (obj, keys, d = 0) => {
-  for (const k of keys) {
-    const v = obj?.[k];
-    if (v === undefined || v === null) continue;
-    const n = num(v, NaN);
-    if (Number.isFinite(n)) return n;
+/* ============================================
+ *  Calculadora de Orçamento — Emoldurados
+ * ============================================ */
+
+export async function calcularOrcamento(params = {}) {
+  // ----------- helpers -----------
+  const num = (v, d = 0) => {
+    const n = Number(String(v ?? "").replace(/\.(?=\d{3}(?:\D|$))/g, "").replace(",", "."));
+    return Number.isFinite(n) ? n : d;
+  };
+  const toM2 = (wCm, hCm) => (num(wCm) / 100) * (num(hCm) / 100);
+  const perimetroML = (wCm, hCm) => (2 * (num(wCm) + num(hCm))) / 100;
+
+  const pickPrecoML = (o) =>
+    num(o?.preco_ml ?? o?.valor_ml ?? o?.preco ?? o?.valor ?? o?.precoUnit ?? o?.valorUnit);
+
+  const pickPrecoM2 = (o) =>
+    num(o?.preco_m2 ?? o?.valor_m2 ?? o?.preco ?? o?.valor ?? o?.precoUnit ?? o?.valorUnit);
+
+  const faceLarguraCm = (m) => {
+    // 1) campo dedicado (mm)
+    const mm = num(m?.largura_mm);
+    if (mm > 0) return mm / 10;
+
+    // 2) campo em cm
+    const cm = num(m?.largura);
+    if (cm > 0) return cm;
+
+    // 3) tenta parsear do nome/descrição: 20X32MM, 28x51mm etc.
+    const s = [m?.nome, m?.descricao, m?.display, m?.modelo, m?.titulo]
+      .filter(Boolean)
+      .join(" ");
+    const m1 = s.match(/(\d{2,3})\s*[xX]\s*(\d{2,3})\s*mm/i);
+    if (m1) {
+      const mmFace = num(m1[1]);
+      if (mmFace > 0) return mmFace / 10;
+    }
+    // 4) fallback conservador: 2 cm
+    return 2;
+  };
+
+  const aplicarMarkup = (valor, markupPercent) =>
+    num(valor) * (1 + num(markupPercent) / 100);
+
+  const FOLHA_PP = { maior: 152, menor: 102, seguranca: 2 };
+  const excedeFolhaPP = (wCm, hCm, margemCm) => {
+    const w = num(wCm) + num(margemCm) * 2;
+    const h = num(hCm) + num(margemCm) * 2;
+    const maxMenor = FOLHA_PP.menor - FOLHA_PP.seguranca;
+    const maxMaior = FOLHA_PP.maior - FOLHA_PP.seguranca;
+    const okNormal = w <= maxMenor && h <= maxMaior;
+    const okRotac  = h <= maxMenor && w <= maxMaior;
+    return !(okNormal || okRotac);
+  };
+
+  // -------- reforço: escolha de registro --------
+  function pickReforcoRegistro(tabela, menor, maior) {
+    const rows = (Array.isArray(tabela) ? tabela : []).map((r) => ({
+      ...r,
+      lmin: num(r.largura_min_cm ?? r.largura_min),
+      lmax: num(r.largura_max_cm ?? r.largura_max),
+      amin: num(r.altura_min_cm ?? r.altura_min),
+      amax: num(r.altura_max_cm ?? r.altura_max),
+      mlcm: num(r.metragem_linear_reforco ?? r.ml ?? r.metragem ?? 0),
+    }));
+
+    // 1) match estrito (min..max)
+    let reg = rows.find(
+      (r) => menor >= r.lmin && menor <= r.lmax && maior >= r.amin && maior <= r.amax
+    );
+    if (reg) return reg;
+
+    // 2) relaxado pelos máximos
+    reg = rows.find((r) => menor <= r.lmax && maior <= r.amax);
+    if (reg) return reg;
+
+    // 3) menor que ainda cubra
+    return (
+      rows
+        .filter((r) => r.lmax >= menor && r.amax >= maior)
+        .sort((a, b) => (a.lmax - b.lmax) || (a.amax - b.amax))[0] || null
+    );
   }
-  return d;
-};
 
-const toM2 = (wCm, hCm) => (Math.max(0, num(wCm)) / 100) * (Math.max(0, num(hCm)) / 100);
-const perimetroM = (wCm, hCm) => (2 * (Math.max(0, num(wCm)) + Math.max(0, num(hCm)))) / 100;
+  // ----------- unpack params -----------
+  const {
+    // dimensões básicas
+    altura = 0,
+    largura = 0,
+    quantidade = 1,
+    markup = 0,
 
-/** Largura da face da moldura em cm (usa mm se disponível). */
-const faceCm = (m) => {
-  if (!m) return 0;
-  const mm = num(m.largura_mm, 0);
-  if (mm > 0) return mm / 10;
-  return num(m.largura, 0);
-};
+    // passe-partout
+    margemPassepartout = 0,
+    passepartoutSelecionado = null,
+    numAberturas = 1,
+    precoAberturaExtra = 0,
 
-/** Identifica se uma moldura é "caixa". */
-const ehCaixa = (m) => !!m && (String(m?.uso_tipo || "").toUpperCase() === "C" || /caixa/i.test(m?.tipo || m?.categoria || ""));
+    // itens selecionados
+    moldura1 = null,
+    moldura2 = null,
+    moldura3 = null,
+    bagueteInternaSelecionada = null,
 
-/** Retorna a moldura caixa mais externa (M3 > M2 > M1). */
-const caixaMaisExterna = (m1, m2, m3) => {
-  const isCx = (m) => ehCaixa(m);
-  if (isCx(m3)) return m3;
-  if (isCx(m2)) return m2;
-  if (isCx(m1)) return m1;
-  return null;
-};
+    vidroSelecionado = null,
+    fundoSelecionado = null,
+    impressaoSelecionada = null,
 
-/** Converte valor "metragem_linear_reforco" para METROS.
- *  Se o número parecer cm (>= 50), divide por 100. Se for <= 50, assume já estar em metros. */
-const toMetrosFromMLPossiblyCm = (v) => {
-  const n = num(v, 0);
-  if (n <= 0) return 0;
-  return n >= 50 ? n / 100 : n; // 205.4 -> 2.054 m ; 3.72 -> 3.72 m
-};
+    // extras
+    fundoExtraSelecionado = null,
+    incluirChassi = false,
+    chassiSelecionado = null,
 
-/** Checa se cabe na folha de PP (aceita rotação). */
-const cabeNaFolhaPP = (wCm, hCm, margemCm, folha = { menor: 102, maior: 152, seguranca: 2 }) => {
-  const w = num(wCm) + 2 * num(margemCm);
-  const h = num(hCm) + 2 * num(margemCm);
-  const maxMenor = folha.menor - folha.seguranca;
-  const maxMaior = folha.maior - folha.seguranca;
-  const okNormal = w <= maxMenor && h <= maxMaior;
-  const okRot = h <= maxMenor && w <= maxMaior;
-  return okNormal || okRot;
-};
+    // contexto/tipo
+    tipoSelecionado = null,
+    entreVidros = false,
+    vidroSomenteComum = false,
+    foamExtraAuto = false,
+    bagueteAuto = false,
 
-/**
- * @typedef {Object} CalcularOpts
- * @property {string|number} altura
- * @property {string|number} largura
- * @property {number} quantidade
- * @property {number} markup
- * @property {number} margemPassepartout
- * @property {Object|null} moldura1
- * @property {Object|null} moldura2
- * @property {Object|null} moldura3
- * @property {Object|null} impressaoSelecionada
- * @property {Object|null} vidroSelecionado
- * @property {Object|null} fundoSelecionado
- * @property {Object|null} passepartoutSelecionado
- * @property {Object|null} bagueteInternaSelecionada
- * @property {Object[]} camisaObjetoTabela
- * @property {('camisa'|'objeto'|null)} forcarCamisaObjetoTipo
- * @property {boolean} camisaEntreVidros
- * @property {Object|null} fundoExtraSelecionado
- * @property {Object[]} diversosSelecionados
- * @property {boolean} entreVidros
- * @property {boolean} vidroSomenteComum
- * @property {boolean} foamExtraAuto
- * @property {boolean} bagueteAuto
- * @property {number} numAberturas
- * @property {number} precoAberturaExtra
- * @property {boolean} incluirChassi
- * @property {Object|null} chassiSelecionado
- * @property {Object[]} reforcoTabela  // linhas vinda de /reforco
- * @property {number} [precoSarrafoML] // R$/m (sarrafo). Default 3.20
- * @property {('ml'|'cm'|'preco')} [reforcoValorEm] // Como interpretar metragem_linear_reforco (default "ml")
- */
+    // Camisa/Objeto
+    camisaObjetoTabela = [],
+    camisaObjetoExtra = 0,
+    forcarCamisaObjetoTipo = null, // 'camisa' | 'objeto' | null
+    camisaEntreVidros = false,
 
-/**
- * Calcula o orçamento completo.
- * @param {CalcularOpts} opts
- * @returns {Promise<Object>}
- */
-export async function calcularOrcamento(opts) {
-  // --------- ENTRADAS BÁSICAS ----------
-  const alturaCm = num(opts?.altura, 0);
-  const larguraCm = num(opts?.largura, 0);
-  const qtd = Math.max(1, num(opts?.quantidade, 1));
-  const markupPct = Math.max(0, num(opts?.markup, 0));
-  const margemPPcm = Math.max(0, num(opts?.margemPassepartout, 0));
+    // Diversos
+    diversosSelecionados = [],
 
-  const m1 = opts?.moldura1 || null;
-  const m2 = opts?.moldura2 || null;
-  const m3 = opts?.moldura3 || null;
+    // Reforço
+    reforcoTabela = [],
 
-  const vidro = opts?.vidroSelecionado || null;
-  const fundo = opts?.fundoSelecionado || null;
-  const pp = opts?.passepartoutSelecionado || null;
-  const baguete = opts?.bagueteInternaSelecionada || null;
-  const imp = opts?.impressaoSelecionada || null;
+    // preços auxiliares vindos do front
+    precoSarrafoML = 0,
+    precoVidroComumM2 = 0,
+  } = params;
 
-  const diversos = Array.isArray(opts?.diversosSelecionados) ? opts.diversosSelecionados : [];
-  const camisaTabela = Array.isArray(opts?.camisaObjetoTabela) ? opts.camisaObjetoTabela : [];
-  const camisaTipo = opts?.forcarCamisaObjetoTipo || null;
+  // ----------- fase 1: dimensões base -----------
+  const H = num(altura);
+  const W = num(largura);
+  const QTD = Math.max(1, num(quantidade, 1));
+  const MARKUP = num(markup);
 
-  const entreVidros = Boolean(opts?.entreVidros);
-  const vidroSomenteComum = Boolean(opts?.vidroSomenteComum);
-  const incluirChassi = Boolean(opts?.incluirChassi);
-  const chassi = incluirChassi ? (opts?.chassiSelecionado || null) : null;
+  // Passe-partout: pode ser bloqueado pela folha
+  const excedePP = Boolean(
+    passepartoutSelecionado && excedeFolhaPP(W, H, margemPassepartout)
+  );
 
-  const foamExtra = opts?.fundoExtraSelecionado || null;
+  // “dimensão de referência” (para vidro/fundo/baguete/PP)
+  const wRef = !excedePP && passepartoutSelecionado ? W + 2 * num(margemPassepartout) : W;
+  const hRef = !excedePP && passepartoutSelecionado ? H + 2 * num(margemPassepartout) : H;
 
-  const reforcoTabela = Array.isArray(opts?.reforcoTabela) ? opts.reforcoTabela : [];
-  const precoSarrafoML = num(opts?.precoSarrafoML, 3.20); // seu mt_sarrafo inicial
-  const reforcoValorEm = (opts?.reforcoValorEm || "ml").toLowerCase(); // "ml" | "cm" | "preco"
-  const precoVidroComumM2 = num(opts?.precoVidroComumM2, 0);
+  // área interna e área "com PP"
+  const areaInternaM2 = toM2(W, H);
+  const areaRefM2 = toM2(wRef, hRef);
 
-  // ---------- DERIVADOS DE DIMENSÕES ----------
-  // Dimensões com passe-partout (o “miolo” que recebe vidro/fundo/PP)
-  const wComPP = larguraCm + 2 * margemPPcm;
-  const hComPP = alturaCm + 2 * margemPPcm;
-
-  // Faces
-  const f1 = faceCm(m1);
-  const f2 = faceCm(m2);
-  const f3 = faceCm(m3);
-  const somaFaces = f1 + f2 + f3;
-
-  // Final com molduras (pega até onde houver)
-  const somaFacesM23 = f1 + (m2 ? f2 : 0) + (m3 ? f3 : 0);
-  const wFinal = wComPP + 2 * somaFacesM23;
-  const hFinal = hComPP + 2 * somaFacesM23;
-
-  // Área total (m²) — final com molduras (para exibição)
-  const areaTotalM2 = toM2(wFinal, hFinal);
-
-  // Perímetros por camada (usando o “contorno externo” de cada)
-  const perM1 = m1 ? perimetroM(wComPP + 2 * f1, hComPP + 2 * f1) : 0;
-  const perM2 = m2 ? perimetroM(wComPP + 2 * (f1 + f2), hComPP + 2 * (f1 + f2)) : 0;
-  const perM3 = m3 ? perimetroM(wComPP + 2 * (f1 + f2 + f3), hComPP + 2 * (f1 + f2 + f3)) : 0;
-
-  // Perímetro “miolo” (útil para baguete interna)
-  const perMiolo = perimetroM(wComPP, hComPP);
-
-  // ---------- FOLHA PASSE-PARTOUT & EXCEDÊNCIA ----------
-  const FOLHA_PP = { menor: 102, maior: 152, seguranca: 2 };
-  const excedePassepartout =
-    !!pp && !cabeNaFolhaPP(larguraCm, alturaCm, margemPPcm, FOLHA_PP);
-
-  // ---------- CUSTOS ----------
+  // ----------- fase 2: molduras (em camadas) -----------
+  const molduras = [moldura1, moldura2, moldura3].filter(Boolean);
   const custos = {
-    moldurasCamadas: [
-      { camada: 1, ml: perM1, precoML: 0, custo: 0 },
-      { camada: 2, ml: perM2, precoML: 0, custo: 0 },
-      { camada: 3, ml: perM3, precoML: 0, custo: 0 },
-    ],
+    moldurasCamadas: [],
     bagueteInterna: 0,
     vidro: 0,
     fundo: 0,
@@ -197,300 +185,265 @@ export async function calcularOrcamento(opts) {
     passepartoutAberturasExtra: 0,
     impressao: 0,
     chassi: 0,
+    reforco: 0,
     camisaObjeto: 0,
     diversos: 0,
-    reforco: 0,
   };
 
-  // --- Molduras (ML) por camada ---
-  const precoMLFromMoldura = (m) =>
-    pickNum(m, ["preco_metro", "preco_ml", "valor_ml", "preco_m", "valor_m", "preco", "valor"], 0);
+  // dimensões crescem a cada camada de moldura (face)
+  let wAtual = wRef;
+  let hAtual = hRef;
 
-  if (m1 && perM1 > 0) {
-    const p = precoMLFromMoldura(m1);
-    custos.moldurasCamadas[0].precoML = p;
-    custos.moldurasCamadas[0].custo = perM1 * p;
-  }
-  if (m2 && perM2 > 0) {
-    const p = precoMLFromMoldura(m2);
-    custos.moldurasCamadas[1].precoML = p;
-    custos.moldurasCamadas[1].custo = perM2 * p;
-  }
-  if (m3 && perM3 > 0) {
-    const p = precoMLFromMoldura(m3);
-    custos.moldurasCamadas[2].precoML = p;
-    custos.moldurasCamadas[2].custo = perM3 * p;
-  }
-
-  // --- Baguete interna (ML) quando houver seleção ---
-  if (baguete && perMiolo > 0) {
-    const p = pickNum(baguete, ["preco_ml", "valor_ml", "preco_m", "valor_m", "preco", "valor"], 0);
-    custos.bagueteInterna = perMiolo * p;
-  }
-
-  // --- Vidro (m²) ---
-  // Tamanho do vidro = miolo (com PP). Em Entre-vidros, cobramos 2x o vidro selecionado.
-  if (vidro) {
-    const areaVidro = toM2(wComPP, hComPP);
-    const pv = pickNum(vidro, ["preco_m2", "valor_m2", "preco", "valor"], 0);
-    if (areaVidro > 0 && pv > 0) {
-      if (entreVidros) {
-        // frente = vidro selecionado ; fundo = vidro comum
-        const precoFundo = precoVidroComumM2 > 0 ? precoVidroComumM2 : pv; // fallback no selecionado
-        custos.vidro = areaVidro * (pv + precoFundo);
-      } else {
-        custos.vidro = areaVidro * pv;
-      }
+  molduras.forEach((m, idx) => {
+    const precoML = pickPrecoML(m);
+    if (precoML <= 0) {
+      custos.moldurasCamadas.push({ idx, ml: 0, precoML: 0, custo: 0 });
+      return;
     }
-  }
+    const perim = perimetroML(wAtual, hAtual);
+    const custo = perim * precoML;
 
-  // --- Fundos (m²) ---
-  if (fundo) {
-    const areaFundo = toM2(wComPP, hComPP);
-    const pf = pickNum(fundo, ["preco_m2", "valor_m2", "preco", "valor"], 0);
-    if (areaFundo > 0 && pf > 0) {
-      custos.fundo = areaFundo * pf;
+    custos.moldurasCamadas.push({ idx, ml: perim, precoML, custo });
+
+    // cresce a dimensão pela “face” desta moldura
+    const faceCm = faceLarguraCm(m);
+    wAtual += 2 * faceCm;
+    hAtual += 2 * faceCm;
+  });
+
+  const larguraFinal = wAtual;
+  const alturaFinal = hAtual;
+  const areaTotalM2 = toM2(larguraFinal, alturaFinal);
+
+  // ----------- fase 3: baguete interna (ml) -----------
+  if (bagueteInternaSelecionada) {
+    const precoML = pickPrecoML(bagueteInternaSelecionada);
+    if (precoML > 0) {
+      // usa o perímetro com-PP (ou interno)
+      const ml = perimetroML(wRef, hRef);
+      custos.bagueteInterna = ml * precoML;
     }
+  } else if (bagueteAuto) {
+    // se desejar um auto padrão no futuro, tratar aqui
   }
 
-  // Fundo extra (foam AD etc.) (m²)
-  if (foamExtra) {
-    const areaFundo = toM2(wComPP, hComPP);
-    const pf = pickNum(foamExtra, ["preco_m2", "valor_m2", "preco", "valor"], 0);
-    if (areaFundo > 0 && pf > 0) {
-      custos.fundoExtra = areaFundo * pf;
-    }
-  }
-
-  // --- Passe-partout (ML ou m²) ---
+  // ----------- fase 4: passe-partout -----------
   let modoCobrancaPassepartout = null;
-  let numAberturasConsideradas = Math.max(1, num(opts?.numAberturas, 1));
-
-  if (pp && !excedePassepartout) {
-    const pML = pickNum(pp, ["preco_ml", "valor_ml", "preco_m", "valor_m"], 0);
-    const pM2 = pickNum(pp, ["preco_m2", "valor_m2"], 0);
-
-    if (pML > 0) {
-      // Cobrança por ML: usamos o perímetro do "buraco" (área interna, sem margem)
-      const perPP = perimetroM(larguraCm, alturaCm);
-      custos.passepartout = perPP * pML;
+  let numAberturasConsideradas = Math.max(1, num(numAberturas, 1));
+  if (passepartoutSelecionado && !excedePP) {
+    const precoML = pickPrecoML(passepartoutSelecionado);
+    if (precoML > 0) {
+      const ml = perimetroML(wRef, hRef);
+      custos.passepartout = ml * precoML;
       modoCobrancaPassepartout = "ml";
-    } else if (pM2 > 0) {
-      // Cobrança por m²: usamos a área da FOLHA útil (miolo com margem)
-      const areaPP = toM2(wComPP, hComPP);
-      custos.passepartout = areaPP * pM2;
-      modoCobrancaPassepartout = "m2";
     }
 
-    // Aberturas extras (quando houver)
-    const precoAberturaExtra = Math.max(0, num(opts?.precoAberturaExtra, 0));
+    const unitExtra = num(precoAberturaExtra);
     const extras = Math.max(0, numAberturasConsideradas - 1);
-    if (precoAberturaExtra > 0 && extras > 0) {
-      custos.passepartoutAberturasExtra = extras * precoAberturaExtra;
+    if (unitExtra > 0 && extras > 0) {
+      custos.passepartoutAberturasExtra = extras * unitExtra;
     }
   } else {
-    // Se excedeu a folha, neutralizamos PP e zeramos aberturas extras
-    modoCobrancaPassepartout = null;
     numAberturasConsideradas = 1;
   }
 
-  // --- Impressão (m²) (na área interna) ---
-  if (imp) {
-    const areaImp = toM2(larguraCm, alturaCm);
-    const pi = pickNum(imp, ["preco_m2", "valor_m2", "preco", "valor"], 0);
-    if (areaImp > 0 && pi > 0) {
-      custos.impressao = areaImp * pi;
+  // ----------- fase 5: vidro (m²) -----------
+  // “Entre Vidros”: 2 vidros (frente = selecionado; fundo = COMUM)
+  const temVidroFrente =
+    Boolean(vidroSelecionado) || Boolean(vidroSomenteComum) || Boolean(entreVidros);
+
+  if (temVidroFrente) {
+    const precoFrente = vidroSomenteComum
+      ? num(precoVidroComumM2)
+      : pickPrecoM2(vidroSelecionado);
+
+    const precoFundoComum = entreVidros ? num(precoVidroComumM2) : 0;
+
+    const areaM2ParaVidro = areaRefM2; // vidro cobre a área “com PP”
+    const custoVidro = areaM2ParaVidro * Math.max(0, precoFrente) + areaM2ParaVidro * Math.max(0, precoFundoComum);
+
+    custos.vidro = Math.max(0, custoVidro);
+  }
+
+  // ----------- fase 6: fundo (m²) -----------
+  if (fundoSelecionado) {
+    const precoM2 = pickPrecoM2(fundoSelecionado);
+    if (precoM2 > 0) {
+      custos.fundo = areaRefM2 * precoM2;
+    }
+  }
+  if (fundoExtraSelecionado || foamExtraAuto) {
+    const f = fundoExtraSelecionado;
+    const precoM2 = f ? pickPrecoM2(f) : 0;
+    if (precoM2 > 0) {
+      custos.fundoExtra = areaRefM2 * precoM2;
     }
   }
 
-  // --- Chassi (ML), se selecionado/forçado (Tela etc.) ---
-  if (chassi && incluirChassi) {
-    const perCh = perimetroM(larguraCm, alturaCm);
-    const pc = pickNum(chassi, ["preco_ml", "valor_ml", "preco_m", "valor_m", "preco", "valor"], 0);
-    if (perCh > 0 && pc > 0) {
-      custos.chassi = perCh * pc;
+  // ----------- fase 7: impressão (m²) -----------
+  if (impressaoSelecionada) {
+    const precoM2 = pickPrecoM2(impressaoSelecionada);
+    if (precoM2 > 0) {
+      // impressão cobre a área interna (arte)
+      custos.impressao = areaInternaM2 * precoM2;
     }
   }
 
-  // --- Camisa / Objeto (unitário até/acima 1 m²) ---
-  let camisaObjetoInfo = { aplicado: false, modo: "unitario", faixa: null, valor: 0 };
-  if (camisaTipo === "camisa" || camisaTipo === "objeto") {
-    const area = toM2(larguraCm, alturaCm);
-    const ate = camisaTabela.find((x) =>
-      String(x?.tipo || "").toLowerCase() === camisaTipo &&
-      /até/i.test(String(x?.faixa_aplicacao || ""))
-    );
-    const acima = camisaTabela.find((x) =>
-      String(x?.tipo || "").toLowerCase() === camisaTipo &&
-      /acima/i.test(String(x?.faixa_aplicacao || ""))
-    );
-    const escolhido = area <= 1 ? (ate || acima) : (acima || ate);
-    if (escolhido) {
-      const preco = pickNum(escolhido, ["preco", "valor"], 0);
-      custos.camisaObjeto = preco;
-      camisaObjetoInfo = {
-        aplicado: true,
-        modo: "unitario",
-        faixa: area <= 1 ? "até 1 m²" : "acima de 1 m²",
-        valor: preco,
-      };
-    }
+  // ----------- fase 8: chassi (perímetro) -----------
+  let chassiInfo = null;
+  if (incluirChassi && chassiSelecionado) {
+    const precoML = pickPrecoML(chassiSelecionado);
+    const ml = perimetroML(W, H);
+    custos.chassi = ml * precoML;
+
+    const mm = /5\s*mm/i.test(chassiSelecionado?.nome || "") ? "5 mm"
+             : /3\s*mm/i.test(chassiSelecionado?.nome || "") ? "3 mm"
+             : "";
+    chassiInfo = { mm, precoML, ml };
   }
 
-  // --- Diversos (unitário) ---
-  if (diversos.length) {
-    custos.diversos = diversos.reduce((acc, it) => {
-      const p = pickNum(it, ["preco", "valor", "preco_unit", "valor_unit"], 0);
-      return acc + p;
-    }, 0);
-  }
+  // ----------- fase 9: reforço (tabela + sarrafo ml) -----------
+  const LIMIAR_REFORCO_M2 = 0.32156; // 47,5 × 67,5 cm
+  const temCaixa = [moldura1, moldura2, moldura3].some(
+    (m) => (m?.uso_tipo || "").toUpperCase() === "C" || /caixa/i.test(String(m?.tipo || m?.categoria || m?.descricao || ""))
+  );
 
-  // --- Reforço (por ML) com limiar de área ---
-  // Critério: só considerar reforço para "moldura CAIXA" (mais externa)
-  // e quando a área (miolo com PP) for MAIOR que 47,5 x 67,5 cm.
-  // Dimensões de referência para reforço = com PP (miolo).
-  const molduraCaixaExterna = caixaMaisExterna(m1, m2, m3);
-  let reforcoInfo = {
-    necessita_reforco: false,
-    nome: null,
-    ml: 0,
-    precoML: 0,
-    valorTotal: 0,
-    faixa: null,
-    obs: null,
-  };
+  let reforcoInfo = null;
 
-  const LIMIAR_REFORCO_M2 = (47.5 / 100) * (67.5 / 100); // ~0.32156 m²
-  const areaParaReforcoM2 = toM2(wComPP, hComPP);
-  const abaixoDoLimiar = areaParaReforcoM2 <= LIMIAR_REFORCO_M2;
+  if (temCaixa && Array.isArray(reforcoTabela) && reforcoTabela.length) {
+    // área de referência PARA reforço = “com PP” quando existir; senão interna
+    const areaParaReforco = areaRefM2;
+    const abaixoDoLimiar = areaParaReforco <= LIMIAR_REFORCO_M2;
 
-  if (molduraCaixaExterna && reforcoTabela.length && !abaixoDoLimiar) {
-    // Tenta encaixar nas faixas da tabela
-    const w = wComPP;
-    const h = hComPP;
+    if (!abaixoDoLimiar) {
+      const menor = Math.min(wRef, hRef);
+      const maior = Math.max(wRef, hRef);
 
-    // normaliza campos possíveis
-    const pega = (r, ...keys) => pickNum(r, keys, 0);
-    const pegaTxt = (r, ...keys) => {
-      for (const k of keys) {
-        const v = r?.[k];
-        if (typeof v === "string" && v.trim()) return v.trim();
+      const reg = pickReforcoRegistro(reforcoTabela, menor, maior);
+
+      if (reg) {
+        let ml = num(reg.metragem_linear_reforco);
+        // heurística: se veio em cm (valores grandes), converte para m
+        if (ml > 20) ml = ml / 100;
+
+        const precoML = num(precoSarrafoML);
+        const valorTotal = +(ml * precoML).toFixed(2);
+
+        reforcoInfo = {
+          necessita_reforco: true,
+          registroId: reg.id ?? null,
+          nome: reg.observacoes || "Estrutura de reforço",
+          ml,
+          precoML,
+          valorTotal,
+        };
+
+        custos.reforco = valorTotal;
       }
-      return null;
+    }
+  }
+
+  // ----------- fase 10: Camisa / Objeto -----------
+  let camisaObjetoInfo = null;
+  if (forcarCamisaObjetoTipo) {
+    const ate = areaInternaM2 <= 1 ? /até/i : /acima/i;
+    const tipo = String(forcarCamisaObjetoTipo).toLowerCase(); // 'camisa' | 'objeto'
+
+    const pick = (arr) => {
+      const cands = (arr || []).filter((x) =>
+        String(x?.tipo || "").toLowerCase().includes(tipo)
+      );
+      if (!cands.length) return null;
+      const prefer = cands.find((x) => ate.test(x?.faixa_aplicacao || ""));
+      return prefer || cands[0];
     };
 
-    // tipo: 'canvas' ou 'matte' (já veio filtrado pela API, mas deixo fallback)
-    const tipoRow = (r) =>
-      (String(r?.tipo || r?.tipo_emoldurado || "").trim().toLowerCase()) ||
-      (String(r?.emoldurado || "").trim().toLowerCase());
-
-    const linhasCompat = reforcoTabela.filter((r) => {
-      const wMin = pega(r, "largura_min_cm", "min_largura_cm", "w_min_cm");
-      const wMax = pega(r, "largura_max_cm", "max_largura_cm", "w_max_cm");
-      const hMin = pega(r, "altura_min_cm", "min_altura_cm", "h_min_cm");
-      const hMax = pega(r, "altura_max_cm", "max_altura_cm", "h_max_cm");
-      // aceita nas duas orientações: (w dentro e h dentro) OU (h dentro e w dentro)
-      const okNormal = (w >= wMin && w <= wMax && h >= hMin && h <= hMax);
-      const okSwap = (h >= wMin && h <= wMax && w >= hMin && w <= hMax);
-      return okNormal || okSwap;
-    });
-
-    // escolhe a primeira que bater (ou a mais "justa")
-    let escolhida = null;
-    if (linhasCompat.length) {
-      // critério: menor excedente (wMax*hMax)
-      escolhida = linhasCompat.sort((a, b) => {
-        const aArea = pega(a, "largura_max_cm", "w_max_cm") * pega(a, "altura_max_cm", "h_max_cm");
-        const bArea = pega(b, "largura_max_cm", "w_max_cm") * pega(b, "altura_max_cm", "h_max_cm");
-        return aArea - bArea;
-      })[0];
-    }
-
-    if (escolhida) {
-      // Interpretar a coluna 'metragem_linear_reforco'
-      let mlValor = pega(escolhida, "metragem_linear_reforco", "ml_reforco", "ml", "metros", "comprimento_total_cm");
-      let custoReforco = 0;
-      let precoMLAplicado = 0;
-
-      if (reforcoValorEm === "preco") {
-        // Se a tabela já for PREÇO total
-        custoReforco = mlValor;
-        mlValor = 0;
-      } else {
-        // mlValor representa comprimento. Se parecer cm (>=50), converte para m.
-        const mlMetros =
-          reforcoValorEm === "cm" ? (num(mlValor, 0) / 100) : toMetrosFromMLPossiblyCm(mlValor);
-        precoMLAplicado = precoSarrafoML;
-        custoReforco = mlMetros * precoMLAplicado;
-        mlValor = mlMetros;
+    const item = pick(camisaObjetoTabela);
+    if (item) {
+      const preco = num(item.preco);
+      if (preco > 0) {
+        custos.camisaObjeto += preco;
+        camisaObjetoInfo = {
+          aplicado: true,
+          modo: "unitario",
+          faixa: item.faixa_aplicacao || (areaInternaM2 <= 1 ? "até 1 m²" : "acima de 1 m²"),
+          preco,
+          tipo,
+        };
       }
-
-      reforcoInfo = {
-        necessita_reforco: true,
-        nome: tipoRow(escolhida) || "reforço",
-        ml: mlValor,
-        precoML: precoMLAplicado,
-        valorTotal: custoReforco,
-        faixa: `${pega(escolhida, "largura_min_cm", "w_min_cm")}–${pega(escolhida, "largura_max_cm", "w_max_cm")} cm × ${pega(escolhida, "altura_min_cm", "h_min_cm")}–${pega(escolhida, "altura_max_cm", "h_max_cm")} cm`,
-        obs: pegaTxt(escolhida, "observacoes", "obs", "descricao") || null,
-      };
-
-      custos.reforco = custoReforco;
+    }
+    if (num(camisaObjetoExtra) > 0) {
+      custos.camisaObjeto += num(camisaObjetoExtra);
     }
   }
 
-  // ---------- SOMATÓRIO ----------
-  const somaMolduras =
-    custos.moldurasCamadas.reduce((acc, x) => acc + (x?.custo || 0), 0);
+  // ----------- fase 11: Diversos (lista já selecionada no front) -----------
+  let diversosInfo = { itens: [] };
+  if (Array.isArray(diversosSelecionados) && diversosSelecionados.length) {
+    diversosSelecionados.forEach((it) => {
+      const p = num(it.preco);
+      if (p > 0) {
+        custos.diversos += p;
+        diversosInfo.itens.push({
+          nome: it.nome,
+          faixa: it.faixa_aplicacao || it.faixa || null,
+          preco: p,
+        });
+      }
+    });
+  }
 
-  const subtotalUnit =
-    somaMolduras +
-    custos.bagueteInterna +
-    custos.vidro +
-    custos.fundo +
-    custos.fundoExtra +
-    custos.passepartout +
-    custos.passepartoutAberturasExtra +
-    custos.impressao +
-    custos.chassi +
-    custos.camisaObjeto +
-    custos.diversos +
-    custos.reforco;
+  // ----------- somas e retorno -----------
+  let valorSemMarkup =
+    custos.moldurasCamadas.reduce((s, x) => s + num(x.custo), 0) +
+    num(custos.bagueteInterna) +
+    num(custos.vidro) +
+    num(custos.fundo) +
+    num(custos.fundoExtra) +
+    num(custos.passepartout) +
+    num(custos.passepartoutAberturasExtra) +
+    num(custos.impressao) +
+    num(custos.chassi) +
+    num(custos.reforco) +
+    num(custos.camisaObjeto) +
+    num(custos.diversos);
 
-  const valorSemMarkup = subtotalUnit * qtd;
-  const valorTotal = valorSemMarkup * (1 + markupPct / 100);
+  // aplica quantidade
+  valorSemMarkup *= QTD;
 
-  // ---------- SAÍDA ----------
+  const valorTotal = aplicarMarkup(valorSemMarkup, MARKUP);
+
+  // mensagem explicativa (opcional)
+  let mensagemAviso = null;
+  if (passepartoutSelecionado && excedePP) {
+    mensagemAviso =
+      "❗ Dimensões excedem a folha de passepartout (102 × 152 cm). Passe-partout desativado automaticamente.";
+  }
+
   return {
     valorSemMarkup,
     valorTotal,
 
     custos,
 
-    // Dimensões para exibição
-    alturaFinal: hFinal,
-    larguraFinal: wFinal,
-    areaTotalM2: areaTotalM2,
+    // dimensões
+    alturaFinal,
+    larguraFinal,
+    areaTotalM2,
+    alturaReforco: hRef, // “com PP” (quando existir)
+    larguraReforco: wRef,
 
-    // “Com PP” (usamos esses como base de reforço / miolo)
-    alturaReforco: hComPP,
-    larguraReforco: wComPP,
-
-    // Flags para o UI
-    excedePassepartout,
+    // flags / modos
+    excedePassepartout: excedePP,
+    modoCobrancaPassepartout,
     numAberturasConsideradas,
 
-    // Informações auxiliares
-    modoCobrancaPassepartout,
+    // infos auxiliares
+    chassiInfo,
     reforcoInfo,
-    chassiInfo: chassi ? { mm: (String(chassi?.nome || "").match(/(\d+)mm/i)?.[1] || null) } : null,
-    camisaObjetoInfo: camisaObjetoInfo,
+    camisaObjetoInfo,
+    diversosInfo,
 
-    // detalhamento opcional para o front
-    diversosInfo: { itens: diversos },
-
-    mensagemAviso: excedePassepartout
-      ? "Dimensões excedem a folha de passepartout (102 × 152 cm). Passe-partout desativado."
-      : null,
+    mensagemAviso,
   };
 }
