@@ -1186,7 +1186,10 @@ export default function OrcamentoForm() {
         const usoTipoM1 = (moldura1?.uso_tipo || '').toUpperCase(); // 'N','A','C'...
         const temVidro = Boolean(vidroSelecionado) || perfil.vidroSomenteComum || perfil.vidroFundoComumFixo;
         const riscoPesoVidro = temVidro && wFaceM1cm > 0 && wFaceM1cm <= 2.5 && (usoTipoM1 === 'N' || usoTipoM1 === 'A');
-        return riscoPesoVidro ? (
+        
+        // Não mostra se houver moldura "caixa" em qualquer camada (estrutura com reforço)
+        const mostrarPesoVidro = riscoPesoVidro && !isCaixaSelecionada;
+        return mostrarPesoVidro ? (
           <div className="mt-3">
             <Alert severity="warning">
               ⚠️ Área grande com moldura fina. Moldura 1 com face ≤ 2,5&nbsp;cm e tipo {usoTipoM1 === 'A' ? 'Alumínio' : 'Normal'} com vidro selecionado.
@@ -1289,29 +1292,29 @@ export default function OrcamentoForm() {
 
       {/* Métricas e itens somados */}
       <div className="mt-4 text-sm text-gray-600 leading-relaxed space-y-1">
-        <div>📐 <strong>Interna</strong>: {fmt2(largura)} cm × {fmt2(altura)} cm</div>
+        <div><span className="emoji">📐</span> <strong>Interna</strong>: {fmt2(largura)} cm × {fmt2(altura)} cm</div>
 
         {perfil.showPassepartout && passepartoutSelecionado && !ppBloqueado && (
-          <div>🛠️ <strong>Com Passepartout</strong>: {fmt2(dimensoesFinais.larguraReforco)} cm × {fmt2(dimensoesFinais.alturaReforco)} cm</div>
+          <div><span className="emoji">🔲</span> <strong>Com Passepartout</strong>: {fmt2(dimensoesFinais.larguraReforco)} cm × {fmt2(dimensoesFinais.alturaReforco)} cm</div>
         )}
 
-        <div>🖼️ <strong>Final (com moldura)</strong>: {fmt2(dimensoesFinais.largura)} cm × {fmt2(dimensoesFinais.altura)} cm</div>
-        <div>📦 <strong>Área total</strong>: {Number(dimensoesFinais.area || 0).toFixed(3)} m²</div>
+        <div><span className="emoji">🖼️</span> <strong>Final (com moldura)</strong>: {fmt2(dimensoesFinais.largura)} cm × {fmt2(dimensoesFinais.altura)} cm</div>
+        <div><span className="emoji">📦</span> <strong>Área total</strong>: {Number(dimensoesFinais.area || 0).toFixed(3)} m²</div>
 
         {isTela && incluirImpressaoTela && (
-          <div>🖨️ <strong>Impressão</strong>: canvas (incluída)</div>
+          <div><span className="emoji">🖨️</span> <strong>Impressão</strong>: canvas (incluída)</div>
         )}
 
         {isTela && ((parseFloat(altura)||0)/100)*((parseFloat(largura)||0)/100) > 0 && incluirChassi && (
-          <div>🔩 <strong>Chassi</strong>: {(((parseFloat(altura)||0)/100)*((parseFloat(largura)||0)/100)) > 1 ? '5 mm' : '3 mm'} (incluído no cálculo)</div>
+          <div><span className="emoji">🔩</span> <strong>Chassi</strong>: {(((parseFloat(altura)||0)/100)*((parseFloat(largura)||0)/100)) > 1 ? '5 mm' : '3 mm'} (incluído no cálculo)</div>
         )}
 
         {isEntreVidros && (
-          <div>🪟 <strong>Vidros</strong>: 2 (frente: {vidroSelecionado?.nome || vidroSelecionado?.descricao || '—'}, fundo: Vidro Comum)</div>
+           <div><span className="emoji">🪟</span> <strong>Vidros</strong>: 2 (frente: {vidroSelecionado?.nome || vidroSelecionado?.descricao || '—'}, fundo: Vidro Comum)</div>
         )}
 
         {perfil.showPassepartout && passepartoutSelecionado && !ppBloqueado && (
-          <div>🧩 <strong>Aberturas no passe-partout</strong>: {numAberturasCalc}</div>
+          <div><span className="emoji">🔳</span> <strong>Aberturas no passe-partout</strong>: {numAberturasCalc}</div>
         )}
 
         {itensSomados.length > 0 && (
@@ -1326,8 +1329,8 @@ export default function OrcamentoForm() {
 
       {/* Totais */}
       <div className="mt-4 text-sm text-gray-700 space-y-1">
-        <div>💠 <strong>Total sem markup:</strong> R$ {Number(valorSemMarkup).toFixed(2).replace('.', ',')}</div>
-        <div>💙 <strong>Total com markup:</strong> R$ {Number(valorTotal).toFixed(2).replace('.', ',')}</div>
+        <div><span className="emoji">💠</span> <strong>Total sem markup:</strong> R$ {Number(valorSemMarkup).toFixed(2).replace('.', ',')}</div>
+        <div><span className="emoji">💙</span> <strong>Total com markup:</strong> R$ {Number(valorTotal).toFixed(2).replace('.', ',')}</div>
       </div>
 
       <div className="mt-3 text-lg font-semibold text-blue-900 bg-blue-100 rounded p-3 text-center">
