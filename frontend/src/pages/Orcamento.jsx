@@ -606,8 +606,8 @@ export default function OrcamentoForm() {
   }, [isCaixaSelecionada, tipoReforco]);
 
 
-  // cálculo do orçamento
-  useEffect(() => {
+    // cálculo do orçamento (substituir o bloco inteiro para evitar chaves fora do lugar)
+    useEffect(() => {
     async function atualizarOrcamento() {
       try {
         const areaInternaM2 =
@@ -805,9 +805,9 @@ export default function OrcamentoForm() {
           itens.push(`Adicional Camisa/Objeto (${info.faixa}, ${info.modo === 'm2' ? 'por m²' : 'fixo'})`);
         }
 
-        if (Array.isArray(resultado.diversosInfo?.itens) && resultado.diversosInfo.itens.length) {
-          resultado.diversosInfo.itens.forEach((it) => {
-            itens.push(`Serviço: ${it.nome}${it.faixa ? ` (${it.faixa})` : ''}`);
+        if (Array.isArray(diversosPayload) && diversosPayload.length) {
+          diversosPayload.forEach((it) => {
+            itens.push(`Serviço: ${it.nome}${it.faixa_aplicacao ? ` (${it.faixa_aplicacao})` : ''} — R$ ${Number(it.preco).toFixed(2).replace('.', ',')}`);
           });
         }
 
