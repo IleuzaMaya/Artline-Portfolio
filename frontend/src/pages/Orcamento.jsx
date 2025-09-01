@@ -342,6 +342,21 @@ export default function OrcamentoForm() {
   const ehAluminio = (m) => m?.uso_tipo === 'A' || /alum/i.test(m?.tipo_material || '');
   const ehCaixa    = (m) => m?.uso_tipo === 'C' || /caixa/i.test(tipoDoItem(m));
 
+  // Há alguma moldura "caixa" selecionada em qualquer camada?
+  const isCaixaSelecionada = useMemo(
+    () => [moldura1, moldura2, moldura3].some(ehCaixa),
+    [moldura1, moldura2, moldura3]
+  );
+
+  // largura de face em cm (usa mm se existir)
+  const larguraFaceCm = (m) => {
+    const mm = Number(m?.largura_mm || 0);
+    if (mm) return mm / 10;
+    const cm = Number(m?.largura || 0);
+    return Number.isFinite(cm) ? cm : 0;
+  };
+
+
   // coerções de M2/M3 conforme M1
   useEffect(() => {
     if (ehAluminio(moldura1)) {
@@ -536,30 +551,30 @@ export default function OrcamentoForm() {
   // === Reforço: estado + derivados ===
   const [reforcoTabela, setReforcoTabela] = useState([]);
 
-  // Moldura 1 é "caixa"?
-  const isCaixaM1 = useMemo(() => {
-    const m = moldura1;
-    const tipo = (m?.tipo || m?.tipo_moldura || m?.categoria || '').toLowerCase();
-    return !!(m && (m.uso_tipo === 'C' || /caixa/.test(tipo)));
-  }, [moldura1]);
-
-  // Largura da face da Moldura 1 em cm (usa mm se existir)
-  const larguraM1cm = useMemo(() => {
-    const mm = Number(moldura1?.largura_mm || 0);
-    if (mm) return mm / 10;
-    const cm = Number(moldura1?.largura || 0);
-    return Number.isFinite(cm) ? cm : 0;
-  }, [moldura1]);
+  // largura da M1 usada em alguns alertas
+  const larguraM1cm = useMemo(() => larguraFaceCm(moldura1), [moldura1]);
 
   // Parâmetro para a tabela de reforço: 'matte' ou 'canvas'
-  const tipoReforco = useMemo(() => {
-    const n = (tipoSelecionado?.nome || '').toLowerCase();
-    return /tela/.test(n) ? 'canvas' : 'matte';
-  }, [tipoSelecionado?.nome]);
+    const tipoReforco = useMemo(() => {
+    const nome = (tipoSelecionado?.nome || '').toLowerCase();
+    if (/tela/.test(nome)) return 'canvas';
 
-  // Busca a tabela de reforço quando fizer sentido
+    const temVidro =
+      Boolean(vidroSelecionado) || perfil.vidroSomenteComum || perfil.vidroFundoComumFixo;
+    const temFundo =
+      perfil.showFundoCombo && (Boolean(fundoSelecionado) || (fundo || []).length > 0);
+
+    // Se tem vidro OU tem fundo => matte. (regra pedida)
+    if (temVidro || temFundo) return 'matte';
+
+    // fallback seguro
+    return 'matte';
+  }, [tipoSelecionado?.nome, vidroSelecionado, perfil.vidroSomenteComum, perfil.vidroFundoComumFixo, perfil.showFundoCombo, fundoSelecionado, fundo]);
+
+
+  // Busca a tabela de reforço quando houver QUALQUER moldura caixa
   useEffect(() => {
-    if (!isCaixaM1) { setReforcoTabela([]); return; }
+    if (!isCaixaSelecionada) { setReforcoTabela([]); return; }
 
     let cancel = false;
     api.get('/reforco', { params: { tipo: tipoReforco } })
@@ -567,8 +582,7 @@ export default function OrcamentoForm() {
       .catch(() => { if (!cancel) setReforcoTabela([]); });
 
     return () => { cancel = true; };
-  }, [isCaixaM1, tipoReforco]);
-
+  }, [isCaixaSelecionada, tipoReforco]);
 
 
   // cálculo do orçamento
@@ -813,11 +827,19 @@ export default function OrcamentoForm() {
   ]);
 
   const LIMIAR_RISCO_CM = 2.9;
+  const maiorLadoCm = Math.max(Number(altura) || 0, Number(largura) || 0);
+  const perimetroCm = 2 * ((Number(altura) || 0) + (Number(largura) || 0));
+  // mesmos limites usados no fallback do cálculo
+  const LIMIAR_MAIOR_LADO_CM = 70;
+  const LIMIAR_PERIMETRO_CM  = 240;
+  const podePrecisarReforcoSemCaixa =
+    maiorLadoCm >= LIMIAR_MAIOR_LADO_CM || perimetroCm >= LIMIAR_PERIMETRO_CM;
   const needsReforco = Boolean(reforcoInfo?.necessita_reforco);
   const mostrarAlertaRisco =
-    needsReforco && !isCaixaM1 && larguraM1cm > 0 && larguraM1cm < LIMIAR_RISCO_CM;
+    !isCaixaSelecionada && podePrecisarReforcoSemCaixa &&
+    larguraM1cm > 0 && larguraM1cm < LIMIAR_RISCO_CM;
   const mostrarCustoReforco =
-    needsReforco && isCaixaM1 && (Number(reforcoInfo?.valorTotal || 0) > 0);
+    isCaixaSelecionada && (Number(reforcoInfo?.valorTotal || 0) > 0);
 
   const AREA_GRANDE_M2 = 6;
   const LIMIAR_MOLDURA_CM = 3;
@@ -825,14 +847,15 @@ export default function OrcamentoForm() {
   const mostrarAlertaAreaGrandeFina =
     Number(dimensoesFinais.area) > AREA_GRANDE_M2 &&
     hasVidro &&
-    !isCaixaM1 &&
+    !isCaixaSelecionada &&
     larguraM1cm > 0 &&
     larguraM1cm < LIMIAR_MOLDURA_CM;
 
   const usaBagueteInterna = useMemo(() => {
     if (isTela) return false;
-    return isCaixaM1 || Boolean(Number(tipoSelecionado?.usa_baguete || 0));
-  }, [isCaixaM1, tipoSelecionado, isTela]);
+    return isCaixaSelecionada || Boolean(Number(tipoSelecionado?.usa_baguete || 0));
+  }, [isCaixaSelecionada, tipoSelecionado, isTela]);
+
 
   return (
     <div className="max-w-3xl mx-auto mt-6 p-4 bg-white shadow rounded overflow-visible">
@@ -1126,7 +1149,7 @@ export default function OrcamentoForm() {
 
 
       {/* Baguete (auto, mas editável) — aparece quando houver caixa/uso */}
-      {(perfil.bagueteAuto || (moldura1?.uso_tipo === 'C')) && !isTela && (
+      {usaBagueteInterna && !isTela && (
         <div className="mt-6">
           <FloatingSelect
             label="Baguete interna (ml)"
@@ -1155,6 +1178,22 @@ export default function OrcamentoForm() {
           </Alert>
         </div>
       )}
+
+      {(() => {
+        const wFaceM1cm = Number(moldura1?.largura_mm ? moldura1.largura_mm/10 : moldura1?.largura || 0);
+        const usoTipoM1 = (moldura1?.uso_tipo || '').toUpperCase(); // 'N','A','C'...
+        const temVidro = Boolean(vidroSelecionado) || perfil.vidroSomenteComum || perfil.vidroFundoComumFixo;
+        const riscoPesoVidro = temVidro && wFaceM1cm > 0 && wFaceM1cm <= 2.5 && (usoTipoM1 === 'N' || usoTipoM1 === 'A');
+        return riscoPesoVidro ? (
+          <div className="mt-3">
+            <Alert severity="warning">
+              ⚠️ Moldura 1 com face ≤ 2,5&nbsp;cm e tipo {usoTipoM1 === 'A' ? 'Alumínio' : 'Normal'} com vidro selecionado.
+              Esta combinação pode não suportar o peso do vidro. Verificar com o responsável.
+            </Alert>
+          </div>
+        ) : null;
+      })()}
+
       {mostrarAlertaAreaGrandeFina && (
         <div className="mt-3">
           <Alert severity="warning">
