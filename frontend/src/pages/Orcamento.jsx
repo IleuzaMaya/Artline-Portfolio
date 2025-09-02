@@ -583,7 +583,7 @@ export default function OrcamentoForm() {
     if (candidatos.length === 0) return 0;
 
     const ehAte = (d) => /AT[ÉE]|ATE/i.test(d.faixa_aplicacao || d.faixa || '');
-    const ehAcima = (d) => /ACIMA/i.test(d.faixa_aplicacao ou d.faixa || '');
+    const ehAcima = (d) => /ACIMA/i.test(d.faixa_aplicacao || d.faixa || '');
 
     let escolhido = null;
     if (faixa === 'ate') {
