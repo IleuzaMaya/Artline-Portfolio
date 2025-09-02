@@ -152,6 +152,7 @@ export async function calcularOrcamento(params = {}) {
     // preços auxiliares vindos do front
     precoSarrafoML = 0,
     precoVidroComumM2 = 0,
+    forcarReforco = false,
   } = params;
 
   // ----------- fase 1: dimensões base -----------
@@ -324,7 +325,10 @@ export async function calcularOrcamento(params = {}) {
 
   let reforcoInfo = null;
 
-  if (temCaixaExterna && Array.isArray(reforcoTabela) && reforcoTabela.length && !abaixoDoLimiar) {
+  const podeReforcar = temCaixaExterna
+    && Array.isArray(reforcoTabela) && reforcoTabela.length
+    && (!abaixoDoLimiar || forcarReforco);
+  if (podeReforcar) {
     const menor = Math.min(wRef, hRef);
     const maior = Math.max(wRef, hRef);
 
@@ -348,7 +352,6 @@ export async function calcularOrcamento(params = {}) {
       custos.reforco = valorTotal;
     }
   }
-
 
   // ----------- fase 10: Camisa / Objeto -----------
   let camisaObjetoInfo = null;

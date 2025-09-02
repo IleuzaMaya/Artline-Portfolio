@@ -88,6 +88,10 @@ export default function OrcamentoForm() {
     return Number.isFinite(n) ? n : 0;
   }, [sarrafoLista]);
 
+
+  // Opção de forçar reforço quando o tipo não calcula automaticamente
+  const [forcarReforcoMesmoAssim, setForcarReforcoMesmoAssim] = useState(false);
+
   // Vidro comum (m²) — para Entre Vidros somar frente selecionado + fundo comum
   const precoVidroComumM2 = useMemo(() => {
     const comum = (vidros || []).find((v) => /comum/i.test(v?.nome || v?.descricao || ''));
@@ -125,6 +129,8 @@ export default function OrcamentoForm() {
     larguraReforco: 0,
     mensagemAviso: null,
   });
+
+  setForcarReforcoMesmoAssim(false);
 
   // reset
   const resetDependentes = () => {
@@ -318,6 +324,14 @@ export default function OrcamentoForm() {
       permiteM2M3: true,
     };
   }, [perfilBase, isDiversosTipo, diversoSelecionado, isCamisaObjeto, entreVidrosNoCamisa]);
+
+  // Gate de reforço por tipo (após termos norm())
+  const reforcoPermitidoPorTipo = useMemo(() => {
+    const k = norm(tipoSelecionado?.nome || "");
+    // Só calcula automaticamente em: Superfície/Fotos/Entre Vidros
+    return /(superf|foto|entre\s*vidros?)/i.test(k);
+  }, [tipoSelecionado]);
+
 
   // Preview excede PP e “bloqueio” de PP
   const previewExcedePP =
@@ -616,27 +630,19 @@ export default function OrcamentoForm() {
     fundo,
   ]);
 
-  // Busca a tabela de reforço quando houver QUALQUER moldura caixa
+  // Busca da tabela de reforço:
+  // - precisa ter alguma moldura "Caixa"
+  // - e (o tipo permite OU o usuário optou por "forçar")
   useEffect(() => {
-    if (!isCaixaSelecionada) {
-      setReforcoTabela([]);
-      return;
-    }
-
+    const podeBuscar = isCaixaSelecionada && (reforcoPermitidoPorTipo || forcarReforcoMesmoAssim);
+    if (!podeBuscar) { setReforcoTabela([]); return; }
     let cancel = false;
-    api
-      .get('/reforco', { params: { tipo: tipoReforco } })
-      .then(({ data }) => {
-        if (!cancel) setReforcoTabela(Array.isArray(data) ? data : []);
-      })
-      .catch(() => {
-        if (!cancel) setReforcoTabela([]);
-      });
+    api.get('/reforco', { params: { tipo: tipoReforco } })
+      .then(({ data }) => { if (!cancel) setReforcoTabela(Array.isArray(data) ? data : []); })
+      .catch(() => { if (!cancel) setReforcoTabela([]); });
+    return () => { cancel = true; };
+  }, [isCaixaSelecionada, tipoReforco, reforcoPermitidoPorTipo, forcarReforcoMesmoAssim]);
 
-    return () => {
-      cancel = true;
-    };
-  }, [isCaixaSelecionada, tipoReforco]);
 
   // ===== Cálculo do orçamento =====
   useEffect(() => {
@@ -744,6 +750,7 @@ export default function OrcamentoForm() {
           // preços auxiliares
           precoSarrafoML,
           precoVidroComumM2,
+          forcarReforco: Boolean(forcarReforcoMesmoAssim),
         });
 
         if (!resultado) return;
@@ -1263,6 +1270,26 @@ export default function OrcamentoForm() {
           )}
         </div>
       )}
+
+      {/* Forçar reforço quando o tipo não calcula automaticamente */}
+      {isCaixaSelecionada && !reforcoPermitidoPorTipo && (
+        <div className="mt-2">
+          <label className="inline-flex items-center gap-2 text-sm cursor-pointer select-none">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={forcarReforcoMesmoAssim}
+              onChange={(e) => setForcarReforcoMesmoAssim(e.target.checked)}
+            />
+            <span>Adicionar reforço mesmo assim</span>
+          </label>
+          <div className="text-xs text-gray-500 mt-1">
+            Este tipo de orçamento não calcula reforço automaticamente.
+            Marque para incluir a estrutura de sarrafo conforme a tabela.
+          </div>
+        </div>
+      )}
+
 
       {avisoM2 && <Alert severity="info" className="mt-2">{avisoM2}</Alert>}
       {ehAluminio(moldura1) && (
