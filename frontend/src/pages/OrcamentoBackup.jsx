@@ -289,13 +289,14 @@ export default function OrcamentoForm() {
   const isTela = /tela/i.test(tipoSelecionado?.nome || '');
   const isDiversosTipo = /diversos/i.test(tipoSelecionado?.nome || '');
 
-  // ---- Gate: reforço permitido por tipo + override manual
+ // ---- Gate: reforço permitido por tipo + override manual
   const reforcoPermitidoPorTipo = useMemo(() => {
     const k = norm(tipoSelecionado?.nome || "");
     // permite: Superfície/Fotos e Entre Vidros
     return /(superf|foto|entre\s*vidros?)/i.test(k);
   }, [tipoSelecionado]);
   const [forcarReforcoMesmoAssim, setForcarReforcoMesmoAssim] = useState(false);
+
 
   // Perfil efetivo (override no modo Diversos)
   const perfil = useMemo(() => {
@@ -327,6 +328,7 @@ export default function OrcamentoForm() {
       permiteM2M3: true,
     };
   }, [perfilBase, isDiversosTipo, diversoSelecionado, isCamisaObjeto, entreVidrosNoCamisa]);
+
 
   // Preview excede PP e “bloqueio” de PP
   const previewExcedePP =
@@ -583,7 +585,7 @@ export default function OrcamentoForm() {
     if (candidatos.length === 0) return 0;
 
     const ehAte = (d) => /AT[ÉE]|ATE/i.test(d.faixa_aplicacao || d.faixa || '');
-    const ehAcima = (d) => /ACIMA/i.test(d.faixa_aplicacao ou d.faixa || '');
+    const ehAcima = (d) => /ACIMA/i.test(d.faixa_aplicacao || d.faixa || '');
 
     let escolhido = null;
     if (faixa === 'ate') {
@@ -934,11 +936,24 @@ export default function OrcamentoForm() {
     ehCamisa, entreVidrosNoCamisa,
     reforcoTabela, forcarReforcoMesmoAssim,
     precoSarrafoML, precoVidroComumM2, corBaguetePassepartout,
-    // recomputar se os memos de impressão mudarem depois do load
-    impressaoCanvas, impressaoMatte,
-    // e quando a lista de chassis for carregada (boolean evita refires desnecessários)
-    !!chassis.length,
   ]);
+
+  const LIMIAR_RISCO_CM = 2.9;
+  const maiorLadoCm = Math.max(Number(altura) || 0, Number(largura) || 0);
+  const perimetroCm = 2 * ((Number(altura) || 0) + (Number(largura) || 0));
+  // mesmos limites usados no fallback do cálculo
+  const LIMIAR_MAIOR_LADO_CM = 70;
+  const LIMIAR_PERIMETRO_CM = 240;
+  const podePrecisarReforcoSemCaixa =
+    maiorLadoCm >= LIMIAR_MAIOR_LADO_CM || perimetroCm >= LIMIAR_PERIMETRO_CM;
+  const needsReforco = Boolean(reforcoInfo?.necessita_reforco);
+  const mostrarAlertaRisco =
+    !isCaixaSelecionada &&
+    podePrecisarReforcoSemCaixa &&
+    larguraM1cm > 0 &&
+    larguraM1cm < LIMIAR_RISCO_CM;
+  const mostrarCustoReforco =
+    isCaixaSelecionada && Number(reforcoInfo?.valorTotal || 0) > 0;
 
   const AREA_GRANDE_M2 = 6;
   const LIMIAR_MOLDURA_CM = 3;
@@ -1230,23 +1245,23 @@ export default function OrcamentoForm() {
         </div>
       )}
 
-      {/* Forçar reforço quando o tipo não calcula automaticamente */}
       {isCaixaSelecionada && !reforcoPermitidoPorTipo && (
-        <div className="mt-2">
-          <label className="inline-flex items-center gap-2 text-sm cursor-pointer select-none">
-            <input
-              type="checkbox"
-              className="h-4 w-4"
-              checked={forcarReforcoMesmoAssim}
-              onChange={(e) => setForcarReforcoMesmoAssim(e.target.checked)}
-            />
-            <span>Adicionar reforço mesmo assim</span>
-          </label>
-          <div className="text-xs text-gray-500 mt-1">
-            Este tipo não calcula reforço automaticamente. Marque para incluir a estrutura conforme a tabela.
-          </div>
+      <div className="mt-2">
+        <label className="inline-flex items-center gap-2 text-sm cursor-pointer select-none">
+          <input
+            type="checkbox"
+            className="h-4 w-4"
+            checked={forcarReforcoMesmoAssim}
+            onChange={(e) => setForcarReforcoMesmoAssim(e.target.checked)}
+          />
+          <span>Adicionar reforço mesmo assim</span>
+        </label>
+        <div className="text-xs text-gray-500 mt-1">
+          Este tipo não calcula reforço automaticamente. Marque para incluir a estrutura conforme a tabela.
         </div>
-      )}
+      </div>
+    )}
+
 
       {avisoM2 && <Alert severity="info" className="mt-2">{avisoM2}</Alert>}
       {ehAluminio(moldura1) && (
@@ -1313,6 +1328,7 @@ export default function OrcamentoForm() {
       )}
 
       {/* ALERTAS */}
+
       {(() => {
         const wFaceM1cm = Number(
           moldura1?.largura_mm ? moldura1.largura_mm / 10 : moldura1?.largura || 0
