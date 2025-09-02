@@ -445,32 +445,33 @@ export default function OrcamentoForm() {
     load();
   }, []);
 
-  // quando troca o tipo, recarrega molduras + aplica regras
-  useEffect(() => {
-    if (!tipoSelecionado) return;
+    // quando troca o tipo, recarrega molduras + aplica regras
+    useEffect(() => {
+    const carregarMolduras = async () => {
+        try {
+        const uso = tipoSelecionado ? mapTipoParaUso(tipoSelecionado?.nome || "") : null;
+        const params =
+            uso ? { uso, ...(uso === "camisa" && ehCamisa ? { permiteA: 1 } : {}) } : null;
 
-    const uso = mapTipoParaUso(tipoSelecionado?.nome || '');
-    const params = { uso };
-    if (uso === 'camisa' && ehCamisa) params.permiteA = 1;
-
-    api
-      .get('/molduras', { params })
-      .then(async (res) => {
+        // busca com filtro se houver, sem filtro se não houver tipo
+        const res = await api.get("/molduras", params ? { params } : undefined);
         let lista = asArray(res.data);
+
+        // fallback: se vier vazia, pega todas
         if (!Array.isArray(lista) || lista.length === 0) {
-          const resAll = await api.get('/molduras');
-          lista = asArray(resAll.data);
+            const resAll = await api.get("/molduras");
+            lista = asArray(resAll.data);
         }
 
         const pick = (...vals) =>
-          vals.find((v) => v !== undefined && v !== null && String(v).trim() !== '') ?? '';
+            vals.find((v) => v !== undefined && v !== null && String(v).trim() !== "") ?? "";
 
         const listaFmt = (lista || []).map((m) => {
-          const codigo = pick(m.codigo_principal, m.codigo, m.cod, m.referencia);
-          const nomeSafe = pick(m.nome, m.descricao, m.nome_moldura, m.modelo, m.titulo);
-          const display =
-            [codigo, nomeSafe].filter(Boolean).join(' — ') || nomeSafe || codigo || 'Sem nome';
-          const imagem_url = pick(
+            const codigo = pick(m.codigo_principal, m.codigo, m.cod, m.referencia);
+            const nomeSafe = pick(m.nome, m.descricao, m.nome_moldura, m.modelo, m.titulo);
+            const display =
+            [codigo, nomeSafe].filter(Boolean).join(" — ") || nomeSafe || codigo || "Sem nome";
+            const imagem_url = pick(
             m.imagem_url,
             m.image_url,
             m.url_imagem,
@@ -478,55 +479,71 @@ export default function OrcamentoForm() {
             m.foto,
             m.foto_url,
             null
-          );
+            );
 
-          return {
+            // 🔑 garante que exista um id porque o FloatingSelect usa valueKey="id"
+            const id =
+            m.id ??
+            m.id_moldura ??
+            m.moldura_id ??
+            m.uuid ??
+            codigo ?? // último recurso
+            nomeSafe;
+
+            return {
+            id,
             ...m,
-            nome: pick(m.nome, nomeSafe, codigo, 'Sem nome'), // garante m.nome
+            nome: pick(m.nome, nomeSafe, codigo, "Sem nome"),
             display,
             imagem_url,
-          };
+            };
         });
 
         setMolduras(listaFmt);
-      })
-      .catch((err) => {
-        console.error('Erro ao carregar molduras:', err);
+        } catch (err) {
+        console.error("Erro ao carregar molduras:", err);
         setMolduras([]);
-      });
+        }
+    };
+
+    carregarMolduras();
+
+    // 👇 reseta/aplica regras só quando de fato existe um tipo selecionado
+    if (!tipoSelecionado) return;
 
     if (perfil.vidroSomenteComum || perfil.vidroFundoComumFixo) {
-      const comum = vidros.find((v) => /comum/i.test(v.nome || v.descricao || ''));
-      if (perfil.vidroSomenteComum) setVidroSelecionado(comum || null);
+        const comum = vidros.find((v) => /comum/i.test(v.nome || v.descricao || ""));
+        if (perfil.vidroSomenteComum) setVidroSelecionado(comum || null);
     } else {
-      setVidroSelecionado(null);
+        setVidroSelecionado(null);
     }
 
     if (!perfil.showPassepartout) {
-      setPassepartoutSelecionado(null);
-      setMargemPassepartout(0);
+        setPassepartoutSelecionado(null);
+        setMargemPassepartout(0);
     } else if (perfil.passepartoutSemMargem) {
-      setMargemPassepartout(0);
+        setMargemPassepartout(0);
     }
 
     if (perfil.foamExtraAuto) {
-      const foam = fundo.find((f) => /foam ad branco/i.test(f.nome || ''));
-      if (foam) setFundoSelecionado(foam);
+        const foam = fundo.find((f) => /foam ad branco/i.test(f.nome || ""));
+        if (foam) setFundoSelecionado(foam);
     }
 
     if (!perfil.permiteM2M3) {
-      setMoldura2(null);
-      setMoldura3(null);
+        setMoldura2(null);
+        setMoldura3(null);
     }
 
     setAvisoM2(null);
     setNumAberturas(1);
 
-    const tela = /tela/i.test(tipoSelecionado?.nome || '');
+    const tela = /tela/i.test(tipoSelecionado?.nome || "");
     setIncluirChassi(!!tela);
     setIncluirImpressaoTela(false);
     setForcarReforcoMesmoAssim(false);
-  }, [tipoSelecionado, vidros, fundo, perfil, ehCamisa]);
+    }, [tipoSelecionado, vidros, fundo, perfil, ehCamisa]);
+
 
   // defaults quando há item único
   useEffect(() => {
