@@ -938,23 +938,6 @@ export default function OrcamentoForm() {
     precoSarrafoML, precoVidroComumM2, corBaguetePassepartout,
   ]);
 
-  const LIMIAR_RISCO_CM = 2.9;
-  const maiorLadoCm = Math.max(Number(altura) || 0, Number(largura) || 0);
-  const perimetroCm = 2 * ((Number(altura) || 0) + (Number(largura) || 0));
-  // mesmos limites usados no fallback do cálculo
-  const LIMIAR_MAIOR_LADO_CM = 70;
-  const LIMIAR_PERIMETRO_CM = 240;
-  const podePrecisarReforcoSemCaixa =
-    maiorLadoCm >= LIMIAR_MAIOR_LADO_CM || perimetroCm >= LIMIAR_PERIMETRO_CM;
-  const needsReforco = Boolean(reforcoInfo?.necessita_reforco);
-  const mostrarAlertaRisco =
-    !isCaixaSelecionada &&
-    podePrecisarReforcoSemCaixa &&
-    larguraM1cm > 0 &&
-    larguraM1cm < LIMIAR_RISCO_CM;
-  const mostrarCustoReforco =
-    isCaixaSelecionada && Number(reforcoInfo?.valorTotal || 0) > 0;
-
   const AREA_GRANDE_M2 = 6;
   const LIMIAR_MOLDURA_CM = 3;
   const hasVidro = Boolean(vidroSelecionado) || perfil.vidroSomenteComum;
