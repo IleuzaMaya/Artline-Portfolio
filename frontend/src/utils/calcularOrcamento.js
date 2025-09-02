@@ -255,7 +255,12 @@ export async function calcularOrcamento(params = {}) {
   if (temVidroFrente) {
     const precoFrente = vidroSomenteComum
       ? num(precoVidroComumM2)
-      : pickPrecoM2(vidroSelecionado);
+      : Math.max(pickPrecoM2(vidroSelecionado), 0);
+
+  // Se for entre vidros e não houver vidro selecionado, use comum na frente:
+  const precoFrenteAjust = (entreVidros && !vidroSomenteComum && !vidroSelecionado)
+    ? num(precoVidroComumM2)
+    : precoFrente;
 
     const precoFundoComum = entreVidros ? num(precoVidroComumM2) : 0;
 
@@ -301,9 +306,8 @@ export async function calcularOrcamento(params = {}) {
              : "";
     chassiInfo = { mm, precoML, ml };
   }
-
+  
   // ----------- fase 9: reforço (tabela + sarrafo ml) -----------
- 
   const LIMIAR_REFORCO_M2 = 0.3149; // 47 x 67 cm
 
   const temCaixaExterna = [moldura1, moldura2, moldura3].some((m) => {
@@ -342,6 +346,7 @@ export async function calcularOrcamento(params = {}) {
       custos.reforco = valorTotal;
     }
   }
+
 
   // ----------- fase 10: Camisa / Objeto -----------
   let camisaObjetoInfo = null;
