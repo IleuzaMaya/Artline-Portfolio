@@ -88,10 +88,6 @@ export default function OrcamentoForm() {
     return Number.isFinite(n) ? n : 0;
   }, [sarrafoLista]);
 
-
-  // Opção de forçar reforço quando o tipo não calcula automaticamente
-  const [forcarReforcoMesmoAssim, setForcarReforcoMesmoAssim] = useState(false);
-
   // Vidro comum (m²) — para Entre Vidros somar frente selecionado + fundo comum
   const precoVidroComumM2 = useMemo(() => {
     const comum = (vidros || []).find((v) => /comum/i.test(v?.nome || v?.descricao || ''));
@@ -130,8 +126,6 @@ export default function OrcamentoForm() {
     mensagemAviso: null,
   });
 
-  setForcarReforcoMesmoAssim(false);
-
   // reset
   const resetDependentes = () => {
     setAltura('');
@@ -157,6 +151,7 @@ export default function OrcamentoForm() {
     setNumAberturasCalc(1);
     setReforcoInfo(null);
     setExcedePP(false);
+    setForcarReforcoMesmoAssim(false); // zera o "forçar reforço" no reset
     setValorSemMarkup(0);
     setValorTotal(0);
     setDimensoesFinais({
@@ -294,6 +289,15 @@ export default function OrcamentoForm() {
   const isTela = /tela/i.test(tipoSelecionado?.nome || '');
   const isDiversosTipo = /diversos/i.test(tipoSelecionado?.nome || '');
 
+ // ---- Gate: reforço permitido por tipo + override manual
+  const reforcoPermitidoPorTipo = useMemo(() => {
+    const k = norm(tipoSelecionado?.nome || "");
+    // permite: Superfície/Fotos e Entre Vidros
+    return /(superf|foto|entre\s*vidros?)/i.test(k);
+  }, [tipoSelecionado]);
+  const [forcarReforcoMesmoAssim, setForcarReforcoMesmoAssim] = useState(false);
+
+
   // Perfil efetivo (override no modo Diversos)
   const perfil = useMemo(() => {
     // Overrides especiais: Camisa/Objetos "em Entre Vidros"
@@ -324,13 +328,6 @@ export default function OrcamentoForm() {
       permiteM2M3: true,
     };
   }, [perfilBase, isDiversosTipo, diversoSelecionado, isCamisaObjeto, entreVidrosNoCamisa]);
-
-  // Gate de reforço por tipo (após termos norm())
-  const reforcoPermitidoPorTipo = useMemo(() => {
-    const k = norm(tipoSelecionado?.nome || "");
-    // Só calcula automaticamente em: Superfície/Fotos/Entre Vidros
-    return /(superf|foto|entre\s*vidros?)/i.test(k);
-  }, [tipoSelecionado]);
 
 
   // Preview excede PP e “bloqueio” de PP
@@ -530,6 +527,7 @@ export default function OrcamentoForm() {
     const tela = /tela/i.test(tipoSelecionado?.nome || '');
     setIncluirChassi(!!tela);
     setIncluirImpressaoTela(false);
+    setForcarReforcoMesmoAssim(false);
   }, [tipoSelecionado, vidros, fundo, perfil, ehCamisa]);
 
   // defaults quando há item único
@@ -630,19 +628,18 @@ export default function OrcamentoForm() {
     fundo,
   ]);
 
-  // Busca da tabela de reforço:
-  // - precisa ter alguma moldura "Caixa"
-  // - e (o tipo permite OU o usuário optou por "forçar")
   useEffect(() => {
-    const podeBuscar = isCaixaSelecionada && (reforcoPermitidoPorTipo || forcarReforcoMesmoAssim);
-    if (!podeBuscar) { setReforcoTabela([]); return; }
+    // Só busca quando há caixa e (tipo permite OU usuário forçou)
+    if (!isCaixaSelecionada || (!reforcoPermitidoPorTipo && !forcarReforcoMesmoAssim)) {
+      setReforcoTabela([]);
+      return;
+    }
     let cancel = false;
     api.get('/reforco', { params: { tipo: tipoReforco } })
       .then(({ data }) => { if (!cancel) setReforcoTabela(Array.isArray(data) ? data : []); })
       .catch(() => { if (!cancel) setReforcoTabela([]); });
     return () => { cancel = true; };
   }, [isCaixaSelecionada, tipoReforco, reforcoPermitidoPorTipo, forcarReforcoMesmoAssim]);
-
 
   // ===== Cálculo do orçamento =====
   useEffect(() => {
@@ -1365,13 +1362,17 @@ export default function OrcamentoForm() {
         </div>
       )*/}
 
-      {mostrarCustoReforco && (
-        <div className="mt-3">
-          <Alert severity="info">
-            🔧 Reforço: <strong>{reforcoInfo.nome}</strong> — R${' '}
-            {Number(reforcoInfo.valorTotal).toFixed(2).replace('.', ',')}
-          </Alert>
-        </div>
+      {/* Check manual: só aparece quando há caixa e o tipo NÃO permite reforço */}
+      {isCaixaSelecionada && !reforcoPermitidoPorTipo && (
+        <label className="inline-flex items-center gap-2 mt-2 text-sm">
+          <input
+            type="checkbox"
+            className="h-4 w-4"
+            checked={forcarReforcoMesmoAssim}
+            onChange={(e) => setForcarReforcoMesmoAssim(e.target.checked)}
+          />
+          <span>Adicionar reforço mesmo assim</span>
+        </label>
       )}
 
       {(() => {
