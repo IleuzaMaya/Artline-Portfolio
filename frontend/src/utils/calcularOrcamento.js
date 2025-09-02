@@ -49,7 +49,27 @@ export async function calcularOrcamento(params = {}) {
     return 2;
   };
 
-  const aplicarMarkup = (valor, markupPercent) => num(valor) * (1 + num(markupPercent) / 100);
+  const clampPercent = (v) => {
+    let n = num(v, 0);
+    // casos patológicos (alguém passou 3000 = 30,00% em "basis points", etc.)
+    if (n >= 1000) n = n / 100;
+    // limites razoáveis: 0% a 300%
+    n = Math.max(0, Math.min(300, n));
+    return n;
+  };
+
+  const aplicarMarkup = (valor, markupPercent) => {
+  const base = num(valor, 0);
+  const m = clampPercent(markupPercent);
+  const total = base * (1 + m / 100);
+
+  // sanity extra: nunca deixar passar de 10× sem sentido
+  if (total > base * 10 && m > 100) {
+    return base * (1 + (m % 100) / 100);
+  }
+  return total;
+};
+
 
   const FOLHA_PP = { maior: 152, menor: 102, seguranca: 2 };
   const excedeFolhaPP = (wCm, hCm, margemCm) => {
@@ -149,7 +169,7 @@ export async function calcularOrcamento(params = {}) {
   const H = num(altura);
   const W = num(largura);
   const QTD = Math.max(1, num(quantidade, 1));
-  const MARKUP = num(markup);
+  const MARKUP = clampPercent(markup);
 
   // Passe-partout: pode ser bloqueado pela folha
   const excedePP = Boolean(

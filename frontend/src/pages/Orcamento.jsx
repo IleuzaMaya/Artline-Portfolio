@@ -71,7 +71,9 @@ export default function OrcamentoForm() {
   const [zoomImg, setZoomImg] = useState(null);
 
   // helper 2 casas
-  const fmt2 = (n) => Number(n || 0).toFixed(2);
+  const money = (v) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
+    .format(Number(v || 0));
 
   // Baguete interna (ml)
   const [baguetes, setBaguetes] = useState([]);
@@ -485,38 +487,48 @@ export default function OrcamentoForm() {
             return Number.isFinite(n) ? n : 0;
             };
 
-            const listaFmt = (lista || []).map((m) => {
-            const codigo = pick(m.codigo_principal, m.codigo, m.cod, m.referencia);
-            const nomeSafe = pick(m.nome, m.descricao, m.nome_moldura, m.modelo, m.titulo);
-            const imagem_url = pick(
-                m.imagem_url, m.image_url, m.url_imagem, m.imagem, m.foto, m.foto_url, null
-            );
+            const toNumber = (raw) => {
+                const n = Number(String(raw ?? 0)
+                    .replace(/\.(?=\d{3}(?:\D|$))/g, "") // remove separador de milhar
+                    .replace(",", "."));
+                return Number.isFinite(n) ? n : 0;
+                };
 
-            // ✅ normaliza preço ML em vários possíveis campos vindos do backend
-            const preco_ml = toNumber(
-                pick(
-                m.preco_ml, m.valor_ml, m.preco, m.valor,
-                m.precoMetro, m.preco_metro, m.preco_ml_moldura
-                )
-            );
+                const listaFmt = (lista || []).map((m) => {
+                const codigo = pick(m.codigo_principal, m.codigo, m.cod, m.referencia);
+                const nomeSafe = pick(m.nome, m.descricao, m.nome_moldura, m.modelo, m.titulo);
+                const display = [codigo, nomeSafe].filter(Boolean).join(" — ") || nomeSafe || codigo || "Sem nome";
+                const imagem_url = pick(
+                    m.imagem_url, m.image_url, m.url_imagem, m.imagem, m.foto, m.foto_url, null
+                );
 
-            // ✅ se faltar uso_tipo, inferimos pelo nome (ajuda a detectar “Caixa”)
-            const uso_tipo =
-                m.uso_tipo ||
-                (/caixa/i.test(nomeSafe) ? 'C'
-                : /canaleta|profundidade|flutuante/i.test(nomeSafe) ? 'C'
-                : 'N');
+                // 🔑 garante id sempre presente
+                const id = m.id ?? m.id_moldura ?? m.moldura_id ?? m.uuid ?? codigo ?? nomeSafe;
 
-            return {
-                ...m,
-                nome: pick(m.nome, nomeSafe, codigo, 'Sem nome'),
-                display: [codigo, nomeSafe].filter(Boolean).join(' — ') || nomeSafe || codigo || 'Sem nome',
-                imagem_url,
-                preco_ml,
-                valor_ml: preco_ml, // alias para outros lugares do código
-                uso_tipo,
-            };
-            });
+                // 💰 normaliza preço ML, independente do nome do campo vindo do backend
+                const precoMLNorm = toNumber(
+                    pick(
+                    m.preco_ml, m.valor_ml, m.preco, m.valor,
+                    m.precoMetro, m.preco_metro, m.preco_ml_moldura, m.preco_moldura
+                    )
+                );
+
+                // 🧭 tenta inferir uso_tipo quando não vier do backend (detectar “caixa” pelo texto)
+                const uso_tipo = m.uso_tipo ?? (/(caixa|canaleta)/i.test(nomeSafe || display) ? "C" : "N");
+
+                return {
+                    id,
+                    ...m,
+                    nome: pick(m.nome, nomeSafe, codigo, "Sem nome"),
+                    display,
+                    imagem_url,
+                    // sobrescreve/normaliza para o calculador enxergar:
+                    preco_ml: precoMLNorm,
+                    valor_ml: precoMLNorm, // redundante, ajuda o pickPrecoML do calculador
+                    uso_tipo,
+                };
+                });
+
 
             setMolduras(listaFmt);
         })
@@ -1568,17 +1580,17 @@ export default function OrcamentoForm() {
       {/* Totais */}
       <div className="mt-4 text-sm text-gray-700 space-y-1">
         <div>
-          <span className="emoji">💠</span> <strong>Total sem markup:</strong> R${' '}
-          {Number(valorSemMarkup).toFixed(2).replace('.', ',')}
+            <span className="emoji">💠</span>{" "}
+            <strong>Total sem markup:</strong> {money(valorSemMarkup)}
         </div>
         <div>
-          <span className="emoji">💙</span> <strong>Total com markup:</strong> R${' '}
-          {Number(valorTotal).toFixed(2).replace('.', ',')}
+            <span className="emoji">💙</span>{" "}
+            <strong>Total com markup:</strong> {money(valorTotal)}
         </div>
       </div>
 
       <div className="mt-3 text-lg font-semibold text-blue-900 bg-blue-100 rounded p-3 text-center">
-        Valor estimado: R$ {Number(valorTotal).toFixed(2).replace('.', ',')}
+        Valor estimado: {money(valorTotal)}
       </div>
 
       {/* Modal de zoom */}
