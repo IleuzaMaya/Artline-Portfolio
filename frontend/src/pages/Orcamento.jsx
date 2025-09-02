@@ -466,38 +466,65 @@ export default function OrcamentoForm() {
         const pick = (...vals) =>
             vals.find((v) => v !== undefined && v !== null && String(v).trim() !== "") ?? "";
 
-        const listaFmt = (lista || []).map((m) => {
+        api
+        .get('/molduras', { params })
+        .then(async (res) => {
+            let lista = asArray(res.data);
+            if (!Array.isArray(lista) || lista.length === 0) {
+            const resAll = await api.get('/molduras');
+            lista = asArray(resAll.data);
+            }
+
+            const pick = (...vals) =>
+            vals.find((v) => v !== undefined && v !== null && String(v).trim() !== '') ?? '';
+
+            const toNumber = (raw) => {
+            const n = Number(String(raw ?? 0)
+                .replace(/\.(?=\d{3}(?:\D|$))/g, '') // remove separador de milhar
+                .replace(',', '.'));
+            return Number.isFinite(n) ? n : 0;
+            };
+
+            const listaFmt = (lista || []).map((m) => {
             const codigo = pick(m.codigo_principal, m.codigo, m.cod, m.referencia);
             const nomeSafe = pick(m.nome, m.descricao, m.nome_moldura, m.modelo, m.titulo);
-            const display =
-            [codigo, nomeSafe].filter(Boolean).join(" — ") || nomeSafe || codigo || "Sem nome";
             const imagem_url = pick(
-            m.imagem_url,
-            m.image_url,
-            m.url_imagem,
-            m.imagem,
-            m.foto,
-            m.foto_url,
-            null
+                m.imagem_url, m.image_url, m.url_imagem, m.imagem, m.foto, m.foto_url, null
             );
 
-            // 🔑 garante que exista um id porque o FloatingSelect usa valueKey="id"
-            const id =
-            m.id ??
-            m.id_moldura ??
-            m.moldura_id ??
-            m.uuid ??
-            codigo ?? // último recurso
-            nomeSafe;
+            // ✅ normaliza preço ML em vários possíveis campos vindos do backend
+            const preco_ml = toNumber(
+                pick(
+                m.preco_ml, m.valor_ml, m.preco, m.valor,
+                m.precoMetro, m.preco_metro, m.preco_ml_moldura
+                )
+            );
+
+            // ✅ se faltar uso_tipo, inferimos pelo nome (ajuda a detectar “Caixa”)
+            const uso_tipo =
+                m.uso_tipo ||
+                (/caixa/i.test(nomeSafe) ? 'C'
+                : /canaleta|profundidade|flutuante/i.test(nomeSafe) ? 'C'
+                : 'N');
 
             return {
-            id,
-            ...m,
-            nome: pick(m.nome, nomeSafe, codigo, "Sem nome"),
-            display,
-            imagem_url,
+                ...m,
+                nome: pick(m.nome, nomeSafe, codigo, 'Sem nome'),
+                display: [codigo, nomeSafe].filter(Boolean).join(' — ') || nomeSafe || codigo || 'Sem nome',
+                imagem_url,
+                preco_ml,
+                valor_ml: preco_ml, // alias para outros lugares do código
+                uso_tipo,
             };
+            });
+
+            setMolduras(listaFmt);
+        })
+        .catch((err) => {
+            console.error('Erro ao carregar molduras:', err);
+            setMolduras([]);
         });
+
 
         setMolduras(listaFmt);
         } catch (err) {
