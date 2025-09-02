@@ -248,27 +248,29 @@ export async function calcularOrcamento(params = {}) {
   }
 
   // ----------- fase 5: vidro (m²) -----------
-  // “Entre Vidros”: 2 vidros (frente = selecionado; fundo = COMUM)
-  const temVidroFrente =
-    Boolean(vidroSelecionado) || Boolean(vidroSomenteComum) || Boolean(entreVidros);
+  
+  const temVidroFrente = Boolean(vidroSelecionado) || vidroSomenteComum || entreVidros;
 
   if (temVidroFrente) {
-    const precoFrente = vidroSomenteComum
+    const precoFrenteBase = vidroSomenteComum
       ? num(precoVidroComumM2)
-      : Math.max(pickPrecoM2(vidroSelecionado), 0);
+      : pickPrecoM2(vidroSelecionado);
 
-  // Se for entre vidros e não houver vidro selecionado, use comum na frente:
-  const precoFrenteAjust = (entreVidros && !vidroSomenteComum && !vidroSelecionado)
-    ? num(precoVidroComumM2)
-    : precoFrente;
+    // Se for entre vidros e não houver vidro escolhido, usa comum na frente
+    const precoFrenteAjust = (entreVidros && !vidroSomenteComum && !vidroSelecionado)
+      ? num(precoVidroComumM2)
+      : precoFrenteBase;
 
     const precoFundoComum = entreVidros ? num(precoVidroComumM2) : 0;
 
-    const areaM2ParaVidro = areaRefM2; // vidro cobre a área “com PP”
-    const custoVidro = areaM2ParaVidro * Math.max(0, precoFrente) + areaM2ParaVidro * Math.max(0, precoFundoComum);
+    const areaM2ParaVidro = areaRefM2; // o vidro cobre a área “com PP”
+    const custoVidro =
+      areaM2ParaVidro * Math.max(0, precoFrenteAjust) +
+      areaM2ParaVidro * Math.max(0, precoFundoComum);
 
     custos.vidro = Math.max(0, custoVidro);
   }
+
 
   // ----------- fase 6: fundo (m²) -----------
   if (fundoSelecionado) {
