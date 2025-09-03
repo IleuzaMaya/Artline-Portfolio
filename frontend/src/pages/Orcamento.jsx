@@ -72,8 +72,18 @@ export default function OrcamentoForm() {
 
   // helper 2 casas
   const money = (v) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
-    .format(Number(v || 0));
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
+      .format(Number(v || 0));
+
+  // helper cm com 2 casas
+  const fmt2 = (v) => {
+    const n = Number(String(v ?? "")
+      .replace(/\.(?=\d{3}(?:\D|$))/g, "")  // remove milhar, se houver
+      .replace(",", "."));                  // vírgula -> ponto
+    if (!Number.isFinite(n)) return "0,00";
+    return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
 
   // Baguete interna (ml)
   const [baguetes, setBaguetes] = useState([]);
