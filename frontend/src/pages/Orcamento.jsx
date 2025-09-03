@@ -71,15 +71,20 @@ export default function OrcamentoForm() {
   const [zoomImg, setZoomImg] = useState(null);
 
   // helper 2 casas
+  // parser BR -> number
+  const toNumberBR = (raw) =>
+    Number(String(raw ?? "")
+      .replace(/\.(?=\d{3}(?:\D|$))/g, "") // remove milhar
+      .replace(",", "."));                 // vírgula -> ponto
+
+  // R$ com locale pt-BR
   const money = (v) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
-      .format(Number(v || 0));
+      .format(toNumberBR(v));
 
-  // helper cm com 2 casas
+  // cm com 2 casas, locale pt-BR
   const fmt2 = (v) => {
-    const n = Number(String(v ?? "")
-      .replace(/\.(?=\d{3}(?:\D|$))/g, "")  // remove milhar, se houver
-      .replace(",", "."));                  // vírgula -> ponto
+    const n = toNumberBR(v);
     if (!Number.isFinite(n)) return "0,00";
     return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
@@ -968,15 +973,25 @@ export default function OrcamentoForm() {
     !!chassis.length,
   ]);
 
-  const AREA_GRANDE_M2 = 6;
-  const LIMIAR_MOLDURA_CM = 3;
-  const hasVidro = Boolean(vidroSelecionado) || perfil.vidroSomenteComum;
+  // Limiar de área onde começamos a nos preocupar com peso do conjunto (≈ 47 × 67 cm)
+  const LIMIAR_REFORCO_M2 = 0.3149;
+  const LIMIAR_MOLDURA_CM = 2.5; // “moldura fina” (face ≤ 2,5 cm)
+
+  // usa a área de referência do cálculo (com passe-partout, quando houver)
+  const wRefCm = parseFloat(dimensoesFinais.larguraReforco) || 0;
+  const hRefCm = parseFloat(dimensoesFinais.alturaReforco) || 0;
+  const areaRefM2 = (wRefCm / 100) * (hRefCm / 100);
+
+  const hasVidro =
+    Boolean(vidroSelecionado) || perfil.vidroSomenteComum || perfil.vidroFundoComumFixo;
+
+  // alerta só quando PASSA do limiar + tem vidro + não é “caixa” + face ≤ 2,5 cm
   const mostrarAlertaAreaGrandeFina =
-    Number(dimensoesFinais.area) > AREA_GRANDE_M2 &&
+    areaRefM2 > LIMIAR_REFORCO_M2 &&
     hasVidro &&
     !isCaixaSelecionada &&
     larguraM1cm > 0 &&
-    larguraM1cm < LIMIAR_MOLDURA_CM;
+    larguraM1cm <= LIMIAR_MOLDURA_CM;
 
   const usaBagueteInterna = useMemo(() => {
     if (isTela) return false;
