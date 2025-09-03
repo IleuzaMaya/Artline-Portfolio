@@ -40,11 +40,13 @@ export async function calcularOrcamento(params = {}) {
 
     // 3) tenta parsear do nome/descrição: 20X32MM, 28x51mm etc.
     const s = [m?.nome, m?.descricao, m?.display, m?.modelo, m?.titulo].filter(Boolean).join(" ");
-    const m1 = s.match(/(\d{2,3})\s*[xX]\s*(\d{2,3})\s*mm/i);
+    const m1 = s.match(/(\d{1,3})\s*[xX]\s*(\d{1,3})\s*mm/i);
     if (m1) {
-      const mmFace = num(m1[1]);
+      const a = num(m1[1]), b = num(m1[2]);
+      const mmFace = Math.min(a, b);   // ← menor dos dois
       if (mmFace > 0) return mmFace / 10;
     }
+
     // 4) fallback conservador: 2 cm
     return 2;
   };

@@ -450,100 +450,73 @@ export default function OrcamentoForm() {
     // quando troca o tipo, recarrega molduras + aplica regras
     useEffect(() => {
     const carregarMolduras = async () => {
-        try {
+      try {
         const uso = tipoSelecionado ? mapTipoParaUso(tipoSelecionado?.nome || "") : null;
-        const params =
-            uso ? { uso, ...(uso === "camisa" && ehCamisa ? { permiteA: 1 } : {}) } : null;
-
-        // busca com filtro se houver, sem filtro se não houver tipo
-        const res = await api.get("/molduras", params ? { params } : undefined);
-        let lista = asArray(res.data);
-
-        // fallback: se vier vazia, pega todas
-        if (!Array.isArray(lista) || lista.length === 0) {
-            const resAll = await api.get("/molduras");
-            lista = asArray(resAll.data);
-        }
+        const params = uso ? { uso, ...(uso === "camisa" && ehCamisa ? { permiteA: 1 } : {}) } : null;
 
         const pick = (...vals) =>
-            vals.find((v) => v !== undefined && v !== null && String(v).trim() !== "") ?? "";
+          vals.find((v) => v !== undefined && v !== null && String(v).trim() !== "") ?? "";
 
-        api
-        .get('/molduras', { params })
-        .then(async (res) => {
-            let lista = asArray(res.data);
-            if (!Array.isArray(lista) || lista.length === 0) {
-            const resAll = await api.get('/molduras');
-            lista = asArray(resAll.data);
-            }
+        const toNumber = (raw) => {
+          const n = Number(String(raw ?? 0)
+            .replace(/\.(?=\d{3}(?:\D|$))/g, "")
+            .replace(",", "."));
+          return Number.isFinite(n) ? n : 0;
+        };
 
-            const pick = (...vals) =>
-            vals.find((v) => v !== undefined && v !== null && String(v).trim() !== '') ?? '';
+        const fetchMolduras = async () => {
+          const res = await api.get("/molduras", params ? { params } : undefined);
+          let lista = Array.isArray(res?.data) ? res.data : (res?.data?.rows || []);
 
-            const toNumber = (raw) => {
-            const n = Number(String(raw ?? 0)
-                .replace(/\.(?=\d{3}(?:\D|$))/g, '') // remove separador de milhar
-                .replace(',', '.'));
-            return Number.isFinite(n) ? n : 0;
-            };
+          // fallback: se vier vazio, busca todas
+          if (!Array.isArray(lista) || lista.length === 0) {
+            const resAll = await api.get("/molduras");
+            lista = Array.isArray(resAll?.data) ? resAll.data : (resAll?.data?.rows || []);
+          }
+          return lista;
+        };
 
-            const toNumber = (raw) => {
-                const n = Number(String(raw ?? 0)
-                    .replace(/\.(?=\d{3}(?:\D|$))/g, "") // remove separador de milhar
-                    .replace(",", "."));
-                return Number.isFinite(n) ? n : 0;
-                };
+        const brutas = await fetchMolduras();
 
-                const listaFmt = (lista || []).map((m) => {
-                const codigo = pick(m.codigo_principal, m.codigo, m.cod, m.referencia);
-                const nomeSafe = pick(m.nome, m.descricao, m.nome_moldura, m.modelo, m.titulo);
-                const display = [codigo, nomeSafe].filter(Boolean).join(" — ") || nomeSafe || codigo || "Sem nome";
-                const imagem_url = pick(
-                    m.imagem_url, m.image_url, m.url_imagem, m.imagem, m.foto, m.foto_url, null
-                );
+        const listaFmt = (brutas || []).map((m) => {
+          const codigo = pick(m.codigo_principal, m.codigo, m.cod, m.referencia);
+          const nomeSafe = pick(m.nome, m.descricao, m.nome_moldura, m.modelo, m.titulo);
+          const display = [codigo, nomeSafe].filter(Boolean).join(" — ") || nomeSafe || codigo || "Sem nome";
+          const imagem_url = pick(m.imagem_url, m.image_url, m.url_imagem, m.imagem, m.foto, m.foto_url, null);
 
-                // 🔑 garante id sempre presente
-                const id = m.id ?? m.id_moldura ?? m.moldura_id ?? m.uuid ?? codigo ?? nomeSafe;
+          // id sempre presente
+          const id = m.id ?? m.id_moldura ?? m.moldura_id ?? m.uuid ?? codigo ?? nomeSafe;
 
-                // 💰 normaliza preço ML, independente do nome do campo vindo do backend
-                const precoMLNorm = toNumber(
-                    pick(
-                    m.preco_ml, m.valor_ml, m.preco, m.valor,
-                    m.precoMetro, m.preco_metro, m.preco_ml_moldura, m.preco_moldura
-                    )
-                );
+          // preço ML normalizado
+          const precoMLNorm = toNumber(
+            pick(
+              m.preco_ml, m.valor_ml, m.preco, m.valor,
+              m.precoMetro, m.preco_metro, m.preco_ml_moldura, m.preco_moldura
+            )
+          );
 
-                // 🧭 tenta inferir uso_tipo quando não vier do backend (detectar “caixa” pelo texto)
-                const uso_tipo = m.uso_tipo ?? (/(caixa|canaleta)/i.test(nomeSafe || display) ? "C" : "N");
+          // infere uso_tipo se não vier
+          const uso_tipo = m.uso_tipo ?? (/(caixa|canaleta)/i.test(nomeSafe || display) ? "C" : "N");
 
-                return {
-                    id,
-                    ...m,
-                    nome: pick(m.nome, nomeSafe, codigo, "Sem nome"),
-                    display,
-                    imagem_url,
-                    // sobrescreve/normaliza para o calculador enxergar:
-                    preco_ml: precoMLNorm,
-                    valor_ml: precoMLNorm, // redundante, ajuda o pickPrecoML do calculador
-                    uso_tipo,
-                };
-                });
-
-
-            setMolduras(listaFmt);
-        })
-        .catch((err) => {
-            console.error('Erro ao carregar molduras:', err);
-            setMolduras([]);
+          return {
+            id,
+            ...m,
+            nome: pick(m.nome, nomeSafe, codigo, "Sem nome"),
+            display,
+            imagem_url,
+            preco_ml: precoMLNorm,
+            valor_ml: precoMLNorm,
+            uso_tipo,
+          };
         });
 
-
         setMolduras(listaFmt);
-        } catch (err) {
+      } catch (err) {
         console.error("Erro ao carregar molduras:", err);
         setMolduras([]);
-        }
+      }
     };
+
 
     carregarMolduras();
 
