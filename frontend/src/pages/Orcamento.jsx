@@ -461,63 +461,51 @@ export default function OrcamentoForm() {
     useEffect(() => {
     const carregarMolduras = async () => {
       try {
+        const norm = (s='') => s.normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase().trim();
+        const mapTipoParaUso = (nome='') => /entre\s*vidros?/.test(norm(nome)) ? 'entre_vidros'
+          : /profundidade/.test(norm(nome)) ? 'profundidade'
+          : /flutuant/.test(norm(nome)) ? 'flutuante'
+          : /(camisa|objeto)/.test(norm(nome)) ? 'camisa'
+          : /tela/.test(norm(nome)) ? 'tela' : 'superficie';
+
         const uso = tipoSelecionado ? mapTipoParaUso(tipoSelecionado?.nome || "") : null;
-        const params = uso ? { uso, ...(uso === "camisa" && ehCamisa ? { permiteA: 1 } : {}) } : null;
+        const params = uso ? { uso, ...(uso === "camisa" && ehCamisa ? { permiteA: 1 } : {}) } : undefined;
+
+        const asArray = (d) => Array.isArray(d) ? d : (Array.isArray(d?.rows) ? d.rows : []);
+        let { data } = await api.get("/molduras", params ? { params } : undefined);
+        let lista = asArray(data);
+        if (!lista.length) {
+          ({ data } = await api.get("/molduras"));
+          lista = asArray(data);
+        }
 
         const pick = (...vals) =>
           vals.find((v) => v !== undefined && v !== null && String(v).trim() !== "") ?? "";
 
         const toNumber = (raw) => {
           const n = Number(String(raw ?? 0)
-            .replace(/\.(?=\d{3}(?:\D|$))/g, "")
+            .replace(/\.(?=\d{3}(?:\D|$))/g, "") // remove milhar
             .replace(",", "."));
           return Number.isFinite(n) ? n : 0;
         };
 
-        const fetchMolduras = async () => {
-          const res = await api.get("/molduras", params ? { params } : undefined);
-          let lista = Array.isArray(res?.data) ? res.data : (res?.data?.rows || []);
-
-          // fallback: se vier vazio, busca todas
-          if (!Array.isArray(lista) || lista.length === 0) {
-            const resAll = await api.get("/molduras");
-            lista = Array.isArray(resAll?.data) ? resAll.data : (resAll?.data?.rows || []);
-          }
-          return lista;
-        };
-
-        const brutas = await fetchMolduras();
-
-        const listaFmt = (brutas || []).map((m) => {
+        const listaFmt = (lista || []).map((m) => {
           const codigo = pick(m.codigo_principal, m.codigo, m.cod, m.referencia);
           const nomeSafe = pick(m.nome, m.descricao, m.nome_moldura, m.modelo, m.titulo);
           const display = [codigo, nomeSafe].filter(Boolean).join(" — ") || nomeSafe || codigo || "Sem nome";
           const imagem_url = pick(m.imagem_url, m.image_url, m.url_imagem, m.imagem, m.foto, m.foto_url, null);
-
-          // id sempre presente
           const id = m.id ?? m.id_moldura ?? m.moldura_id ?? m.uuid ?? codigo ?? nomeSafe;
 
-          // preço ML normalizado
-          const precoMLNorm = toNumber(
-            pick(
-              m.preco_ml, m.valor_ml, m.preco, m.valor,
-              m.precoMetro, m.preco_metro, m.preco_ml_moldura, m.preco_moldura
-            )
+          // preço ML normalizado (qualquer campo que o backend mande)
+          const precoML = toNumber(
+            pick(m.preco_ml, m.valor_ml, m.preco, m.valor, m.precoMetro, m.preco_metro, m.preco_ml_moldura, m.preco_moldura)
           );
 
-          // infere uso_tipo se não vier
+          // infere tipo 'C' quando o backend não mandar
           const uso_tipo = m.uso_tipo ?? (/(caixa|canaleta)/i.test(nomeSafe || display) ? "C" : "N");
 
-          return {
-            id,
-            ...m,
-            nome: pick(m.nome, nomeSafe, codigo, "Sem nome"),
-            display,
-            imagem_url,
-            preco_ml: precoMLNorm,
-            valor_ml: precoMLNorm,
-            uso_tipo,
-          };
+          return { id, ...m, nome: pick(m.nome, nomeSafe, codigo, "Sem nome"), display, imagem_url,
+            preco_ml: precoML, valor_ml: precoML, uso_tipo };
         });
 
         setMolduras(listaFmt);
@@ -527,8 +515,9 @@ export default function OrcamentoForm() {
       }
     };
 
-
     carregarMolduras();
+  }, [tipoSelecionado, ehCamisa]);
+
 
     // 👇 reseta/aplica regras só quando de fato existe um tipo selecionado
     if (!tipoSelecionado) return;
