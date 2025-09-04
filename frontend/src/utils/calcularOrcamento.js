@@ -45,7 +45,7 @@ export async function calcularOrcamento(params = {}) {
     const m1 = s.match(/(\d{1,3})\s*[xX]\s*(\d{1,3})\s*mm/i);
     if (m1) {
       const a = num(m1[1]), b = num(m1[2]);
-      const mmFace = Math.min(a, b);   // ← menor dos dois
+      const mmFace = Math.min(a, b);   // menor dos dois
       if (mmFace > 0) return mmFace / 10;
     }
 
@@ -53,27 +53,25 @@ export async function calcularOrcamento(params = {}) {
     return 2;
   };
 
+  // ---- GUARD-RAIL: clamp de markup e “estouro” absurdo ----
   const clampPercent = (v) => {
     let n = num(v, 0);
-    // casos patológicos (alguém passou 3000 = 30,00% em "basis points", etc.)
-    if (n >= 1000) n = n / 100;
-    // limites razoáveis: 0% a 300%
-    n = Math.max(0, Math.min(300, n));
+    if (n >= 1000) n = n / 100;              // casos 3000 = 30,00%
+    n = Math.max(0, Math.min(300, n));       // 0%..300%
     return n;
   };
 
   const aplicarMarkup = (valor, markupPercent) => {
-  const base = num(valor, 0);
-  const m = clampPercent(markupPercent);
-  const total = base * (1 + m / 100);
+    const base = Math.max(0, num(valor, 0));
+    const m = clampPercent(markupPercent);
+    const total = base * (1 + m / 100);
 
-  // sanity extra: nunca deixar passar de 10× sem sentido
-  if (total > base * 10 && m > 100) {
-    return base * (1 + (m % 100) / 100);
-  }
-  return total;
-};
-
+    // GUARD-RAIL: evitar multiplicadores >10× por erro de digitação
+    if (total > base * 10 && m > 100) {
+      return base * (1 + (m % 100) / 100);
+    }
+    return total;
+  };
 
   const FOLHA_PP = { maior: 152, menor: 102, seguranca: 2 };
   const excedeFolhaPP = (wCm, hCm, margemCm) => {
@@ -329,7 +327,6 @@ export async function calcularOrcamento(params = {}) {
   }
 
   // ----------- fase 9: reforço (tabela + sarrafo ml) -----------
- 
   const temCaixaExterna = [moldura1, moldura2, moldura3].some((m) => {
     const uso = String(m?.uso_tipo || "").toUpperCase();
     const tipoTxt = String(m?.tipo || m?.categoria || m?.descricao || "");
@@ -354,7 +351,8 @@ export async function calcularOrcamento(params = {}) {
     const reg = pickReforcoRegistro(reforcoTabela, menor, maior);
     if (reg) {
       let ml = num(reg.metragem_linear_reforco ?? reg.ml ?? reg.metragem ?? 0);
-      // heurística: se veio em centímetros, converte
+
+      // ---- GUARD-RAIL: se vier em centímetros, converte para METROS
       if (ml > 20) ml = ml / 100;
 
       const precoML = num(precoSarrafoML);
@@ -439,7 +437,7 @@ export async function calcularOrcamento(params = {}) {
     num(custos.diversos);
 
   // aplica quantidade
-  valorSemMarkup *= QTD;
+  valorSemMarkup = Math.max(0, valorSemMarkup * Math.max(1, QTD));
 
   const valorTotal = aplicarMarkup(valorSemMarkup, MARKUP);
 

@@ -8,31 +8,24 @@ import { Alert } from '@mui/material';
 import { calcularOrcamento, LIMIAR_REFORCO_M2 } from '../utils/calcularOrcamento';
 
 export default function OrcamentoForm() {
-  
   // ===== helpers =====
   const asArray = (data) =>
     Array.isArray(data) ? data : (Array.isArray(data?.rows) ? data.rows : []);
 
-  // parser BR -> number
-  // Aceita "1.234,56" (pt-BR) e números JS sem alterar os decimais.
   const toNumberBR = (raw) => {
     if (typeof raw === 'number') return raw;
     const s = String(raw ?? '');
     if (s.includes(',')) {
-      // pt-BR: "." milhar, "," decimal
       return Number(s.replace(/\./g, '').replace(',', '.'));
     }
-    // já está em formato com ponto decimal ou número simples
     return Number(s.replace(/\s/g, ''));
   };
 
-  // R$ com locale pt-BR (não reparse números JS)
   const money = (v) => {
     const n = typeof v === 'number' ? v : toNumberBR(v);
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
   };
 
-  // cm com 2 casas, locale pt-BR
   const fmt2 = (v) => {
     const n = toNumberBR(v);
     if (!Number.isFinite(n)) return '0,00';
@@ -165,7 +158,7 @@ export default function OrcamentoForm() {
 
     setDiversoSelecionado(null);
     setIncluirImpressaoDiversos(false);
-    
+
     setEhCamisa(false);
     setEntreVidrosNoCamisa(false);
     setCorBaguetePassepartout('');
@@ -300,7 +293,7 @@ export default function OrcamentoForm() {
     else if (/(camisa|objeto)/.test(k)) key = 'camisa_objeto';
     else if (/tela/.test(k)) key = 'tela';
     else if (/outros?/.test(k)) key = 'outro';
-    else if (/superficie/.test(k)) key = 'superficie'; // “foto(s)” removido
+    else if (/superficie/.test(k)) key = 'superficie';
     const overrides = key ? PERFIS[key] : PERFIS.superficie;
     return { ...DEFAULT_PERFIL, ...overrides };
   }
@@ -406,45 +399,49 @@ export default function OrcamentoForm() {
     return depths.length ? Math.max(...depths) : 0;
   }, [moldura1, moldura2, moldura3]);
 
-  // Área "de reforço" (usa as dimensões já calculadas para a estrutura)
+  // Área "de reforço" (usa as dimensões já calculadas para a estrutura) — calculado UMA vez
   const wRefCm = parseFloat(dimensoesFinais.larguraReforco) || 0;
   const hRefCm = parseFloat(dimensoesFinais.alturaReforco) || 0;
   const areaRefM2 = (wRefCm / 100) * (hRefCm / 100);
 
-  // Critérios para mostrar o checkbox manual de reforço em tipos que NÃO calculam automático
-  //  - se o tamanho está acima do limiar (ex.: LIMIAR_REFORCO_M2)
-  //  - OU se a profundidade da caixa atende ao critério que você quer usar
+  // Critério para mostrar o checkbox manual de reforço em tipos que NÃO calculam automático
+  // - tamanho acima do limiar OU profundidade < 3 cm
   const PROFUNDIDADE_GATE_CM = 3;
-
-  // Se você preferir "aparece quando profundidade < 3cm", troque o comparador abaixo.
-  const criterioProfundidade = profundidadeCaixaCm >= PROFUNDIDADE_GATE_CM;
-  // const criterioProfundidade = profundidadeCaixaCm < PROFUNDIDADE_GATE_CM; // <- alternativa
+  const criterioProfundidade = profundidadeCaixaCm < PROFUNDIDADE_GATE_CM;
 
   const podeMostrarReforcoManual = useMemo(() => {
     const k = norm(tipoSelecionado?.nome || '');
     const tipoNaoCalculaAuto = !/(superf|entre\s*vidros?)/i.test(k); // flutuante/profundidade/camisa/outro...
     const tamanhoAcima = areaRefM2 >= LIMIAR_REFORCO_M2;
-    return (
-      isCaixaSelecionada &&
-      tipoNaoCalculaAuto &&
-      (tamanhoAcima || criterioProfundidade)
-    );
+    return isCaixaSelecionada && tipoNaoCalculaAuto && (tamanhoAcima || criterioProfundidade);
   }, [tipoSelecionado, isCaixaSelecionada, areaRefM2, criterioProfundidade]);
 
-  // --- Reforço: estado e tipo (únicos) ---
+  // --- Reforço: estado + tipo (únicos) ---
   const [reforcoTabela, setReforcoTabela] = useState([]);
 
-  const tipoReforco = useMemo(
-    () => (/tela/i.test(tipoSelecionado?.nome || '') ? 'canvas' : 'matte'),
-    [tipoSelecionado?.nome]
-  );
+  const tipoReforco = useMemo(() => {
+    const nome = (tipoSelecionado?.nome || '').toLowerCase();
+    return /tela/.test(nome) ? 'canvas' : 'matte';
+  }, [tipoSelecionado?.nome]);
 
-    const temFundo =
-      perfil.showFundoCombo && (Boolean(fundoSelecionado) || (fundo || []).length > 0);
-
-    // Regra atual: se tem vidro OU tem fundo => 'matte'
-    return (temVidro || temFundo) ? 'matte' : 'matte';
-  }, [tipoSelecionado?.nome, temVidro, perfil.showFundoCombo, fundoSelecionado, fundo]);
+  useEffect(() => {
+    if (!isCaixaSelecionada || (!reforcoPermitidoPorTipo && !forcarReforcoMesmoAssim)) {
+      setReforcoTabela([]);
+      return;
+    }
+    let cancel = false;
+    api
+      .get('/reforco', { params: { tipo: tipoReforco } })
+      .then(({ data }) => {
+        if (!cancel) setReforcoTabela(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!cancel) setReforcoTabela([]);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [isCaixaSelecionada, tipoReforco, reforcoPermitidoPorTipo, forcarReforcoMesmoAssim]);
 
   // ===== coerções de M2/M3 =====
   useEffect(() => {
@@ -478,9 +475,7 @@ export default function OrcamentoForm() {
           api.get('/sarrafo').catch(() => ({ data: [] })),
         ]);
 
-        // remove “Foto(s)” dos tipos
         setTiposOrcamento(asArray(tipos.data).filter((t) => !/foto/i.test(t?.nome || '')));
-
         setImpressoes(asArray(impr.data));
         setVidros(asArray(v.data));
         setSarrafoLista(asArray(sarr.data));
@@ -506,12 +501,10 @@ export default function OrcamentoForm() {
   }, []);
 
   // ===== efeitos dependentes de perfil =====
-  // zera baguete se o tipo efetivo não usa
   useEffect(() => {
     if (!usaBagueteInterna) setBagueteInternaSelecionada(null);
   }, [usaBagueteInterna]);
 
-  // zera passe-partout quando ficar bloqueado/oculto
   useEffect(() => {
     if (!perfil.showPassepartout || ppBloqueado) {
       setPassepartoutSelecionado(null);
@@ -520,14 +513,12 @@ export default function OrcamentoForm() {
     }
   }, [perfil.showPassepartout, ppBloqueado]);
 
-  // zera vidro quando o tipo não tem vidro frontal
   useEffect(() => {
     if (!perfil.vidroFrontalCombo && !perfil.vidroSomenteComum) {
       setVidroSelecionado(null);
     }
   }, [perfil.vidroFrontalCombo, perfil.vidroSomenteComum]);
 
-  // zera fundo quando o tipo não usa
   useEffect(() => {
     if (!perfil.showFundoCombo) setFundoSelecionado(null);
   }, [perfil.showFundoCombo]);
@@ -590,7 +581,6 @@ export default function OrcamentoForm() {
           );
           const id = m.id ?? m.id_moldura ?? m.moldura_id ?? m.uuid ?? codigo ?? nomeSafe;
 
-          // preço ML normalizado
           const precoML = toNumber(
             pick(
               m.preco_ml,
@@ -604,7 +594,6 @@ export default function OrcamentoForm() {
             )
           );
 
-          // infere uso_tipo 'C' quando backend não mandar
           const uso_tipo =
             m.uso_tipo ?? (/(caixa|canaleta)/i.test(nomeSafe || display) ? 'C' : 'N');
 
@@ -733,42 +722,7 @@ export default function OrcamentoForm() {
     return pickPreco(escolhido);
   };
 
-  // ===== Reforço: carregar tabela quando aplicável =====
-  const [reforcoTabela, setReforcoTabela] = useState([]);
-  const tipoReforco = useMemo(() => {
-    const nome = (tipoSelecionado?.nome || '').toLowerCase();
-    if (/tela/.test(nome)) return 'canvas';
-      const temVidro =
-        Boolean(vidroSelecionado) || perfil.vidroSomenteComum || perfil.vidroFundoComumFixo;
-      const temFundo =
-        perfil.showFundoCombo && (Boolean(fundoSelecionado) || (fundo || []).length > 0);
-      // Se tem vidro OU tem fundo => matte
-      if (temVidro || temFundo) return 'matte';
-      return 'matte'; 
-  }, [
-    tipoSelecionado?.nome,
-    vidroSelecionado,
-    perfil.vidroSomenteComum,
-    perfil.vidroFundoComumFixo,
-    perfil.showFundoCombo,
-    fundoSelecionado,
-    fundo,
-  ]);
-
-  useEffect(() => {
-    if (!isCaixaSelecionada || (!reforcoPermitidoPorTipo && !forcarReforcoMesmoAssim)) {
-      setReforcoTabela([]);
-      return;
-    }
-    let cancel = false;
-    api.get('/reforco', { params: { tipo: tipoReforco } })
-      .then(({ data }) => { if (!cancel) setReforcoTabela(Array.isArray(data) ? data : []); })
-      .catch(() => { if (!cancel) setReforcoTabela([]); });
-    return () => { cancel = true; };
-  }, [isCaixaSelecionada, tipoReforco, reforcoPermitidoPorTipo, forcarReforcoMesmoAssim]);
-
-
-  // ===== Cálculo do orçamento =====
+  // ===== Reforço: cálculo assíncrono total =====
   useEffect(() => {
     async function atualizarOrcamento() {
       try {
@@ -1084,22 +1038,15 @@ export default function OrcamentoForm() {
   // ===== Avisos de segurança por área/face =====
   const usoTipoM1 = String(moldura1?.uso_tipo || '').toUpperCase();
 
-
   const LIMIAR_MOLDURA_CM = 2.5; // “moldura fina”
-  const wRefCm = parseFloat(dimensoesFinais.larguraReforco) || 0;
-  const hRefCm = parseFloat(dimensoesFinais.alturaReforco) || 0;
-  const areaRefM2 = (wRefCm / 100) * (hRefCm / 100);
-
-  const temVidro =
-    Boolean(vidroSelecionado) || perfil.vidroSomenteComum || perfil.vidroFundoComumFixo;
-
   const mostrarAlertaPesoVidro =
     areaRefM2 > LIMIAR_REFORCO_M2 &&
     temVidro &&
     !isCaixaSelecionada &&
-    larguraM1cm > 0 && larguraM1cm <= LIMIAR_MOLDURA_CM &&
+    larguraM1cm > 0 &&
+    larguraM1cm <= LIMIAR_MOLDURA_CM &&
     (usoTipoM1 === 'N' || usoTipoM1 === 'A');
-  
+
   // ===== UI =====
   const isFlutuante = /flutuant/i.test(tipoSelecionado?.nome || '');
 
@@ -1390,16 +1337,16 @@ export default function OrcamentoForm() {
           <div className="text-xs text-gray-500 mt-1">
             {areaRefM2 >= LIMIAR_REFORCO_M2
               ? 'Área acima do limiar para reforço.'
-              : `Profundidade da caixa ${fmt2(profundidadeCaixaCm)} cm atende ao critério.`}
+              : `Profundidade da caixa ${fmt2(profundidadeCaixaCm)} cm abaixo de ${PROFUNDIDADE_GATE_CM} cm.`}
           </div>
-              </div>
+        </div>
       )}
 
       {avisoM2 && <Alert severity="info" className="mt-2">{avisoM2}</Alert>}
       {ehAluminio(moldura1) && (
         <Alert severity="info" className="mt-2">Moldura de alumínio não permite adicionais.</Alert>
       )}
-      {moldura1 && !ehRetaOuPP(moldura1) && (
+      {perfil.permiteM2M3 && moldura1 && !ehRetaOuPP(moldura1) && (
         <Alert severity="info" className="mt-2">
           Moldura 1 diferente de Reta/Passepartout bloqueia Moldura 2 e 3.
         </Alert>
@@ -1463,7 +1410,6 @@ export default function OrcamentoForm() {
           </Alert>
         </div>
       )}
-
 
       {/* Impressão (opcional) */}
       {!isTela && !isDiversosTipo && (
