@@ -671,15 +671,13 @@ export default function OrcamentoForm() {
   const tipoReforco = useMemo(() => {
     const nome = (tipoSelecionado?.nome || '').toLowerCase();
     if (/tela/.test(nome)) return 'canvas';
-
-    const temVidro =
-      Boolean(vidroSelecionado) || perfil.vidroSomenteComum || perfil.vidroFundoComumFixo;
-    const temFundo =
-      perfil.showFundoCombo && (Boolean(fundoSelecionado) || (fundo || []).length > 0);
-
-    // Se tem vidro OU tem fundo => matte
-    if (temVidro || temFundo) return 'matte';
-    return 'matte';
+      const temVidro =
+        Boolean(vidroSelecionado) || perfil.vidroSomenteComum || perfil.vidroFundoComumFixo;
+      const temFundo =
+        perfil.showFundoCombo && (Boolean(fundoSelecionado) || (fundo || []).length > 0);
+      // Se tem vidro OU tem fundo => matte
+      if (temVidro || temFundo) return 'matte';
+      return 'matte'; 
   }, [
     tipoSelecionado?.nome,
     vidroSelecionado,
@@ -830,8 +828,8 @@ export default function OrcamentoForm() {
         setDimensoesFinais({
           altura: Number(resultado.alturaFinal || 0),
           largura: Number(resultado.larguraFinal || 0),
-          alturaReforco: Number(resultado.alturaReforco || 0).toFixed(1),
-          larguraReforco: Number(resultado.larguraReforco || 0).toFixed(1),
+          alturaReforco: Number(resultado.alturaReforco || 0),
+          larguraReforco: Number(resultado.larguraReforco || 0),
           area: Number(resultado.areaTotalM2 || 0),
           mensagemAviso: resultado.mensagemAviso || null,
         });
@@ -1023,20 +1021,20 @@ export default function OrcamentoForm() {
   ]);
 
   // ===== Avisos de segurança por área/face =====
+  const usoTipoM1 = String(moldura1?.uso_tipo || '').toUpperCase();
+
 
   const LIMIAR_MOLDURA_CM = 2.5; // “moldura fina”
   const wRefCm = parseFloat(dimensoesFinais.larguraReforco) || 0;
   const hRefCm = parseFloat(dimensoesFinais.alturaReforco) || 0;
   const areaRefM2 = (wRefCm / 100) * (hRefCm / 100);
 
-  const hasVidro =
+  const temVidro =
     Boolean(vidroSelecionado) || perfil.vidroSomenteComum || perfil.vidroFundoComumFixo;
-
-  const usoTipoM1 = String(moldura1?.uso_tipo || '').toUpperCase(); // 'N' | 'A' | 'C'...
 
   const mostrarAlertaPesoVidro =
     areaRefM2 > LIMIAR_REFORCO_M2 &&
-    hasVidro &&
+    temVidro &&
     !isCaixaSelecionada &&
     larguraM1cm > 0 && larguraM1cm <= LIMIAR_MOLDURA_CM &&
     (usoTipoM1 === 'N' || usoTipoM1 === 'A');
