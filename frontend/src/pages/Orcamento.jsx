@@ -672,10 +672,38 @@ export default function OrcamentoForm() {
     : null;
 
   // ===== Diversos: helpers de preço =====
+  // ----------- helpers -----------
   const num = (v, d = 0) => {
-    const n = Number(String(v ?? '').toString().replace(',', '.'));
+    // número genérico (cm, m etc.)
+    const s = String(v ?? "").replace(/\s/g, "");
+    const n = Number(s.replace(/\.(?=\d{3}(?:\D|$))/g, "").replace(",", "."));
     return Number.isFinite(n) ? n : d;
   };
+
+  // Dinheiro robusto: "27", "27,00", "27.00", "R$ 27,00", "2700" (centavos), "27000" (erro de escala)...
+  const moneyNum = (v) => {
+    const s = String(v ?? "")
+      .replace(/[^\d.,-]/g, "")
+      .replace(/\.(?=\d{3}(?:\D|$))/g, "")
+      .replace(",", ".");
+    let n = Number(s);
+    if (!Number.isFinite(n)) return 0;
+    if (n > 20000) n = n / 1000; // 27.000 -> 27
+    else if (n > 2000) n = n / 100; // 2.700 -> 27
+    return n;
+  };
+
+  const toM2 = (wCm, hCm) => (num(wCm) / 100) * (num(hCm) / 100);
+  /** perímetro em METROS a partir de cm */
+  const perimetroML = (wCm, hCm) => (2 * (num(wCm) + num(hCm))) / 100;
+
+  const pickPrecoML = (o) =>
+    moneyNum(o?.preco_ml ?? o?.valor_ml ?? o?.preco ?? o?.valor ?? o?.precoUnit ?? o?.valorUnit);
+
+  const pickPrecoM2 = (o) =>
+    moneyNum(o?.preco_m2 ?? o?.valor_m2 ?? o?.preco ?? o?.valor ?? o?.precoUnit ?? o?.valorUnit);
+
+
   const maiorLado = () => Math.max(num(altura), num(largura));
   const precoTrocaPorCategoria = (catId) => {
     if (!Array.isArray(diversosBrutos) || diversosBrutos.length === 0) return 0;
@@ -683,7 +711,8 @@ export default function OrcamentoForm() {
     const mm = maiorLado();
     const faixa = mm <= 50 ? 'ate' : 'acima';
 
-    const pickPreco = (o) => num(o?.preco ?? o?.valor ?? o?.preco_unit ?? o?.valor_unit, 0);
+    const pickPreco = (o) => moneyNum(o?.preco ?? o?.valor ?? o?.preco_unit ?? o?.valor_unit, 0);
+
     const nomeUpper = (x) => String(x || '').toUpperCase();
 
     const byCat = (d) => {
