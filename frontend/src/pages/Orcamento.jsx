@@ -14,18 +14,23 @@ export default function OrcamentoForm() {
     Array.isArray(data) ? data : (Array.isArray(data?.rows) ? data.rows : []);
 
   // parser BR -> number
-  const toNumberBR = (raw) =>
-    Number(
-      String(raw ?? '')
-        .replace(/\.(?=\d{3}(?:\D|$))/g, '') // remove milhar
-        .replace(',', '.') // vírgula -> ponto
-    );
+  // Aceita "1.234,56" (pt-BR) e números JS sem alterar os decimais.
+  const toNumberBR = (raw) => {
+    if (typeof raw === 'number') return raw;
+    const s = String(raw ?? '');
+    if (s.includes(',')) {
+      // pt-BR: "." milhar, "," decimal
+      return Number(s.replace(/\./g, '').replace(',', '.'));
+    }
+    // já está em formato com ponto decimal ou número simples
+    return Number(s.replace(/\s/g, ''));
+  };
 
-  // R$ com locale pt-BR
-  const money = (v) =>
-    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
-      toNumberBR(v)
-    );
+  // R$ com locale pt-BR (não reparse números JS)
+  const money = (v) => {
+    const n = typeof v === 'number' ? v : toNumberBR(v);
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
+  };
 
   // cm com 2 casas, locale pt-BR
   const fmt2 = (v) => {
