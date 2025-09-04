@@ -8,6 +8,7 @@ import { Alert } from '@mui/material';
 import { calcularOrcamento, LIMIAR_REFORCO_M2 } from '../utils/calcularOrcamento';
 
 export default function OrcamentoForm() {
+  
   // ===== helpers =====
   const asArray = (data) =>
     Array.isArray(data) ? data : (Array.isArray(data?.rows) ? data.rows : []);
@@ -1022,6 +1023,7 @@ export default function OrcamentoForm() {
   ]);
 
   // ===== Avisos de segurança por área/face =====
+
   const LIMIAR_MOLDURA_CM = 2.5; // “moldura fina”
   const wRefCm = parseFloat(dimensoesFinais.larguraReforco) || 0;
   const hRefCm = parseFloat(dimensoesFinais.alturaReforco) || 0;
@@ -1030,37 +1032,17 @@ export default function OrcamentoForm() {
   const hasVidro =
     Boolean(vidroSelecionado) || perfil.vidroSomenteComum || perfil.vidroFundoComumFixo;
 
-  const mostrarAlertaAreaGrandeFina =
-    areaRefM2 > LIMIAR_REFORCO_M2 &&
-    hasVidro &&
-    !isCaixaSelecionada &&
-    larguraM1cm > 0 &&
-    larguraM1cm <= LIMIAR_MOLDURA_CM;
-
-  // ===== UI =====
-  const isFlutuante = /flutuant/i.test(tipoSelecionado?.nome || '');
-
-  // topo do componente (antes do return)
-  const LIMIAR_MOLDURA_CM = 2.5;
-
-  const wRefCm = parseFloat(dimensoesFinais.larguraReforco) || 0;
-  const hRefCm = parseFloat(dimensoesFinais.alturaReforco) || 0;
-  const areaRefM2 = (wRefCm / 100) * (hRefCm / 100);
-
-  const usoTipoM1 = String(moldura1?.uso_tipo || '').toUpperCase();
-  const faceM1cm = moldura1?.largura_mm
-    ? moldura1.largura_mm / 10
-    : (Number(moldura1?.largura) || 0);
-
-  const hasVidro =
-    Boolean(vidroSelecionado) || perfil.vidroSomenteComum || perfil.vidroFundoComumFixo;
+  const usoTipoM1 = String(moldura1?.uso_tipo || '').toUpperCase(); // 'N' | 'A' | 'C'...
 
   const mostrarAlertaPesoVidro =
     areaRefM2 > LIMIAR_REFORCO_M2 &&
     hasVidro &&
     !isCaixaSelecionada &&
-    faceM1cm > 0 && faceM1cm <= LIMIAR_MOLDURA_CM &&
+    larguraM1cm > 0 && larguraM1cm <= LIMIAR_MOLDURA_CM &&
     (usoTipoM1 === 'N' || usoTipoM1 === 'A');
+  
+  // ===== UI =====
+  const isFlutuante = /flutuant/i.test(tipoSelecionado?.nome || '');
 
   return (
     <div className="max-w-3xl mx-auto mt-6 p-4 bg-white shadow rounded overflow-visible">
