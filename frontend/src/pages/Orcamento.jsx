@@ -439,7 +439,6 @@ export default function OrcamentoForm() {
     [tipoSelecionado?.nome]
   );
 
-
     const temFundo =
       perfil.showFundoCombo && (Boolean(fundoSelecionado) || (fundo || []).length > 0);
 
