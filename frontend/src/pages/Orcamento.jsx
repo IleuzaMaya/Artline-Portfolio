@@ -384,6 +384,69 @@ export default function OrcamentoForm() {
   // Entre Vidros?
   const isEntreVidros = Boolean(perfil.vidroFundoComumFixo);
 
+  // Vidro presente (frente selecionado/comum ou EV)
+  const temVidro = useMemo(
+    () => Boolean(vidroSelecionado) || perfil.vidroSomenteComum || perfil.vidroFundoComumFixo,
+    [vidroSelecionado, perfil.vidroSomenteComum, perfil.vidroFundoComumFixo]
+  );
+
+  // Profundidade interna da(s) moldura(s) de CAIXA em cm
+  const profundidadeCaixaCm = useMemo(() => {
+    const toCm = (m) => {
+      if (!m) return 0;
+      const mm =
+        Number(m?.profundidade_mm ?? m?.profundidadeInterna_mm ?? m?.profundidade_interna_mm ?? 0);
+      if (mm) return mm / 10; // 10 mm = 1 cm
+      const cm = Number(
+        m?.profundidade ?? m?.profundidade_cm ?? m?.profundidadeInterna ?? m?.profundidade_interna
+      );
+      return Number.isFinite(cm) ? cm : 0;
+    };
+    const depths = [moldura1, moldura2, moldura3].filter(ehCaixa).map(toCm);
+    return depths.length ? Math.max(...depths) : 0;
+  }, [moldura1, moldura2, moldura3]);
+
+  // Área "de reforço" (usa as dimensões já calculadas para a estrutura)
+  const wRefCm = parseFloat(dimensoesFinais.larguraReforco) || 0;
+  const hRefCm = parseFloat(dimensoesFinais.alturaReforco) || 0;
+  const areaRefM2 = (wRefCm / 100) * (hRefCm / 100);
+
+  // Critérios para mostrar o checkbox manual de reforço em tipos que NÃO calculam automático
+  //  - se o tamanho está acima do limiar (ex.: LIMIAR_REFORCO_M2)
+  //  - OU se a profundidade da caixa atende ao critério que você quer usar
+  const PROFUNDIDADE_GATE_CM = 3;
+
+  // Se você preferir "aparece quando profundidade < 3cm", troque o comparador abaixo.
+  const criterioProfundidade = profundidadeCaixaCm >= PROFUNDIDADE_GATE_CM;
+  // const criterioProfundidade = profundidadeCaixaCm < PROFUNDIDADE_GATE_CM; // <- alternativa
+
+  const podeMostrarReforcoManual = useMemo(() => {
+    const k = norm(tipoSelecionado?.nome || '');
+    const tipoNaoCalculaAuto = !/(superf|entre\s*vidros?)/i.test(k); // flutuante/profundidade/camisa/outro...
+    const tamanhoAcima = areaRefM2 >= LIMIAR_REFORCO_M2;
+    return (
+      isCaixaSelecionada &&
+      tipoNaoCalculaAuto &&
+      (tamanhoAcima || criterioProfundidade)
+    );
+  }, [tipoSelecionado, isCaixaSelecionada, areaRefM2, criterioProfundidade]);
+
+  // --- Reforço: estado e tipo (únicos) ---
+  const [reforcoTabela, setReforcoTabela] = useState([]);
+
+  const tipoReforco = useMemo(
+    () => (/tela/i.test(tipoSelecionado?.nome || '') ? 'canvas' : 'matte'),
+    [tipoSelecionado?.nome]
+  );
+
+
+    const temFundo =
+      perfil.showFundoCombo && (Boolean(fundoSelecionado) || (fundo || []).length > 0);
+
+    // Regra atual: se tem vidro OU tem fundo => 'matte'
+    return (temVidro || temFundo) ? 'matte' : 'matte';
+  }, [tipoSelecionado?.nome, temVidro, perfil.showFundoCombo, fundoSelecionado, fundo]);
+
   // ===== coerções de M2/M3 =====
   useEffect(() => {
     if (ehAluminio(moldura1)) {
@@ -699,18 +762,12 @@ export default function OrcamentoForm() {
       return;
     }
     let cancel = false;
-    api
-      .get('/reforco', { params: { tipo: tipoReforco } })
-      .then(({ data }) => {
-        if (!cancel) setReforcoTabela(Array.isArray(data) ? data : []);
-      })
-      .catch(() => {
-        if (!cancel) setReforcoTabela([]);
-      });
-    return () => {
-      cancel = true;
-    };
+    api.get('/reforco', { params: { tipo: tipoReforco } })
+      .then(({ data }) => { if (!cancel) setReforcoTabela(Array.isArray(data) ? data : []); })
+      .catch(() => { if (!cancel) setReforcoTabela([]); });
+    return () => { cancel = true; };
   }, [isCaixaSelecionada, tipoReforco, reforcoPermitidoPorTipo, forcarReforcoMesmoAssim]);
+
 
   // ===== Cálculo do orçamento =====
   useEffect(() => {
@@ -1320,7 +1377,7 @@ export default function OrcamentoForm() {
       )}
 
       {/* Forçar reforço quando o tipo não calcula automaticamente */}
-      {isCaixaSelecionada && !reforcoPermitidoPorTipo && (
+      {podeMostrarReforcoManual && (
         <div className="mt-2">
           <label className="inline-flex items-center gap-2 text-sm cursor-pointer select-none">
             <input
@@ -1332,10 +1389,11 @@ export default function OrcamentoForm() {
             <span>Adicionar reforço mesmo assim</span>
           </label>
           <div className="text-xs text-gray-500 mt-1">
-            Este tipo não calcula reforço automaticamente. Marque para incluir a estrutura
-            conforme a tabela.
+            {areaRefM2 >= LIMIAR_REFORCO_M2
+              ? 'Área acima do limiar para reforço.'
+              : `Profundidade da caixa ${fmt2(profundidadeCaixaCm)} cm atende ao critério.`}
           </div>
-        </div>
+              </div>
       )}
 
       {avisoM2 && <Alert severity="info" className="mt-2">{avisoM2}</Alert>}
