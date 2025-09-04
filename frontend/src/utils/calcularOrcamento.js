@@ -13,6 +13,8 @@
 // - Reforço (por ML com tabela) com limiar e “forçar”
 // =======================================================
 
+export const LIMIAR_REFORCO_M2 = 0.3149; // ~47 x 67 cm
+
 export async function calcularOrcamento(params = {}) {
   // ----------- helpers -----------
   const num = (v, d = 0) => {
@@ -327,7 +329,7 @@ export async function calcularOrcamento(params = {}) {
   }
 
   // ----------- fase 9: reforço (tabela + sarrafo ml) -----------
-  const LIMIAR_REFORCO_M2 = 0.3149; // ~47 x 67 cm
+ 
   const temCaixaExterna = [moldura1, moldura2, moldura3].some((m) => {
     const uso = String(m?.uso_tipo || "").toUpperCase();
     const tipoTxt = String(m?.tipo || m?.categoria || m?.descricao || "");

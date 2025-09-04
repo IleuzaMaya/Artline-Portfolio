@@ -3,15 +3,37 @@ import { useEffect, useMemo, useState } from 'react';
 import { edge as api } from '../lib/edgeApi';
 import FloatingInput from '../components/FloatingInput';
 import FloatingSelect from '../components/FloatingSelect';
-import { calcularOrcamento } from '../utils/calcularOrcamento';
-import { Alert } from '@mui/material';
 import MolduraThumb from '../components/MolduraThumb';
+import { Alert } from '@mui/material';
+import { calcularOrcamento, LIMIAR_REFORCO_M2 } from '../utils/calcularOrcamento';
 
 export default function OrcamentoForm() {
-  // helper para garantir array
+  // ===== helpers =====
   const asArray = (data) =>
     Array.isArray(data) ? data : (Array.isArray(data?.rows) ? data.rows : []);
 
+  // parser BR -> number
+  const toNumberBR = (raw) =>
+    Number(
+      String(raw ?? '')
+        .replace(/\.(?=\d{3}(?:\D|$))/g, '') // remove milhar
+        .replace(',', '.') // vírgula -> ponto
+    );
+
+  // R$ com locale pt-BR
+  const money = (v) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+      toNumberBR(v)
+    );
+
+  // cm com 2 casas, locale pt-BR
+  const fmt2 = (v) => {
+    const n = toNumberBR(v);
+    if (!Number.isFinite(n)) return '0,00';
+    return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  // ===== estados base =====
   const [tiposOrcamento, setTiposOrcamento] = useState([]);
   const [tipoSelecionado, setTipoSelecionado] = useState(null);
 
@@ -40,12 +62,12 @@ export default function OrcamentoForm() {
   const [camisaObjetoTabela, setCamisaObjetoTabela] = useState([]);
 
   // ===== Flags Camisa/Entre Vidros =====
-  const [ehCamisa, setEhCamisa] = useState(false); // usado em Entre Vidros e Camisa/Objetos
-  const [entreVidrosNoCamisa, setEntreVidrosNoCamisa] = useState(false); // check "Entre vidros?" dentro de Camisa/Objetos
-  const isCamisaObjeto = /(camisa|objeto)/i.test((tipoSelecionado?.nome || ''));
+  const [ehCamisa, setEhCamisa] = useState(false);
+  const [entreVidrosNoCamisa, setEntreVidrosNoCamisa] = useState(false);
+  const isCamisaObjeto = /(camisa|objeto)/i.test(tipoSelecionado?.nome || '');
 
-  // ===== MODO DIVERSOS (categoria simplificada) =====
-  const [diversosBrutos, setDiversosBrutos] = useState([]); // vindo do backend (/diversos)
+  // ===== Diversos =====
+  const [diversosBrutos, setDiversosBrutos] = useState([]);
   const DIVERSOS_OPCOES = [
     { id: 'troca_canvas', nome: 'Troca de Canvas' },
     { id: 'troca_matte', nome: 'Troca de Papel Matte' },
@@ -54,49 +76,24 @@ export default function OrcamentoForm() {
     { id: 'troca_vidro', nome: 'Troca de Vidro' },
     { id: 'retirar_arte', nome: 'Retirar arte' },
   ];
-  const [diversoSelecionado, setDiversoSelecionado] = useState(null); // {id, nome}
+  const [diversoSelecionado, setDiversoSelecionado] = useState(null);
   const [incluirImpressaoDiversos, setIncluirImpressaoDiversos] = useState(false);
 
-  // Nº de aberturas (para Fotos)
+  // Nº de aberturas (mantém para Superfície)
   const [numAberturas, setNumAberturas] = useState(1);
   const [numAberturasCalc, setNumAberturasCalc] = useState(1);
 
-  // avisos
+  // avisos / visual
   const [avisoM2, setAvisoM2] = useState(null);
-
-  // Resumo dos itens somados
   const [itensSomados, setItensSomados] = useState([]);
-
-  // zoom imagem de moldura
   const [zoomImg, setZoomImg] = useState(null);
 
-  // helper 2 casas
-  // parser BR -> number
-  const toNumberBR = (raw) =>
-    Number(String(raw ?? "")
-      .replace(/\.(?=\d{3}(?:\D|$))/g, "") // remove milhar
-      .replace(",", "."));                 // vírgula -> ponto
-
-  // R$ com locale pt-BR
-  const money = (v) =>
-    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
-      .format(toNumberBR(v));
-
-  // cm com 2 casas, locale pt-BR
-  const fmt2 = (v) => {
-    const n = toNumberBR(v);
-    if (!Number.isFinite(n)) return "0,00";
-    return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  };
-
-
-  // Baguete interna (ml)
+  // ===== baguete interna =====
   const [baguetes, setBaguetes] = useState([]);
   const [corBaguetePassepartout, setCorBaguetePassepartout] = useState('');
-
   const [bagueteInternaSelecionada, setBagueteInternaSelecionada] = useState(null);
 
-  // Sarrafo (preço ML para reforço)
+  // ===== sarrafo (preço ML para reforço) =====
   const [sarrafoLista, setSarrafoLista] = useState([]);
   const precoSarrafoML = useMemo(() => {
     const s = (sarrafoLista || [])[0] || null;
@@ -105,7 +102,7 @@ export default function OrcamentoForm() {
     return Number.isFinite(n) ? n : 0;
   }, [sarrafoLista]);
 
-  // Vidro comum (m²) — para Entre Vidros somar frente selecionado + fundo comum
+  // ===== vidro comum m² (para Entre Vidros e fallback) =====
   const precoVidroComumM2 = useMemo(() => {
     const comum = (vidros || []).find((v) => /comum/i.test(v?.nome || v?.descricao || ''));
     const raw = comum?.preco_m2 ?? comum?.valor_m2 ?? comum?.preco ?? comum?.valor ?? 0;
@@ -113,14 +110,13 @@ export default function OrcamentoForm() {
     return Number.isFinite(n) ? n : 0;
   }, [vidros]);
 
-  // Chassi (apenas para Tela)
+  // ===== chassi (tela) =====
   const [chassis, setChassis] = useState([]);
   const [incluirChassi, setIncluirChassi] = useState(false);
   const [incluirImpressaoTela, setIncluirImpressaoTela] = useState(false);
 
   const impressaoCanvas = useMemo(
-    () =>
-      (impressoes || []).find((i) => /canvas/i.test(i.nome || i.descricao || '')) || null,
+    () => (impressoes || []).find((i) => /canvas/i.test(i.nome || i.descricao || '')) || null,
     [impressoes]
   );
   const impressaoMatte = useMemo(
@@ -130,6 +126,7 @@ export default function OrcamentoForm() {
     [impressoes]
   );
 
+  // ===== totais/dimensões =====
   const [valorTotal, setValorTotal] = useState(0);
   const [valorSemMarkup, setValorSemMarkup] = useState(0);
   const [fundoBloqueado] = useState(false);
@@ -143,7 +140,7 @@ export default function OrcamentoForm() {
     mensagemAviso: null,
   });
 
-  // reset
+  // ===== resets =====
   const resetDependentes = () => {
     setAltura('');
     setLargura('');
@@ -162,13 +159,19 @@ export default function OrcamentoForm() {
 
     setDiversoSelecionado(null);
     setIncluirImpressaoDiversos(false);
+    
+    setEhCamisa(false);
+    setEntreVidrosNoCamisa(false);
+    setCorBaguetePassepartout('');
+
+    setAvisoM2(null);
 
     setItensSomados([]);
     setNumAberturas(1);
     setNumAberturasCalc(1);
     setReforcoInfo(null);
     setExcedePP(false);
-    setForcarReforcoMesmoAssim(false); // zera o "forçar reforço" no reset
+    setForcarReforcoMesmoAssim(false);
     setValorSemMarkup(0);
     setValorTotal(0);
     setDimensoesFinais({
@@ -184,7 +187,7 @@ export default function OrcamentoForm() {
   // controle vindo do cálculo assíncrono
   const [excedePP, setExcedePP] = useState(false);
 
-  // folha do passepartout (aceita rotação) + segurança
+  // ===== passepartout folha =====
   const FOLHA_PP = { maior: 152, menor: 102, seguranca: 2 };
   function cabeNaFolhaPassepartout(larguraCm, alturaCm, margemCm) {
     const w = (parseFloat(larguraCm) || 0) + (parseFloat(margemCm) || 0) * 2;
@@ -196,9 +199,8 @@ export default function OrcamentoForm() {
     return okNormal || okRotacion;
   }
 
-  // -------- Perfil por Tipo --------
-  const norm = (s = '') =>
-    s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+  // ===== perfis por tipo =====
+  const norm = (s = '') => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
 
   const DEFAULT_PERFIL = {
     showPassepartout: true,
@@ -292,31 +294,25 @@ export default function OrcamentoForm() {
     else if (/(camisa|objeto)/.test(k)) key = 'camisa_objeto';
     else if (/tela/.test(k)) key = 'tela';
     else if (/outros?/.test(k)) key = 'outro';
-    else if (/(foto|superficie)/.test(k)) key = 'superficie';
+    else if (/superficie/.test(k)) key = 'superficie'; // “foto(s)” removido
     const overrides = key ? PERFIS[key] : PERFIS.superficie;
     return { ...DEFAULT_PERFIL, ...overrides };
   }
 
-  // 👇 memo para manter referência estável
-  const perfilBase = useMemo(
-    () => perfilDoTipo(tipoSelecionado?.nome || ''),
-    [tipoSelecionado?.nome]
-  );
+  const perfilBase = useMemo(() => perfilDoTipo(tipoSelecionado?.nome || ''), [tipoSelecionado?.nome]);
 
   const isTela = /tela/i.test(tipoSelecionado?.nome || '');
   const isDiversosTipo = /diversos/i.test(tipoSelecionado?.nome || '');
 
-  // ---- Gate: reforço permitido por tipo + override manual
+  // Gate: reforço permitido (Superfície e Entre Vidros)
   const reforcoPermitidoPorTipo = useMemo(() => {
-    const k = norm(tipoSelecionado?.nome || "");
-    // permite: Superfície/Fotos e Entre Vidros
-    return /(superf|foto|entre\s*vidros?)/i.test(k);
+    const k = norm(tipoSelecionado?.nome || '');
+    return /(superf|entre\s*vidros?)/i.test(k);
   }, [tipoSelecionado]);
   const [forcarReforcoMesmoAssim, setForcarReforcoMesmoAssim] = useState(false);
 
-  // Perfil efetivo (override no modo Diversos)
+  // Perfil efetivo + overrides especiais
   const perfil = useMemo(() => {
-    // Overrides especiais: Camisa/Objetos "em Entre Vidros"
     if (!isDiversosTipo) {
       if (isCamisaObjeto && entreVidrosNoCamisa) {
         return {
@@ -345,51 +341,13 @@ export default function OrcamentoForm() {
     };
   }, [perfilBase, isDiversosTipo, diversoSelecionado, isCamisaObjeto, entreVidrosNoCamisa]);
 
-  // Preview excede PP e “bloqueio” de PP
-  const previewExcedePP =
-    perfil.showPassepartout && !cabeNaFolhaPassepartout(largura, altura, margemPassepartout);
-  const ppBloqueado = Boolean(perfil.showPassepartout && (previewExcedePP || excedePP));
-
-  // Entre Vidros => 2 vidros
-  const isEntreVidros = Boolean(perfil.vidroFundoComumFixo);
-
-  // Quando Camisa/Objetos entra no modo "Entre Vidros", zera PP/Fundo
-  useEffect(() => {
-    if (isCamisaObjeto && entreVidrosNoCamisa) {
-      setPassepartoutSelecionado(null);
-      setMargemPassepartout(0);
-      setFundoSelecionado(null);
-    }
-  }, [isCamisaObjeto, entreVidrosNoCamisa]);
-
-  // Helper: mapear nome do tipo → "uso" do backend
-  const mapTipoParaUso = (nome = '') => {
-    const k = norm(nome);
-    return /entre\s*vidros?/.test(k)
-      ? 'entre_vidros'
-      : /profundidade/.test(k)
-      ? 'profundidade'
-      : /flutuant/.test(k)
-      ? 'flutuante'
-      : /(camisa|objeto)/.test(k)
-      ? 'camisa'
-      : /tela/.test(k)
-      ? 'tela'
-      : /superficie|foto/.test(k)
-      ? 'superficie'
-      : 'superficie';
-  };
-
-  // Flutuante
-  const isFlutuante = /flutuant/i.test(tipoSelecionado?.nome || '');
-
-  // tipo/categoria helpers
+  // Helpers de tipo/categoria
   const tipoDoItem = (m) => (m?.tipo || m?.tipo_moldura || m?.categoria || '').toLowerCase();
   const ehRetaOuPP = (m) => /reta|passepartout/.test(tipoDoItem(m));
   const ehAluminio = (m) => m?.uso_tipo === 'A' || /alum/i.test(m?.tipo_material || '');
   const ehCaixa = (m) => m?.uso_tipo === 'C' || /caixa/i.test(tipoDoItem(m));
 
-  // Há alguma moldura "caixa" selecionada em qualquer camada?
+  // Caixa selecionada em alguma camada?
   const isCaixaSelecionada = useMemo(
     () => [moldura1, moldura2, moldura3].some(ehCaixa),
     [moldura1, moldura2, moldura3]
@@ -402,8 +360,25 @@ export default function OrcamentoForm() {
     const cm = Number(m?.largura || 0);
     return Number.isFinite(cm) ? cm : 0;
   };
+  const larguraM1cm = useMemo(() => larguraFaceCm(moldura1), [moldura1]);
 
-  // coerções de M2/M3 conforme M1
+  // Usa baguete interna?
+  const usaBagueteInterna = useMemo(() => {
+    if (isTela) return false;
+    return (
+      isCaixaSelecionada || perfil.bagueteAuto || Boolean(Number(tipoSelecionado?.usa_baguete || 0))
+    );
+  }, [isTela, isCaixaSelecionada, perfil.bagueteAuto, tipoSelecionado]);
+
+  // Preview excede PP e “bloqueio”
+  const previewExcedePP =
+    perfil.showPassepartout && !cabeNaFolhaPassepartout(largura, altura, margemPassepartout);
+  const ppBloqueado = Boolean(perfil.showPassepartout && (previewExcedePP || excedePP));
+
+  // Entre Vidros?
+  const isEntreVidros = Boolean(perfil.vidroFundoComumFixo);
+
+  // ===== coerções de M2/M3 =====
   useEffect(() => {
     if (ehAluminio(moldura1)) {
       if (moldura2) setMoldura2(null);
@@ -414,13 +389,11 @@ export default function OrcamentoForm() {
       if (moldura3) setMoldura3(null);
     }
   }, [moldura1]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Se M2 virar "Caixa", limpa/desabilita M3
   useEffect(() => {
     if (ehCaixa(moldura2) && moldura3) setMoldura3(null);
   }, [moldura2]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // carregamentos iniciais
+  // ===== carregamentos iniciais =====
   useEffect(() => {
     const load = async () => {
       try {
@@ -436,7 +409,10 @@ export default function OrcamentoForm() {
           api.get('/diversos').catch(() => ({ data: [] })),
           api.get('/sarrafo').catch(() => ({ data: [] })),
         ]);
-        setTiposOrcamento(asArray(tipos.data));
+
+        // remove “Foto(s)” dos tipos
+        setTiposOrcamento(asArray(tipos.data).filter((t) => !/foto/i.test(t?.nome || '')));
+
         setImpressoes(asArray(impr.data));
         setVidros(asArray(v.data));
         setSarrafoLista(asArray(sarr.data));
@@ -447,7 +423,6 @@ export default function OrcamentoForm() {
               (x?.ativo ?? true) &&
               Number(x?.preco_m2 ?? x?.valor_m2 ?? x?.preco ?? x?.valor ?? 0) > 0
           );
-
         setFundo(filtraFundos(asArray(f.data)));
 
         setPassepartouts(asArray(pp.data));
@@ -462,60 +437,124 @@ export default function OrcamentoForm() {
     load();
   }, []);
 
-    // quando troca o tipo, recarrega molduras + aplica regras
-    useEffect(() => {
+  // ===== efeitos dependentes de perfil =====
+  // zera baguete se o tipo efetivo não usa
+  useEffect(() => {
+    if (!usaBagueteInterna) setBagueteInternaSelecionada(null);
+  }, [usaBagueteInterna]);
+
+  // zera passe-partout quando ficar bloqueado/oculto
+  useEffect(() => {
+    if (!perfil.showPassepartout || ppBloqueado) {
+      setPassepartoutSelecionado(null);
+      setMargemPassepartout(0);
+      setNumAberturas(1);
+    }
+  }, [perfil.showPassepartout, ppBloqueado]);
+
+  // zera vidro quando o tipo não tem vidro frontal
+  useEffect(() => {
+    if (!perfil.vidroFrontalCombo && !perfil.vidroSomenteComum) {
+      setVidroSelecionado(null);
+    }
+  }, [perfil.vidroFrontalCombo, perfil.vidroSomenteComum]);
+
+  // zera fundo quando o tipo não usa
+  useEffect(() => {
+    if (!perfil.showFundoCombo) setFundoSelecionado(null);
+  }, [perfil.showFundoCombo]);
+
+  // ===== carregar molduras quando muda o tipo =====
+  useEffect(() => {
     const carregarMolduras = async () => {
       try {
-        const norm = (s='') => s.normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase().trim();
-        const mapTipoParaUso = (nome='') => /entre\s*vidros?/.test(norm(nome)) ? 'entre_vidros'
-          : /profundidade/.test(norm(nome)) ? 'profundidade'
-          : /flutuant/.test(norm(nome)) ? 'flutuante'
-          : /(camisa|objeto)/.test(norm(nome)) ? 'camisa'
-          : /tela/.test(norm(nome)) ? 'tela' : 'superficie';
+        const _norm = (s = '') =>
+          s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+        const mapTipoParaUso = (nome = '') =>
+          /entre\s*vidros?/.test(_norm(nome))
+            ? 'entre_vidros'
+            : /profundidade/.test(_norm(nome))
+            ? 'profundidade'
+            : /flutuant/.test(_norm(nome))
+            ? 'flutuante'
+            : /(camisa|objeto)/.test(_norm(nome))
+            ? 'camisa'
+            : /tela/.test(_norm(nome))
+            ? 'tela'
+            : 'superficie';
 
-        const uso = tipoSelecionado ? mapTipoParaUso(tipoSelecionado?.nome || "") : null;
-        const params = uso ? { uso, ...(uso === "camisa" && ehCamisa ? { permiteA: 1 } : {}) } : undefined;
+        const uso = tipoSelecionado ? mapTipoParaUso(tipoSelecionado?.nome || '') : null;
+        const params = uso ? { uso, ...(uso === 'camisa' && ehCamisa ? { permiteA: 1 } : {}) } : undefined;
 
-        const asArray = (d) => Array.isArray(d) ? d : (Array.isArray(d?.rows) ? d.rows : []);
-        let { data } = await api.get("/molduras", params ? { params } : undefined);
+        let { data } = await api.get('/molduras', params ? { params } : undefined);
         let lista = asArray(data);
         if (!lista.length) {
-          ({ data } = await api.get("/molduras"));
+          ({ data } = await api.get('/molduras'));
           lista = asArray(data);
         }
 
         const pick = (...vals) =>
-          vals.find((v) => v !== undefined && v !== null && String(v).trim() !== "") ?? "";
+          vals.find((v) => v !== undefined && v !== null && String(v).trim() !== '') ?? '';
 
         const toNumber = (raw) => {
-          const n = Number(String(raw ?? 0)
-            .replace(/\.(?=\d{3}(?:\D|$))/g, "") // remove milhar
-            .replace(",", "."));
+          const n = Number(
+            String(raw ?? 0).replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.')
+          );
           return Number.isFinite(n) ? n : 0;
         };
 
         const listaFmt = (lista || []).map((m) => {
           const codigo = pick(m.codigo_principal, m.codigo, m.cod, m.referencia);
           const nomeSafe = pick(m.nome, m.descricao, m.nome_moldura, m.modelo, m.titulo);
-          const display = [codigo, nomeSafe].filter(Boolean).join(" — ") || nomeSafe || codigo || "Sem nome";
-          const imagem_url = pick(m.imagem_url, m.image_url, m.url_imagem, m.imagem, m.foto, m.foto_url, null);
+          const display =
+            [codigo, nomeSafe].filter(Boolean).join(' — ') ||
+            nomeSafe ||
+            codigo ||
+            'Sem nome';
+          const imagem_url = pick(
+            m.imagem_url,
+            m.image_url,
+            m.url_imagem,
+            m.imagem,
+            m.foto,
+            m.foto_url,
+            null
+          );
           const id = m.id ?? m.id_moldura ?? m.moldura_id ?? m.uuid ?? codigo ?? nomeSafe;
 
-          // preço ML normalizado (qualquer campo que o backend mande)
+          // preço ML normalizado
           const precoML = toNumber(
-            pick(m.preco_ml, m.valor_ml, m.preco, m.valor, m.precoMetro, m.preco_metro, m.preco_ml_moldura, m.preco_moldura)
+            pick(
+              m.preco_ml,
+              m.valor_ml,
+              m.preco,
+              m.valor,
+              m.precoMetro,
+              m.preco_metro,
+              m.preco_ml_moldura,
+              m.preco_moldura
+            )
           );
 
-          // infere tipo 'C' quando o backend não mandar
-          const uso_tipo = m.uso_tipo ?? (/(caixa|canaleta)/i.test(nomeSafe || display) ? "C" : "N");
+          // infere uso_tipo 'C' quando backend não mandar
+          const uso_tipo =
+            m.uso_tipo ?? (/(caixa|canaleta)/i.test(nomeSafe || display) ? 'C' : 'N');
 
-          return { id, ...m, nome: pick(m.nome, nomeSafe, codigo, "Sem nome"), display, imagem_url,
-            preco_ml: precoML, valor_ml: precoML, uso_tipo };
+          return {
+            id,
+            ...m,
+            nome: pick(m.nome, nomeSafe, codigo, 'Sem nome'),
+            display,
+            imagem_url,
+            preco_ml: precoML,
+            valor_ml: precoML,
+            uso_tipo,
+          };
         });
 
         setMolduras(listaFmt);
       } catch (err) {
-        console.error("Erro ao carregar molduras:", err);
+        console.error('Erro ao carregar molduras:', err);
         setMolduras([]);
       }
     };
@@ -523,45 +562,44 @@ export default function OrcamentoForm() {
     carregarMolduras();
   }, [tipoSelecionado, ehCamisa]);
 
-
-    // 👇 reseta/aplica regras só quando de fato existe um tipo selecionado
+  // ===== regras/limpezas ao trocar o tipo =====
+  useEffect(() => {
     if (!tipoSelecionado) return;
 
     if (perfil.vidroSomenteComum || perfil.vidroFundoComumFixo) {
-        const comum = vidros.find((v) => /comum/i.test(v.nome || v.descricao || ""));
-        if (perfil.vidroSomenteComum) setVidroSelecionado(comum || null);
+      const comum = vidros.find((v) => /comum/i.test(v.nome || v.descricao || ''));
+      if (perfil.vidroSomenteComum) setVidroSelecionado(comum || null);
     } else {
-        setVidroSelecionado(null);
+      setVidroSelecionado(null);
     }
 
     if (!perfil.showPassepartout) {
-        setPassepartoutSelecionado(null);
-        setMargemPassepartout(0);
+      setPassepartoutSelecionado(null);
+      setMargemPassepartout(0);
     } else if (perfil.passepartoutSemMargem) {
-        setMargemPassepartout(0);
+      setMargemPassepartout(0);
     }
 
     if (perfil.foamExtraAuto) {
-        const foam = fundo.find((f) => /foam ad branco/i.test(f.nome || ""));
-        if (foam) setFundoSelecionado(foam);
+      const foam = fundo.find((f) => /foam ad branco/i.test(f.nome || ''));
+      if (foam) setFundoSelecionado(foam);
     }
 
     if (!perfil.permiteM2M3) {
-        setMoldura2(null);
-        setMoldura3(null);
+      setMoldura2(null);
+      setMoldura3(null);
     }
 
     setAvisoM2(null);
     setNumAberturas(1);
 
-    const tela = /tela/i.test(tipoSelecionado?.nome || "");
+    const tela = /tela/i.test(tipoSelecionado?.nome || '');
     setIncluirChassi(!!tela);
     setIncluirImpressaoTela(false);
     setForcarReforcoMesmoAssim(false);
-    }, [tipoSelecionado, vidros, fundo, perfil, ehCamisa]);
+  }, [tipoSelecionado, vidros, fundo, perfil, ehCamisa]);
 
-
-  // defaults quando há item único
+  // ===== defaults quando há item único =====
   useEffect(() => {
     if (fundo.length === 1) setFundoSelecionado(fundo[0]);
     if (vidros.length === 1) setVidroSelecionado(vidros[0]);
@@ -569,14 +607,14 @@ export default function OrcamentoForm() {
     if (baguetes.length === 1) setBagueteInternaSelecionada(baguetes[0]);
   }, [fundo, vidros, passepartouts, baguetes]);
 
-  // foam extra para Flutuante e Camisa/Objeto (enviado ao cálculo)
+  // ===== foam extra para Flutuante e Camisa/Objeto =====
   const precisaFoamExtra = /flutuante|camisa|objeto/i.test(tipoSelecionado?.nome || '');
   const foamExtra = precisaFoamExtra
     ? fundo.find((f) => (f.nome || f.descricao || '').toLowerCase().includes('foam ad branco')) ||
       null
     : null;
 
-  // ===== Helpers Diversos: encontrar preço correto conforme faixa =====
+  // ===== Diversos: helpers de preço =====
   const num = (v, d = 0) => {
     const n = Number(String(v ?? '').toString().replace(',', '.'));
     return Number.isFinite(n) ? n : d;
@@ -589,7 +627,6 @@ export default function OrcamentoForm() {
     const faixa = mm <= 50 ? 'ate' : 'acima';
 
     const pickPreco = (o) => num(o?.preco ?? o?.valor ?? o?.preco_unit ?? o?.valor_unit, 0);
-
     const nomeUpper = (x) => String(x || '').toUpperCase();
 
     const byCat = (d) => {
@@ -628,13 +665,8 @@ export default function OrcamentoForm() {
     return pickPreco(escolhido);
   };
 
-  // === Reforço: estado + derivados ===
+  // ===== Reforço: carregar tabela quando aplicável =====
   const [reforcoTabela, setReforcoTabela] = useState([]);
-
-  // largura da M1 usada em alguns alertas
-  const larguraM1cm = useMemo(() => larguraFaceCm(moldura1), [moldura1]);
-
-  // Parâmetro para a tabela de reforço: 'matte' ou 'canvas'
   const tipoReforco = useMemo(() => {
     const nome = (tipoSelecionado?.nome || '').toLowerCase();
     if (/tela/.test(nome)) return 'canvas';
@@ -644,10 +676,8 @@ export default function OrcamentoForm() {
     const temFundo =
       perfil.showFundoCombo && (Boolean(fundoSelecionado) || (fundo || []).length > 0);
 
-    // Se tem vidro OU tem fundo => matte. (regra pedida)
+    // Se tem vidro OU tem fundo => matte
     if (temVidro || temFundo) return 'matte';
-
-    // fallback seguro
     return 'matte';
   }, [
     tipoSelecionado?.nome,
@@ -660,16 +690,22 @@ export default function OrcamentoForm() {
   ]);
 
   useEffect(() => {
-    // Só busca quando há caixa e (tipo permite OU usuário forçou)
     if (!isCaixaSelecionada || (!reforcoPermitidoPorTipo && !forcarReforcoMesmoAssim)) {
       setReforcoTabela([]);
       return;
     }
     let cancel = false;
-    api.get('/reforco', { params: { tipo: tipoReforco } })
-      .then(({ data }) => { if (!cancel) setReforcoTabela(Array.isArray(data) ? data : []); })
-      .catch(() => { if (!cancel) setReforcoTabela([]); });
-    return () => { cancel = true; };
+    api
+      .get('/reforco', { params: { tipo: tipoReforco } })
+      .then(({ data }) => {
+        if (!cancel) setReforcoTabela(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        if (!cancel) setReforcoTabela([]);
+      });
+    return () => {
+      cancel = true;
+    };
   }, [isCaixaSelecionada, tipoReforco, reforcoPermitidoPorTipo, forcarReforcoMesmoAssim]);
 
   // ===== Cálculo do orçamento =====
@@ -762,7 +798,7 @@ export default function OrcamentoForm() {
           incluirChassi: Boolean(forcaChassi),
           chassiSelecionado: chassiEscolhido,
 
-          // ===== Camisa / Entre Vidros flags =====
+          // Camisa / Entre Vidros flags
           forcarCamisaObjetoTipo:
             (isCamisaObjeto && ehCamisa) || (isEntreVidros && ehCamisa)
               ? 'camisa'
@@ -788,9 +824,7 @@ export default function OrcamentoForm() {
         setReforcoInfo(resultado.reforcoInfo || null);
         setExcedePP(Boolean(resultado.excedePassepartout));
 
-        setNumAberturasCalc(
-          Number(resultado.numAberturasConsideradas || numAberturas || 1)
-        );
+        setNumAberturasCalc(Number(resultado.numAberturasConsideradas || numAberturas || 1));
 
         setDimensoesFinais({
           altura: Number(resultado.alturaFinal || 0),
@@ -878,12 +912,8 @@ export default function OrcamentoForm() {
           );
           const unit = Number(passepartoutSelecionado?.preco_abertura_extra || 0);
           const unitFmt = unit.toFixed(2).replace('.', ',');
-          const totalFmt = Number(c.passepartoutAberturasExtra)
-            .toFixed(2)
-            .replace('.', ',');
-          itens.push(
-            `Passe-partout — aberturas extras: ${qtdExtras} × R$ ${unitFmt} = R$ ${totalFmt}`
-          );
+          const totalFmt = Number(c.passepartoutAberturasExtra).toFixed(2).replace('.', ',');
+          itens.push(`Passe-partout — aberturas extras: ${qtdExtras} × R$ ${unitFmt} = R$ ${totalFmt}`);
         }
         if (c.impressao > 0) {
           itens.push(isTela ? 'Impressão em canvas' : 'Impressão');
@@ -893,11 +923,8 @@ export default function OrcamentoForm() {
           itens.push(`Chassi ${resultado.chassiInfo?.mm || ''}`);
         }
 
-        // === Reforço (moldura caixa)
-        if (
-          resultado.reforcoInfo?.necessita_reforco &&
-          Number(resultado.reforcoInfo?.valorTotal) > 0
-        ) {
+        // Reforço (moldura caixa)
+        if (resultado.reforcoInfo?.necessita_reforco && Number(resultado.reforcoInfo?.valorTotal) > 0) {
           const r = resultado.reforcoInfo;
           if (Number(r.ml) > 0 && Number(r.precoML) > 0) {
             itens.push(
@@ -918,13 +945,15 @@ export default function OrcamentoForm() {
           );
         }
 
-        // Diversos (lista local usada para compor o texto)
+        // Diversos (texto)
         if (Array.isArray(diversosPayload) && diversosPayload.length) {
           diversosPayload.forEach((it) => {
             itens.push(
-              `Serviço: ${it.nome}${
-                it.faixa_aplicacao ? ` (${it.faixa_aplicacao})` : ''
-              } — R$ ${Number(it.preco).toFixed(2).replace('.', ',')}`
+              `Serviço: ${it.nome}${it.faixa_aplicacao ? ` (${it.faixa_aplicacao})` : ''} — R$ ${Number(
+                it.preco
+              )
+                .toFixed(2)
+                .replace('.', ',')}`
             );
           });
         }
@@ -952,32 +981,48 @@ export default function OrcamentoForm() {
       });
     }
   }, [
-    altura, largura, quantidade, markup, margemPassepartout,
-    moldura1, moldura2, moldura3,
+    altura,
+    largura,
+    quantidade,
+    markup,
+    margemPassepartout,
+    moldura1,
+    moldura2,
+    moldura3,
     impressaoSelecionada,
-    vidroSelecionado, fundoSelecionado, passepartoutSelecionado,
-    tipoSelecionado, bagueteInternaSelecionada,
-    foamExtra, camisaObjetoTabela, numAberturas,
-    perfil.bagueteAuto, perfil.foamExtraAuto,
-    perfil.vidroFundoComumFixo, perfil.vidroSomenteComum,
+    vidroSelecionado,
+    fundoSelecionado,
+    passepartoutSelecionado,
+    tipoSelecionado,
+    bagueteInternaSelecionada,
+    foamExtra,
+    camisaObjetoTabela,
+    numAberturas,
+    perfil.bagueteAuto,
+    perfil.foamExtraAuto,
+    perfil.vidroFundoComumFixo,
+    perfil.vidroSomenteComum,
     // Diversos
-    isTela, incluirImpressaoTela, isDiversosTipo, diversoSelecionado,
+    isTela,
+    incluirImpressaoTela,
+    isDiversosTipo,
+    diversoSelecionado,
     incluirImpressaoDiversos,
     diversosBrutos,
-    ehCamisa, entreVidrosNoCamisa,
-    reforcoTabela, forcarReforcoMesmoAssim,
-    precoSarrafoML, precoVidroComumM2, corBaguetePassepartout,
-    // recomputar se os memos de impressão mudarem depois do load
-    impressaoCanvas, impressaoMatte,
-    // e quando a lista de chassis for carregada (boolean evita refires desnecessários)
+    ehCamisa,
+    entreVidrosNoCamisa,
+    reforcoTabela,
+    forcarReforcoMesmoAssim,
+    precoSarrafoML,
+    precoVidroComumM2,
+    corBaguetePassepartout,
+    impressaoCanvas,
+    impressaoMatte,
     !!chassis.length,
   ]);
 
-  // Limiar de área onde começamos a nos preocupar com peso do conjunto (≈ 47 × 67 cm)
-  const LIMIAR_REFORCO_M2 = 0.3149;
-  const LIMIAR_MOLDURA_CM = 2.5; // “moldura fina” (face ≤ 2,5 cm)
-
-  // usa a área de referência do cálculo (com passe-partout, quando houver)
+  // ===== Avisos de segurança por área/face =====
+  const LIMIAR_MOLDURA_CM = 2.5; // “moldura fina”
   const wRefCm = parseFloat(dimensoesFinais.larguraReforco) || 0;
   const hRefCm = parseFloat(dimensoesFinais.alturaReforco) || 0;
   const areaRefM2 = (wRefCm / 100) * (hRefCm / 100);
@@ -985,7 +1030,6 @@ export default function OrcamentoForm() {
   const hasVidro =
     Boolean(vidroSelecionado) || perfil.vidroSomenteComum || perfil.vidroFundoComumFixo;
 
-  // alerta só quando PASSA do limiar + tem vidro + não é “caixa” + face ≤ 2,5 cm
   const mostrarAlertaAreaGrandeFina =
     areaRefM2 > LIMIAR_REFORCO_M2 &&
     hasVidro &&
@@ -993,18 +1037,34 @@ export default function OrcamentoForm() {
     larguraM1cm > 0 &&
     larguraM1cm <= LIMIAR_MOLDURA_CM;
 
-  const usaBagueteInterna = useMemo(() => {
-    if (isTela) return false;
-    return (
-      isCaixaSelecionada || perfil.bagueteAuto || Boolean(Number(tipoSelecionado?.usa_baguete || 0))
-    );
-  }, [isTela, isCaixaSelecionada, perfil.bagueteAuto, tipoSelecionado]);
+  // ===== UI =====
+  const isFlutuante = /flutuant/i.test(tipoSelecionado?.nome || '');
+
+  // topo do componente (antes do return)
+  const LIMIAR_MOLDURA_CM = 2.5;
+
+  const wRefCm = parseFloat(dimensoesFinais.larguraReforco) || 0;
+  const hRefCm = parseFloat(dimensoesFinais.alturaReforco) || 0;
+  const areaRefM2 = (wRefCm / 100) * (hRefCm / 100);
+
+  const usoTipoM1 = String(moldura1?.uso_tipo || '').toUpperCase();
+  const faceM1cm = moldura1?.largura_mm
+    ? moldura1.largura_mm / 10
+    : (Number(moldura1?.largura) || 0);
+
+  const hasVidro =
+    Boolean(vidroSelecionado) || perfil.vidroSomenteComum || perfil.vidroFundoComumFixo;
+
+  const mostrarAlertaPesoVidro =
+    areaRefM2 > LIMIAR_REFORCO_M2 &&
+    hasVidro &&
+    !isCaixaSelecionada &&
+    faceM1cm > 0 && faceM1cm <= LIMIAR_MOLDURA_CM &&
+    (usoTipoM1 === 'N' || usoTipoM1 === 'A');
 
   return (
     <div className="max-w-3xl mx-auto mt-6 p-4 bg-white shadow rounded overflow-visible">
-      <h1 className="text-xl font-bold text-center text-blue-900 mb-3">
-        Orçamento de Emoldurado
-      </h1>
+      <h1 className="text-xl font-bold text-center text-blue-900 mb-3">Orçamento de Emoldurado</h1>
 
       <FloatingInput
         label="Markup (%)"
@@ -1060,7 +1120,6 @@ export default function OrcamentoForm() {
         const isCO = /(camisa|objeto)/i.test(nome);
         return (
           <>
-            {/* Entre Vidros → "É camisa?" */}
             {isEV && (
               <label className="inline-flex items-center gap-2 mt-2 mb-4 text-sm">
                 <input
@@ -1072,7 +1131,7 @@ export default function OrcamentoForm() {
                 <span>É camisa?</span>
               </label>
             )}
-            {/* Camisa/Objetos → "É camisa?" e "Entre vidros?" */}
+
             {isCO && (
               <div className="mt-2 space-y-2 text-sm">
                 <label className="inline-flex items-center gap-2">
@@ -1099,7 +1158,7 @@ export default function OrcamentoForm() {
         );
       })()}
 
-      {/* Passe-partout (quando aplicável) */}
+      {/* Passe-partout */}
       {perfil.showPassepartout && (
         <div className="grid grid-cols-2 gap-4 mt-4">
           {(dimensoesFinais?.mensagemAviso || previewExcedePP) && (
@@ -1148,7 +1207,7 @@ export default function OrcamentoForm() {
         </div>
       )}
 
-      {/* Fundo (quando aplicável) */}
+      {/* Fundo */}
       {perfil.showFundoCombo && (
         <FloatingSelect
           label="Fundo"
@@ -1162,7 +1221,7 @@ export default function OrcamentoForm() {
         />
       )}
 
-      {/* Vidro (quando aplicável) */}
+      {/* Vidro */}
       {perfil.vidroFrontalCombo && (
         <FloatingSelect
           label="Vidro"
@@ -1183,17 +1242,19 @@ export default function OrcamentoForm() {
         </div>
       )}
       {!perfil.vidroFrontalCombo && perfil.vidroSomenteComum && (
-        <div className="mt-2 text-sm text-gray-600">Vidro comum aplicado automaticamente neste tipo.</div>
+        <div className="mt-2 text-sm text-gray-600">
+          Vidro comum aplicado automaticamente neste tipo.
+        </div>
       )}
 
       {isFlutuante && (
         <Alert severity="info" className="mt-2">
-          No tipo <strong>Flutuante</strong> não se usa passe-partout — ele encosta na peça e perde
-          o efeito de flutuar.
+          No tipo <strong>Flutuante</strong> não se usa passe-partout — ele encosta na peça e
+          perde o efeito de flutuar.
         </Alert>
       )}
 
-      {/* Tela: controle de chassi */}
+      {/* Tela: chassi/impressão */}
       {isTela && (
         <div className="mt-2 text-sm text-gray-700">
           <label className="inline-flex items-center gap-2 cursor-pointer select-none">
@@ -1229,7 +1290,7 @@ export default function OrcamentoForm() {
         </div>
       )}
 
-      {/* Molduras (oculta no Diversos, exceto quando categoria exige) */}
+      {/* Molduras */}
       {(!isDiversosTipo || diversoSelecionado?.id === 'troca_moldura') && (
         <div className="grid grid-cols-3 gap-4 mt-4">
           <FloatingSelect
@@ -1286,7 +1347,8 @@ export default function OrcamentoForm() {
             <span>Adicionar reforço mesmo assim</span>
           </label>
           <div className="text-xs text-gray-500 mt-1">
-            Este tipo não calcula reforço automaticamente. Marque para incluir a estrutura conforme a tabela.
+            Este tipo não calcula reforço automaticamente. Marque para incluir a estrutura
+            conforme a tabela.
           </div>
         </div>
       )}
@@ -1296,10 +1358,12 @@ export default function OrcamentoForm() {
         <Alert severity="info" className="mt-2">Moldura de alumínio não permite adicionais.</Alert>
       )}
       {moldura1 && !ehRetaOuPP(moldura1) && (
-        <Alert severity="info" className="mt-2">Moldura 1 diferente de Reta/Passepartout bloqueia Moldura 2 e 3.</Alert>
+        <Alert severity="info" className="mt-2">
+          Moldura 1 diferente de Reta/Passepartout bloqueia Moldura 2 e 3.
+        </Alert>
       )}
 
-      {/* Previews das molduras com mais espaço — usando MolduraThumb */}
+      {/* Previews das molduras */}
       <div className="mt-5 flex flex-col gap-6">
         {[{ m: moldura1, rot: 'Moldura 1' }, { m: moldura2, rot: 'Moldura 2' }, { m: moldura3, rot: 'Moldura 3' }]
           .filter((x) => x.m)
@@ -1311,25 +1375,20 @@ export default function OrcamentoForm() {
               'Moldura';
 
             return (
-              <div
-                key={`${rot}-${m?.id ?? m?.codigo_principal ?? nomeM}`}
-                className="preview-moldura flex items-start gap-4"
-              >
+              <div key={`${rot}-${m?.id ?? m?.codigo_principal ?? nomeM}`} className="preview-moldura flex items-start gap-4">
                 <MolduraThumb moldura={m} onZoom={(url) => setZoomImg(url)} />
                 <div className="text-sm">
                   <div className="font-medium">
                     {rot}: {nomeM}
                   </div>
-                  {m?.codigo_principal && (
-                    <div className="text-gray-500">{m.codigo_principal}</div>
-                  )}
+                  {m?.codigo_principal && <div className="text-gray-500">{m.codigo_principal}</div>}
                 </div>
               </div>
             );
           })}
       </div>
 
-      {/* Baguete (auto, mas editável) — aparece quando houver caixa/uso */}
+      {/* Baguete interna */}
       {usaBagueteInterna && !isTela && (
         <div className="mt-6">
           <FloatingSelect
@@ -1355,43 +1414,16 @@ export default function OrcamentoForm() {
         </div>
       )}
 
-      {/* ALERTAS */}
-      {(() => {
-        const wFaceM1cm = Number(
-          moldura1?.largura_mm ? moldura1.largura_mm / 10 : moldura1?.largura || 0
-        );
-        const usoTipoM1 = (moldura1?.uso_tipo || '').toUpperCase(); // 'N','A','C'...
-        const temVidro =
-          Boolean(vidroSelecionado) ||
-          perfil.vidroSomenteComum ||
-          perfil.vidroFundoComumFixo;
-        const riscoPesoVidro =
-          temVidro && wFaceM1cm > 0 && wFaceM1cm <= 2.5 && (usoTipoM1 === 'N' || usoTipoM1 === 'A');
-
-        // Não mostra se houver moldura "caixa" em qualquer camada (estrutura com reforço)
-        const mostrarPesoVidro = riscoPesoVidro && !isCaixaSelecionada;
-        return mostrarPesoVidro ? (
-          <div className="mt-3">
-            <Alert severity="warning">
-              ⚠️ Área grande com moldura fina. Moldura 1 com face ≤ 2,5&nbsp;cm e tipo{' '}
-              {usoTipoM1 === 'A' ? 'Alumínio' : 'Normal'} com vidro selecionado. Esta combinação pode
-              não suportar o peso do vidro. Verificar com o responsável.
-            </Alert>
-          </div>
-        ) : null;
-      })()}
-
-      {mostrarAlertaAreaGrandeFina && (
+      {mostrarAlertaPesoVidro && (
         <div className="mt-3">
           <Alert severity="warning">
-            ⚠️ Área grande com moldura fina (&lt; {LIMIAR_MOLDURA_CM} cm). Sugiro trocar a moldura
-            ou selecionar <strong>Moldura 2 “Caixa”</strong>. A moldura caixa tem reforço para este
-            tamanho.
+            ⚠️ Área grande com moldura fina. Moldura 1 com face ≤ 2,5 cm e tipo {usoTipoM1 === 'A' ? 'Alumínio' : 'Normal'} com vidro selecionado. Esta combinação pode não suportar o peso do vidro. Verificar com o responsável.
           </Alert>
         </div>
       )}
 
-      {/* Impressão (apenas quando NÃO é Tela e NÃO é modo Diversos) */}
+
+      {/* Impressão (opcional) */}
       {!isTela && !isDiversosTipo && (
         <div className="mt-6">
           <FloatingSelect
@@ -1406,7 +1438,7 @@ export default function OrcamentoForm() {
         </div>
       )}
 
-      {/* MODO DIVERSOS (categoria simples) */}
+      {/* Diversos */}
       {isDiversosTipo && (
         <div className="mt-6 space-y-3">
           <FloatingSelect
@@ -1484,9 +1516,7 @@ export default function OrcamentoForm() {
                       checked={incluirImpressaoDiversos}
                       onChange={(e) => setIncluirImpressaoDiversos(e.target.checked)}
                     />
-                    <span>
-                      Incluir impressão ({id === 'troca_canvas' ? 'canvas' : 'papel matte'})
-                    </span>
+                    <span>Incluir impressão ({id === 'troca_canvas' ? 'canvas' : 'papel matte'})</span>
                   </label>
                 )}
               </>
@@ -1498,8 +1528,7 @@ export default function OrcamentoForm() {
       {/* Métricas e itens somados */}
       <div className="mt-4 text-sm text-gray-600 leading-relaxed space-y-1">
         <div>
-          <span className="emoji">📐</span> <strong>Interna</strong>: {fmt2(largura)} cm ×{' '}
-          {fmt2(altura)} cm
+          <span className="emoji">📐</span> <strong>Interna</strong>: {fmt2(largura)} cm × {fmt2(altura)} cm
         </div>
 
         {perfil.showPassepartout && passepartoutSelecionado && !ppBloqueado && (
@@ -1529,9 +1558,7 @@ export default function OrcamentoForm() {
           incluirChassi && (
             <div>
               <span className="emoji">🔩</span> <strong>Chassi</strong>:{' '}
-              {((parseFloat(altura) || 0) / 100) * ((parseFloat(largura) || 0) / 100) > 1
-                ? '5 mm'
-                : '3 mm'}{' '}
+              {((parseFloat(altura) || 0) / 100) * ((parseFloat(largura) || 0) / 100) > 1 ? '5 mm' : '3 mm'}{' '}
               (incluído no cálculo)
             </div>
           )}
@@ -1545,8 +1572,7 @@ export default function OrcamentoForm() {
 
         {perfil.showPassepartout && passepartoutSelecionado && !ppBloqueado && (
           <div>
-            <span className="emoji">🔳</span> <strong>Aberturas no passe-partout</strong>:{' '}
-            {numAberturasCalc}
+            <span className="emoji">🔳</span> <strong>Aberturas no passe-partout</strong>: {numAberturasCalc}
           </div>
         )}
 
@@ -1567,12 +1593,10 @@ export default function OrcamentoForm() {
       {/* Totais */}
       <div className="mt-4 text-sm text-gray-700 space-y-1">
         <div>
-            <span className="emoji">💠</span>{" "}
-            <strong>Total sem markup:</strong> {money(valorSemMarkup)}
+          <span className="emoji">💠</span> <strong>Total sem markup:</strong> {money(valorSemMarkup)}
         </div>
         <div>
-            <span className="emoji">💙</span>{" "}
-            <strong>Total com markup:</strong> {money(valorTotal)}
+          <span className="emoji">💙</span> <strong>Total com markup:</strong> {money(valorTotal)}
         </div>
       </div>
 
