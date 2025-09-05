@@ -48,14 +48,23 @@ export const perimetroML = (wCm, hCm) => (2 * (num(wCm) + num(hCm))) / 100;
 const FIELDS_ML = ['preco_ml', 'valor_ml', 'preco_metro', 'precoMetro', 'preco_ml_moldura'];
 const FIELDS_M2 = ['preco_m2', 'valor_m2'];
 
+// Reescala e validação final por unidade (robusto contra cadastros em centavos/×1000 ou "preço de barra")
 const fixEscala = (n, kind) => {
   let x = Number(n);
   if (!Number.isFinite(x) || x <= 0) return 0;
-  // Faixas razoáveis para o nosso domínio
-  const LIM = kind === 'ml' ? 5000 : 10000; // R$/m ou R$/m²
-  // Se vier em centavos ou milhar, normaliza
-  if (x > LIM * 50) x = x / 1000;
-  else if (x > LIM * 5) x = x / 100;
+
+  // tetos realistas para nosso domínio
+  const HARD_MAX = kind === 'ml' ? 2000 : 10000; // R$/m e R$/m²
+
+  // Se estourou, tentamos reescalar primeiro /100 (centavos), depois /1000 (milhar)
+  if (x > HARD_MAX) {
+    const d100 = +(x / 100).toFixed(2);
+    if (d100 > 0 && d100 <= HARD_MAX) return d100;
+    const d1000 = +(x / 1000).toFixed(2);
+    if (d1000 > 0 && d1000 <= HARD_MAX) return d1000;
+    // como último recurso, trava no teto (ou poderia zerar, se preferir)
+    return HARD_MAX;
+  }
   return x;
 };
 
@@ -345,12 +354,20 @@ export async function calcularOrcamento(params = {}) {
       custos.fundo = areaRefM2 * precoM2;
     }
   }
+  
   if (fundoExtraSelecionado || foamExtraAuto) {
     const f = fundoExtraSelecionado;
-    const precoM2 = f ? pickPrecoM2(f) : 0;
-    if (precoM2 > 0) {
-      custos.fundoExtra = areaRefM2 * precoM2;
-    }
+    // se for o MESMO item do fundo, não cobrar duas vezes
+    const mesmoSKU =
+      f && fundoSelecionado && (f.id ?? f.uuid ?? f.codigo) === (fundoSelecionado.id ?? fundoSelecionado.uuid ?? fundoSelecionado.codigo);
+    if (mesmoSKU) {
+      // não soma fundoExtra
+    } else {
+       const precoM2 = f ? pickPrecoM2(f) : 0;
+       if (precoM2 > 0) {
+         custos.fundoExtra = areaRefM2 * precoM2;
+       }
+   }
   }
 
   // ----------- fase 7: impressão (m²) -----------

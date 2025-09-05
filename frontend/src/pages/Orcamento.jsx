@@ -136,7 +136,8 @@ export default function OrcamentoForm() {
   // ===== vidro comum m² (para Entre Vidros e fallback) =====
   const precoVidroComumM2 = useMemo(() => {
     const comum = (vidros || []).find((v) => /comum/i.test(v?.nome || v?.descricao || ''));
-    const raw = comum?.preco_m2 ?? comum?.valor_m2 ?? comum?.preco ?? comum?.valor ?? 0;
+    // ESTRITO: só aceita campos de m²
+    const raw = comum?.preco_m2 ?? comum?.valor_m2 ?? 0;
     return moneyNum(raw, 0);
   }, [vidros]);
 
