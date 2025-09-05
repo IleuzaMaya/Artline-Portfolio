@@ -581,7 +581,7 @@ export default function OrcamentoForm() {
           );
           const id = m.id ?? m.id_moldura ?? m.moldura_id ?? m.uuid ?? codigo ?? nomeSafe;
 
-          const precoML = toNumber(
+          const precoML = moneyNum(
             pick(
               m.preco_ml,
               m.valor_ml,
@@ -593,6 +593,7 @@ export default function OrcamentoForm() {
               m.preco_moldura
             )
           );
+
 
           const uso_tipo =
             m.uso_tipo ?? (/(caixa|canaleta)/i.test(nomeSafe || display) ? 'C' : 'N');

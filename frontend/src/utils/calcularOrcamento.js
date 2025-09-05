@@ -18,18 +18,39 @@ export const LIMIAR_REFORCO_M2 = 0.3149; // ~47 x 67 cm
 export async function calcularOrcamento(params = {}) {
   // ----------- helpers -----------
   const num = (v, d = 0) => {
-    const n = Number(String(v ?? "").replace(/\.(?=\d{3}(?:\D|$))/g, "").replace(",", "."));
+    // número genérico (cm, m etc.) — aceita "30", "30,05", "1.234,56"
+    const s = String(v ?? "").replace(/\s/g, "");
+    const n = Number(s.replace(/\.(?=\d{3}(?:\D|$))/g, "").replace(",", "."));
     return Number.isFinite(n) ? n : d;
   };
+
+  // Dinheiro robusto: "27", "27,00", "27.00", "R$ 27,00", "2.700" (milhar),
+  // "2700" (centavos), "27.000" (erro de escala)…
+  const moneyNum = (v, d = 0) => {
+    const s = String(v ?? "")
+      .replace(/[^\d.,-]/g, "")                  // remove R$, espaços etc.
+      .replace(/\.(?=\d{3}(?:\D|$))/g, "")       // remove separador de milhar
+      .replace(",", ".");
+    let n = Number(s);
+    if (!Number.isFinite(n)) return d;
+
+    // Correções seguras de escala (tabelas que vêm “em centavos” ou “×1000”)
+    if (n > 20000) n = n / 1000;  // 27.000 -> 27
+    else if (n > 2000) n = n / 100; // 2.700 -> 27
+    return n;
+  };
+
   const toM2 = (wCm, hCm) => (num(wCm) / 100) * (num(hCm) / 100);
   /** perímetro em METROS a partir de cm */
   const perimetroML = (wCm, hCm) => (2 * (num(wCm) + num(hCm))) / 100;
 
   const pickPrecoML = (o) =>
-    num(o?.preco_ml ?? o?.valor_ml ?? o?.preco ?? o?.valor ?? o?.precoUnit ?? o?.valorUnit);
+    moneyNum(o?.preco_ml ?? o?.valor_ml ?? o?.preco ?? o?.valor ?? o?.precoUnit ?? o?.valorUnit);
 
   const pickPrecoM2 = (o) =>
-    num(o?.preco_m2 ?? o?.valor_m2 ?? o?.preco ?? o?.valor ?? o?.precoUnit ?? o?.valorUnit);
+    moneyNum(o?.preco_m2 ?? o?.valor_m2 ?? o?.preco ?? o?.valor ?? o?.precoUnit ?? o?.valorUnit);
+
+
 
   const faceLarguraCm = (m) => {
     // 1) campo dedicado (mm)
@@ -56,22 +77,32 @@ export async function calcularOrcamento(params = {}) {
   // ---- GUARD-RAIL: clamp de markup e “estouro” absurdo ----
   const clampPercent = (v) => {
     let n = num(v, 0);
-    if (n >= 1000) n = n / 100;              // casos 3000 = 30,00%
-    n = Math.max(0, Math.min(300, n));       // 0%..300%
-    return n;
+    if (n >= 1000) n = n / 100;         // 3000 => 30,00%
+    return Math.max(0, Math.min(300, n));
   };
 
   const aplicarMarkup = (valor, markupPercent) => {
     const base = Math.max(0, num(valor, 0));
     const m = clampPercent(markupPercent);
-    const total = base * (1 + m / 100);
 
-    // GUARD-RAIL: evitar multiplicadores >10× por erro de digitação
-    if (total > base * 10 && m > 100) {
-      return base * (1 + (m % 100) / 100);
+    let total = base * (1 + m / 100);
+
+    // Guard-rails:
+    // 1) nunca deixar multiplicador absurdo por erro de escala
+
+    if (m <= 300 && total > base * 100) {
+      // se isso acontecer, trate como bug de escala e volte ao cálculo simples
+      total = base * (1 + m / 100);
     }
+
+    // 2) se alguém digitou 3000% etc., já tratamos no clamp; extra só se >10×
+    if (total > base * 10 && m > 100) {
+      total = base * (1 + (m % 100) / 100);
+    }
+
     return total;
   };
+
 
   const FOLHA_PP = { maior: 152, menor: 102, seguranca: 2 };
   const excedeFolhaPP = (wCm, hCm, margemCm) => {
