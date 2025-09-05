@@ -1,4 +1,3 @@
-// frontend/src/utils/calcularOrcamento.js
 // =======================================================
 // Calculadora central do orçamento de emoldurado
 // - Molduras em ML (M1/M2/M3) — perímetro em METROS
@@ -15,136 +14,129 @@
 
 export const LIMIAR_REFORCO_M2 = 0.3149; // ~47 x 67 cm
 
-export async function calcularOrcamento(params = {}) {
-  // ----------- helpers -----------
-  const num = (v, d = 0) => {
-    // número genérico (cm, m etc.) — aceita "30", "30,05", "1.234,56"
-    const s = String(v ?? "").replace(/\s/g, "");
-    const n = Number(s.replace(/\.(?=\d{3}(?:\D|$))/g, "").replace(",", "."));
-    return Number.isFinite(n) ? n : d;
-  };
+// ----------- helpers compartilhados (exportados) -----------
+export const num = (v, d = 0) => {
+  // número genérico (cm, m etc.) — aceita "30", "30,05", "1.234,56"
+  const s = String(v ?? "").replace(/\s/g, "");
+  const n = Number(s.replace(/\.(?=\d{3}(?:\D|$))/g, "").replace(",", "."));
+  return Number.isFinite(n) ? n : d;
+};
 
-  // Dinheiro robusto: "27", "27,00", "27.00", "R$ 27,00", "2.700" (milhar),
-  // "2700" (centavos), "27.000" (erro de escala)…
-  const moneyNum = (v, d = 0) => {
-    const s = String(v ?? "")
-      .replace(/[^\d.,-]/g, "")                  // remove R$, espaços etc.
-      .replace(/\.(?=\d{3}(?:\D|$))/g, "")       // remove separador de milhar
-      .replace(",", ".");
-    let n = Number(s);
-    if (!Number.isFinite(n)) return d;
+// Dinheiro robusto: "27", "27,00", "27.00", "R$ 27,00", "2.700" (milhar),
+// "2700" (centavos), "27.000" (erro de escala)…
+export const moneyNum = (v, d = 0) => {
+  const s = String(v ?? "")
+    .replace(/[^\d.,-]/g, "")                  // remove R$, espaços etc.
+    .replace(/\.(?=\d{3}(?:\D|$))/g, "")       // remove separador de milhar
+    .replace(",", ".");
+  let n = Number(s);
+  if (!Number.isFinite(n)) return d;
 
-    // Correções seguras de escala (tabelas que vêm “em centavos” ou “×1000”)
-    if (n > 20000) n = n / 1000;  // 27.000 -> 27
-    else if (n > 2000) n = n / 100; // 2.700 -> 27
-    return n;
-  };
+  // Correções seguras de escala (tabelas que vêm “em centavos” ou “×1000”)
+  if (n > 20000) n = n / 1000;  // 27.000 -> 27
+  else if (n > 2000) n = n / 100; // 2.700 -> 27
+  return n;
+};
 
-  const toM2 = (wCm, hCm) => (num(wCm) / 100) * (num(hCm) / 100);
-  /** perímetro em METROS a partir de cm */
-  const perimetroML = (wCm, hCm) => (2 * (num(wCm) + num(hCm))) / 100;
+export const toM2 = (wCm, hCm) => (num(wCm) / 100) * (num(hCm) / 100);
+/** perímetro em METROS a partir de cm */
+export const perimetroML = (wCm, hCm) => (2 * (num(wCm) + num(hCm))) / 100;
 
-  const pickPrecoML = (o) =>
-    moneyNum(o?.preco_ml ?? o?.valor_ml ?? o?.preco ?? o?.valor ?? o?.precoUnit ?? o?.valorUnit);
+export const pickPrecoML = (o) =>
+  moneyNum(o?.preco_ml ?? o?.valor_ml ?? o?.preco ?? o?.valor ?? o?.precoUnit ?? o?.valorUnit);
 
-  const pickPrecoM2 = (o) =>
-    moneyNum(o?.preco_m2 ?? o?.valor_m2 ?? o?.preco ?? o?.valor ?? o?.precoUnit ?? o?.valorUnit);
+export const pickPrecoM2 = (o) =>
+  moneyNum(o?.preco_m2 ?? o?.valor_m2 ?? o?.preco ?? o?.valor ?? o?.precoUnit ?? o?.valorUnit);
 
+// largura de face da moldura (cm)
+export const faceLarguraCm = (m) => {
+  // 1) campo dedicado (mm)
+  const mm = num(m?.largura_mm);
+  if (mm > 0) return mm / 10;
 
+  // 2) campo em cm
+  const cm = num(m?.largura);
+  if (cm > 0) return cm;
 
-  const faceLarguraCm = (m) => {
-    // 1) campo dedicado (mm)
-    const mm = num(m?.largura_mm);
-    if (mm > 0) return mm / 10;
-
-    // 2) campo em cm
-    const cm = num(m?.largura);
-    if (cm > 0) return cm;
-
-    // 3) tenta parsear do nome/descrição: 20X32MM, 28x51mm etc.
-    const s = [m?.nome, m?.descricao, m?.display, m?.modelo, m?.titulo].filter(Boolean).join(" ");
-    const m1 = s.match(/(\d{1,3})\s*[xX]\s*(\d{1,3})\s*mm/i);
-    if (m1) {
-      const a = num(m1[1]), b = num(m1[2]);
-      const mmFace = Math.min(a, b);   // menor dos dois
-      if (mmFace > 0) return mmFace / 10;
-    }
-
-    // 4) fallback conservador: 2 cm
-    return 2;
-  };
-
-  // ---- GUARD-RAIL: clamp de markup e “estouro” absurdo ----
-  const clampPercent = (v) => {
-    let n = num(v, 0);
-    if (n >= 1000) n = n / 100;         // 3000 => 30,00%
-    return Math.max(0, Math.min(300, n));
-  };
-
-  const aplicarMarkup = (valor, markupPercent) => {
-    const base = Math.max(0, num(valor, 0));
-    const m = clampPercent(markupPercent);
-
-    let total = base * (1 + m / 100);
-
-    // Guard-rails:
-    // 1) nunca deixar multiplicador absurdo por erro de escala
-
-    if (m <= 300 && total > base * 100) {
-      // se isso acontecer, trate como bug de escala e volte ao cálculo simples
-      total = base * (1 + m / 100);
-    }
-
-    // 2) se alguém digitou 3000% etc., já tratamos no clamp; extra só se >10×
-    if (total > base * 10 && m > 100) {
-      total = base * (1 + (m % 100) / 100);
-    }
-
-    return total;
-  };
-
-
-  const FOLHA_PP = { maior: 152, menor: 102, seguranca: 2 };
-  const excedeFolhaPP = (wCm, hCm, margemCm) => {
-    const w = num(wCm) + num(margemCm) * 2;
-    const h = num(hCm) + num(margemCm) * 2;
-    const maxMenor = FOLHA_PP.menor - FOLHA_PP.seguranca;
-    const maxMaior = FOLHA_PP.maior - FOLHA_PP.seguranca;
-    const okNormal = w <= maxMenor && h <= maxMaior;
-    const okRotac  = h <= maxMenor && w <= maxMaior;
-    return !(okNormal || okRotac);
-  };
-
-  // -------- reforço: escolha de registro --------
-  function pickReforcoRegistro(tabela, menor, maior) {
-    const rows = (Array.isArray(tabela) ? tabela : []).map((r) => ({
-      ...r,
-      lmin: num(r.largura_min_cm ?? r.largura_min),
-      lmax: num(r.largura_max_cm ?? r.largura_max),
-      amin: num(r.altura_min_cm ?? r.altura_min),
-      amax: num(r.altura_max_cm ?? r.altura_max),
-      mlcm: num(r.metragem_linear_reforco ?? r.ml ?? r.metragem ?? 0),
-    }));
-
-    // 1) match estrito
-    let reg = rows.find(
-      (r) => menor >= r.lmin && menor <= r.lmax && maior >= r.amin && maior <= r.amax
-    );
-    if (reg) return reg;
-
-    // 2) relaxado pelos máximos
-    reg = rows.find((r) => menor <= r.lmax && maior <= r.amax);
-    if (reg) return reg;
-
-    // 3) menor que ainda cubra
-    return (
-      rows
-        .filter((r) => r.lmax >= menor && r.amax >= maior)
-        .sort((a, b) => (a.lmax - b.lmax) || (a.amax - b.amax))[0] || null
-    );
+  // 3) tenta parsear do nome/descrição: 20X32MM, 28x51mm etc.
+  const s = [m?.nome, m?.descricao, m?.display, m?.modelo, m?.titulo].filter(Boolean).join(" ");
+  const m1 = s.match(/(\d{1,3})\s*[xX]\s*(\d{1,3})\s*mm/i);
+  if (m1) {
+    const a = num(m1[1]), b = num(m1[2]);
+    const mmFace = Math.min(a, b);   // menor dos dois
+    if (mmFace > 0) return mmFace / 10;
   }
 
-  // ----------- unpack params -----------
+  // 4) fallback conservador: 2 cm
+  return 2;
+};
+
+// GUARD-RAIL: clamp de markup e correção “3000” => 30
+export const clampPercent = (v) => {
+  let n = num(v, 0);
+  if (n >= 1000) n = n / 100;         // 3000 => 30,00%
+  return Math.max(0, Math.min(300, n));
+};
+
+export const aplicarMarkup = (valor, markupPercent) => {
+  const base = Math.max(0, num(valor, 0));
+  const m = clampPercent(markupPercent);
+
+  let total = base * (1 + m / 100);
+
+  // Guard-rails adicionais
+  if (m <= 300 && total > base * 100) {
+    total = base * (1 + m / 100);
+  }
+  if (total > base * 10 && m > 100) {
+    total = base * (1 + (m % 100) / 100);
+  }
+
+  return total;
+};
+
+const FOLHA_PP = { maior: 152, menor: 102, seguranca: 2 };
+export const excedeFolhaPP = (wCm, hCm, margemCm) => {
+  const w = num(wCm) + num(margemCm) * 2;
+  const h = num(hCm) + num(margemCm) * 2;
+  const maxMenor = FOLHA_PP.menor - FOLHA_PP.seguranca;
+  const maxMaior = FOLHA_PP.maior - FOLHA_PP.seguranca;
+  const okNormal = w <= maxMenor && h <= maxMaior;
+  const okRotac  = h <= maxMenor && w <= maxMaior;
+  return !(okNormal || okRotac);
+};
+
+// reforço: escolha de registro
+export function pickReforcoRegistro(tabela, menor, maior) {
+  const rows = (Array.isArray(tabela) ? tabela : []).map((r) => ({
+    ...r,
+    lmin: num(r.largura_min_cm ?? r.largura_min),
+    lmax: num(r.largura_max_cm ?? r.largura_max),
+    amin: num(r.altura_min_cm ?? r.altura_min),
+    amax: num(r.altura_max_cm ?? r.altura_max),
+    mlcm: num(r.metragem_linear_reforco ?? r.ml ?? r.metragem ?? 0),
+  }));
+
+  // 1) match estrito
+  let reg = rows.find(
+    (r) => menor >= r.lmin && menor <= r.lmax && maior >= r.amin && maior <= r.amax
+  );
+  if (reg) return reg;
+
+  // 2) relaxado pelos máximos
+  reg = rows.find((r) => menor <= r.lmax && maior <= r.amax);
+  if (reg) return reg;
+
+  // 3) menor que ainda cubra
+  return (
+    rows
+      .filter((r) => r.lmax >= menor && r.amax >= maior)
+      .sort((a, b) => (a.lmax - b.lmax) || (a.amax - b.amax))[0] || null
+  );
+}
+
+// ----------- cálculo principal -----------
+export async function calcularOrcamento(params = {}) {
   const {
     // dimensões básicas
     altura = 0,
@@ -268,7 +260,7 @@ export async function calcularOrcamento(params = {}) {
       custos.bagueteInterna = ml * precoML;
     }
   } else if (bagueteAuto) {
-    // placeholder para auto
+    // placeholder para auto (se for implementar no backend)
   }
 
   // ----------- fase 4: passe-partout (ML ou m²) -----------
@@ -383,7 +375,7 @@ export async function calcularOrcamento(params = {}) {
     if (reg) {
       let ml = num(reg.metragem_linear_reforco ?? reg.ml ?? reg.metragem ?? 0);
 
-      // ---- GUARD-RAIL: se vier em centímetros, converte para METROS
+      // GUARD-RAIL: se vier em centímetros, converte para METROS
       if (ml > 20) ml = ml / 100;
 
       const precoML = num(precoSarrafoML);

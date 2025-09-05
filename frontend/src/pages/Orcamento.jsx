@@ -5,7 +5,14 @@ import FloatingInput from '../components/FloatingInput';
 import FloatingSelect from '../components/FloatingSelect';
 import MolduraThumb from '../components/MolduraThumb';
 import { Alert } from '@mui/material';
-import { calcularOrcamento, LIMIAR_REFORCO_M2 } from '../utils/calcularOrcamento';
+import {
+  calcularOrcamento,
+  LIMIAR_REFORCO_M2,
+  moneyNum,
+  num,
+  pickPrecoML,
+  pickPrecoM2,
+} from '../utils/calcularOrcamento';
 
 export default function OrcamentoForm() {
   // ===== helpers =====
@@ -40,6 +47,15 @@ export default function OrcamentoForm() {
   const [largura, setLargura] = useState('');
   const [quantidade, setQuantidade] = useState(1);
   const [markup, setMarkup] = useState(30);
+  const handleMarkupChange = (e) => {
+    const v = e?.target?.value ?? '';
+    let n = num(v, 0);
+    if (n > 1000) n = n / 100; // "3000" => 30
+    if (n < 0) n = 0;
+    if (n > 300) n = 300;
+    setMarkup(n);
+  };
+  
   const [margemPassepartout, setMargemPassepartout] = useState(0);
 
   const [molduras, setMolduras] = useState([]);
@@ -97,16 +113,14 @@ export default function OrcamentoForm() {
   const precoSarrafoML = useMemo(() => {
     const s = (sarrafoLista || [])[0] || null;
     const raw = s?.preco ?? s?.valor ?? s?.preco_ml ?? s?.valor_ml ?? 0;
-    const n = Number(String(raw).replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.'));
-    return Number.isFinite(n) ? n : 0;
+    return moneyNum(raw, 0);
   }, [sarrafoLista]);
 
   // ===== vidro comum m² (para Entre Vidros e fallback) =====
   const precoVidroComumM2 = useMemo(() => {
     const comum = (vidros || []).find((v) => /comum/i.test(v?.nome || v?.descricao || ''));
     const raw = comum?.preco_m2 ?? comum?.valor_m2 ?? comum?.preco ?? comum?.valor ?? 0;
-    const n = Number(String(raw).replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.'));
-    return Number.isFinite(n) ? n : 0;
+    return moneyNum(raw, 0);
   }, [vidros]);
 
   // ===== chassi (tela) =====
@@ -674,37 +688,10 @@ export default function OrcamentoForm() {
     : null;
 
   // ===== Diversos: helpers de preço =====
-  // ----------- helpers -----------
-  const num = (v, d = 0) => {
-    // número genérico (cm, m etc.)
-    const s = String(v ?? "").replace(/\s/g, "");
-    const n = Number(s.replace(/\.(?=\d{3}(?:\D|$))/g, "").replace(",", "."));
-    return Number.isFinite(n) ? n : d;
-  };
-
-  // Dinheiro robusto: "27", "27,00", "27.00", "R$ 27,00", "2700" (centavos), "27000" (erro de escala)...
-  const moneyNum = (v) => {
-    const s = String(v ?? "")
-      .replace(/[^\d.,-]/g, "")
-      .replace(/\.(?=\d{3}(?:\D|$))/g, "")
-      .replace(",", ".");
-    let n = Number(s);
-    if (!Number.isFinite(n)) return 0;
-    if (n > 20000) n = n / 1000; // 27.000 -> 27
-    else if (n > 2000) n = n / 100; // 2.700 -> 27
-    return n;
-  };
-
+  // (num, moneyNum, pickPrecoML/M2 agora vêm de ../utils/calcularOrcamento)
   const toM2 = (wCm, hCm) => (num(wCm) / 100) * (num(hCm) / 100);
   /** perímetro em METROS a partir de cm */
   const perimetroML = (wCm, hCm) => (2 * (num(wCm) + num(hCm))) / 100;
-
-  const pickPrecoML = (o) =>
-    moneyNum(o?.preco_ml ?? o?.valor_ml ?? o?.preco ?? o?.valor ?? o?.precoUnit ?? o?.valorUnit);
-
-  const pickPrecoM2 = (o) =>
-    moneyNum(o?.preco_m2 ?? o?.valor_m2 ?? o?.preco ?? o?.valor ?? o?.precoUnit ?? o?.valorUnit);
-
 
   const maiorLado = () => Math.max(num(altura), num(largura));
   const precoTrocaPorCategoria = (catId) => {
@@ -1089,7 +1076,7 @@ export default function OrcamentoForm() {
         label="Markup (%)"
         type="number"
         value={markup}
-        onChange={(e) => setMarkup(Number(e.target.value))}
+        onChange={handleMarkupChange}
         size="sm"
       />
 
