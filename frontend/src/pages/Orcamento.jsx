@@ -248,7 +248,7 @@ export default function OrcamentoForm() {
     flutuante: {
       showPassepartout: false,
       vidroFrontalCombo: false,
-      vidroSomenteComum: true,  // <= ADICIONE ESTA LINHA
+      vidroSomenteComum: true, 
       showFundoCombo: true,
       foamExtraAuto: true,
       bagueteAuto: true,
