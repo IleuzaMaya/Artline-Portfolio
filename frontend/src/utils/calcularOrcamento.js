@@ -42,11 +42,38 @@ export const toM2 = (wCm, hCm) => (num(wCm) / 100) * (num(hCm) / 100);
 /** perímetro em METROS a partir de cm */
 export const perimetroML = (wCm, hCm) => (2 * (num(wCm) + num(hCm))) / 100;
 
-export const pickPrecoML = (o) =>
-  moneyNum(o?.preco_ml ?? o?.valor_ml ?? o?.preco ?? o?.valor ?? o?.precoUnit ?? o?.valorUnit);
 
-export const pickPrecoM2 = (o) =>
-  moneyNum(o?.preco_m2 ?? o?.valor_m2 ?? o?.preco ?? o?.valor ?? o?.precoUnit ?? o?.valorUnit);
+
+// ---- pickers estritos por unidade + correção de escala ----
+const FIELDS_ML = ['preco_ml', 'valor_ml', 'preco_metro', 'precoMetro', 'preco_ml_moldura'];
+const FIELDS_M2 = ['preco_m2', 'valor_m2'];
+
+const fixEscala = (n, kind) => {
+  let x = Number(n);
+  if (!Number.isFinite(x) || x <= 0) return 0;
+  // Faixas razoáveis para o nosso domínio
+  const LIM = kind === 'ml' ? 5000 : 10000; // R$/m ou R$/m²
+  // Se vier em centavos ou milhar, normaliza
+  if (x > LIM * 50) x = x / 1000;
+  else if (x > LIM * 5) x = x / 100;
+  return x;
+};
+
+export const pickPrecoML = (o) => {
+  const raw = FIELDS_ML.map((k) => o?.[k])
+    .find((v) => v !== undefined && v !== null && String(v).trim() !== '');
+  // Estrito: se não houver campo de ML, retorna 0 (NÃO usa preco/valor genéricos)
+  return fixEscala(moneyNum(raw, 0), 'ml');
+};
+
+export const pickPrecoM2 = (o) => {
+  const raw = FIELDS_M2.map((k) => o?.[k])
+    .find((v) => v !== undefined && v !== null && String(v).trim() !== '');
+  // Estrito: se não houver campo de m², retorna 0 (NÃO usa preco/valor genéricos)
+  return fixEscala(moneyNum(raw, 0), 'm2');
+};
+
+
 
 // largura de face da moldura (cm)
 export const faceLarguraCm = (m) => {
