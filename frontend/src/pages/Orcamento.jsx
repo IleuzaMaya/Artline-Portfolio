@@ -39,6 +39,23 @@ export default function OrcamentoForm() {
     return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
+  // ---- sanitizadores por unidade (evitam “misturar” preco/valor genéricos) ----
+  const sanitizeML = (o) => {
+    const ml = moneyNum(
+      o?.preco_ml ??
+        o?.valor_ml ??
+        o?.preco_metro ??
+        o?.precoMetro ??
+        o?.preco_ml_moldura ??
+        0
+    );
+    return { ...o, preco_ml: ml, valor_ml: ml };
+  };
+  const sanitizeM2 = (o) => {
+    const m2 = moneyNum(o?.preco_m2 ?? o?.valor_m2 ?? 0);
+    return { ...o, preco_m2: m2, valor_m2: m2 };
+  };
+
   // ===== estados base =====
   const [tiposOrcamento, setTiposOrcamento] = useState([]);
   const [tipoSelecionado, setTipoSelecionado] = useState(null);
@@ -492,22 +509,23 @@ export default function OrcamentoForm() {
         ]);
 
         setTiposOrcamento(asArray(tipos.data).filter((t) => !/foto/i.test(t?.nome || '')));
-        setImpressoes(asArray(impr.data));
-        setVidros(asArray(v.data));
-        setSarrafoLista(asArray(sarr.data));
+        
+        setImpressoes(asArray(impr.data).map(sanitizeM2));
+        setVidros(asArray(v.data).map(sanitizeM2));
+        setSarrafoLista(asArray(sarr.data).map(sanitizeML));
 
-        const filtraFundos = (arr) =>
-          (arr || []).filter(
-            (x) =>
-              (x?.ativo ?? true) &&
-              Number(x?.preco_m2 ?? x?.valor_m2 ?? x?.preco ?? x?.valor ?? 0) > 0
-          );
-        setFundo(filtraFundos(asArray(f.data)));
-
-        setPassepartouts(asArray(pp.data));
-        setBaguetes(asArray(bg.data));
+        const fundosSan = asArray(f.data).map(sanitizeM2);
+        setFundo(fundosSan.filter((x) => (x?.ativo ?? true) && moneyNum(x?.preco_m2) > 0));
+       
+        setPassepartouts(
+          asArray(pp.data).map((o) => ({ ...sanitizeML(o), ...sanitizeM2(o) }))
+        );
+        setBaguetes(asArray(bg.data).map(sanitizeML));
+        
         setCamisaObjetoTabela(asArray(camis.data));
-        setChassis(asArray(chs.data));
+        
+        setChassis(asArray(chs.data).map(sanitizeML));
+
         setDiversosBrutos(asArray(divs.data));
       } catch (err) {
         console.error('Erro ao carregar listas iniciais:', err);
@@ -571,13 +589,6 @@ export default function OrcamentoForm() {
         const pick = (...vals) =>
           vals.find((v) => v !== undefined && v !== null && String(v).trim() !== '') ?? '';
 
-        const toNumber = (raw) => {
-          const n = Number(
-            String(raw ?? 0).replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.')
-          );
-          return Number.isFinite(n) ? n : 0;
-        };
-
         const listaFmt = (lista || []).map((m) => {
           const codigo = pick(m.codigo_principal, m.codigo, m.cod, m.referencia);
           const nomeSafe = pick(m.nome, m.descricao, m.nome_moldura, m.modelo, m.titulo);
@@ -597,17 +608,9 @@ export default function OrcamentoForm() {
           );
           const id = m.id ?? m.id_moldura ?? m.moldura_id ?? m.uuid ?? codigo ?? nomeSafe;
 
+          // ⚠️ Moldura: aceitar SOMENTE campos de ML; se não houver, fica 0 (dimensão cresce do mesmo jeito)
           const precoML = moneyNum(
-            pick(
-              m.preco_ml,
-              m.valor_ml,
-              m.preco,
-              m.valor,
-              m.precoMetro,
-              m.preco_metro,
-              m.preco_ml_moldura,
-              m.preco_moldura
-            )
+            pick(m.preco_ml, m.valor_ml, m.preco_metro, m.precoMetro, m.preco_ml_moldura)
           );
 
           const uso_tipo =
