@@ -229,6 +229,7 @@ export default function OrcamentoForm() {
     entre_vidros: {
       showPassepartout: false,
       vidroFrontalCombo: true,
+      vidroSomenteComum: true,
       vidroFundoComumFixo: true,
       showFundoCombo: false,
       molduraUsoTipo: 'C',
@@ -247,6 +248,7 @@ export default function OrcamentoForm() {
     flutuante: {
       showPassepartout: false,
       vidroFrontalCombo: false,
+      vidroSomenteComum: true,  // <= ADICIONE ESTA LINHA
       showFundoCombo: true,
       foamExtraAuto: true,
       bagueteAuto: true,
@@ -593,7 +595,6 @@ export default function OrcamentoForm() {
               m.preco_moldura
             )
           );
-
 
           const uso_tipo =
             m.uso_tipo ?? (/(caixa|canaleta)/i.test(nomeSafe || display) ? 'C' : 'N');
