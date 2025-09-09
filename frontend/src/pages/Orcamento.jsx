@@ -189,7 +189,7 @@ export default function OrcamentoForm() {
 
     setPassepartoutSelecionado(null);
     setMargemPassepartout(3);
-    setMargemEntreVidros(2);
+    setMargemEntreVidros(2,5);
     setFundoSelecionado(null);
     setVidroSelecionado(null);
     setImpressaoSelecionada(null);
@@ -823,7 +823,7 @@ export default function OrcamentoForm() {
           markup: Number(markup) || 0,
           margemPassepartout: Number(margemPassepartout) || 0,
           margemFlutuanteCm: Number(margemFlutuante) || 0,
-           margemEntreVidros: Number(margemEntreVidros) || 0,
+          margemEntreVidros: Number(margemEntreVidros) || 0,
           margemFlutuante: Number(margemFlutuante) || 0,
           moldura1,
           moldura2,

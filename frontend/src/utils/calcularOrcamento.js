@@ -184,6 +184,7 @@ export async function calcularOrcamento(params = {}) {
     margemPassepartout = 0,
     margemEntreVidros = 0,   
     margemFlutuanteCm = 0, 
+    
     passepartoutSelecionado = null,
     numAberturas = 1,
     precoAberturaExtra = 0,
@@ -237,28 +238,29 @@ export async function calcularOrcamento(params = {}) {
   const MARKUP = clampPercent(markup);
 
   // Passe-partout: pode ser bloqueado pela folha
+  // Passe-partout: pode ser bloqueado pela folha
   const excedePP = Boolean(
     passepartoutSelecionado &&
-    !forcarPassepartoutM2 &&                           // flutuante não bloqueia por folha
-    excedeFolhaPP(W, H, num(margemPassepartout))       // só a margem do PP
+    !forcarPassepartoutM2 &&                 // flutuante não bloqueia por folha
+    excedeFolhaPP(W, H, num(margemPassepartout))
   );
 
-  // “dimensão de referência” (vidro/fundo/baguete):
-  // usa a maior entre: interna, com PP (se houver) e a margem de respiro (flutuante/EV)
+  // Base para vidro/fundo/baguete: interna ou “com PP” (se couber na folha)
   const baseW = !excedePP && passepartoutSelecionado ? W + 2 * num(margemPassepartout) : W;
   const baseH = !excedePP && passepartoutSelecionado ? H + 2 * num(margemPassepartout) : H;
 
-  // margem de respiro aplicável (pega a maior entre flutuante e entre-vidros)
-  const margemRespiroCm = Math.max(
-    num(margemFlutuanteCm || 0),
-    entreVidros ? num(margemEntreVidros || 0) : 0
-  );
+  // Respiro: Entre Vidros usa somente a margem do EV; Flutuante usa somente a do flutuante
+  const margemRespiroCm = entreVidros
+    ? num(margemEntreVidros || 0)
+    : num(margemFlutuanteCm || 0);
+
   const wRef = baseW + 2 * margemRespiroCm;
   const hRef = baseH + 2 * margemRespiroCm;
 
-  // área interna e área "com PP"
+  // áreas
   const areaInternaM2 = toM2(W, H);
   const areaRefM2 = toM2(wRef, hRef);
+
 
   // ----------- fase 2: molduras (em camadas) -----------
   const molduras = [moldura1, moldura2, moldura3].filter(Boolean);
@@ -517,6 +519,7 @@ export async function calcularOrcamento(params = {}) {
 
   // aplica quantidade
   valorSemMarkup = Math.max(0, valorSemMarkup * Math.max(1, QTD));
+  valorSemMarkup = Number(valorSemMarkup.toFixed(2));
 
   const valorTotal = aplicarMarkup(valorSemMarkup, MARKUP);
 
