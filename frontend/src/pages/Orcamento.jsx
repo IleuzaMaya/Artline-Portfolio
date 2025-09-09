@@ -15,6 +15,7 @@ import {
 } from '../utils/calcularOrcamento';
 
 export default function OrcamentoForm() {
+
   // ===== helpers =====
   const asArray = (data) =>
     Array.isArray(data) ? data : (Array.isArray(data?.rows) ? data.rows : []);
@@ -57,6 +58,13 @@ export default function OrcamentoForm() {
   };
 
   // ===== estados base =====
+
+  // debug de custos
+  const [debugVisivel, setDebugVisivel] = useState(false);
+  const [custosCalc, setCustosCalc] = useState(null);
+
+  const [margemEntreVidros, setMargemEntreVidros] = useState(2); // padrão 2 cm
+
   const [tiposOrcamento, setTiposOrcamento] = useState([]);
   const [tipoSelecionado, setTipoSelecionado] = useState(null);
 
@@ -180,7 +188,8 @@ export default function OrcamentoForm() {
     setMarkup(30);
 
     setPassepartoutSelecionado(null);
-    setMargemPassepartout(0);
+    setMargemPassepartout(3);
+    setMargemEntreVidros(2);
     setFundoSelecionado(null);
     setVidroSelecionado(null);
     setImpressaoSelecionada(null);
@@ -260,10 +269,10 @@ export default function OrcamentoForm() {
       molduraUsos: { uso_superficie: 1 },
     },
     entre_vidros: {
-      showPassepartout: false,
-      vidroFrontalCombo: true,
-      vidroSomenteComum: true,
-      vidroFundoComumFixo: true,
+      showPassepartout: false,     // sem passe-partout
+      vidroFrontalCombo: true,     // mantém o combo de escolha
+      vidroSomenteComum: false,    // frente pode ser comum ou antirreflexo
+      vidroFundoComumFixo: true,   // fundo é sempre vidro comum (automático)
       showFundoCombo: false,
       molduraUsoTipo: 'C',
       molduraUsos: { uso_entre_vidros: 1 },
@@ -279,12 +288,15 @@ export default function OrcamentoForm() {
       permiteM2M3: false,
     },
     flutuante: {
-      showPassepartout: false,
-      vidroFrontalCombo: false,
-      vidroSomenteComum: true, 
-      showFundoCombo: true,
-      foamExtraAuto: true,
-      bagueteAuto: true,
+      showPassepartout: true,      // mostra o combo para cor
+    passepartoutSemMargem: true,   // margem vem do campo “Margem do flutuante”
+    showAberturas: false,
+    ppComoFundoColorido: true,     // flag de controle
+    vidroFrontalCombo: false,
+    vidroSomenteComum: true, 
+    showFundoCombo: true,
+    foamExtraAuto: true,
+    bagueteAuto: true,
       molduraUsoTipo: 'C',
       molduraUsos: { uso_flutuante: 1 },
       permiteM2M3: false,
@@ -406,8 +418,13 @@ export default function OrcamentoForm() {
 
   // Preview excede PP e “bloqueio”
   const previewExcedePP =
-    perfil.showPassepartout && !cabeNaFolhaPassepartout(largura, altura, margemPassepartout);
-  const ppBloqueado = Boolean(perfil.showPassepartout && (previewExcedePP || excedePP));
+  perfil.showPassepartout &&
+  !cabeNaFolhaPassepartout(
+    largura, altura,
+    perfil.ppComoFundoColorido ? margemFlutuante : margemPassepartout
+  );
+  
+    const ppBloqueado = Boolean(perfil.showPassepartout && (previewExcedePP || excedePP));
 
   // Entre Vidros?
   const isEntreVidros = Boolean(perfil.vidroFundoComumFixo);
@@ -544,7 +561,7 @@ export default function OrcamentoForm() {
   useEffect(() => {
     if (!perfil.showPassepartout || ppBloqueado) {
       setPassepartoutSelecionado(null);
-      setMargemPassepartout(0);
+      setMargemPassepartout(3);
       setNumAberturas(1);
     }
   }, [perfil.showPassepartout, ppBloqueado]);
@@ -644,18 +661,22 @@ export default function OrcamentoForm() {
   useEffect(() => {
     if (!tipoSelecionado) return;
 
-    if (perfil.vidroSomenteComum || perfil.vidroFundoComumFixo) {
-      const comum = vidros.find((v) => /comum/i.test(v.nome || v.descricao || ''));
-      if (perfil.vidroSomenteComum) setVidroSelecionado(comum || null);
-    } else {
-      setVidroSelecionado(null);
-    }
+   const comum = vidros.find((v) => /comum/i.test(v?.nome || v?.descricao || ''));
+   if (perfil.vidroSomenteComum) {
+     // tipos que forçam vidro comum na frente
+     setVidroSelecionado(comum || null);
+   } else if (perfil.vidroFundoComumFixo && perfil.vidroFrontalCombo) {
+     // Entre Vidros: default comum na frente, mas usuário pode trocar
+     setVidroSelecionado((prev) => prev || comum || null);
+   } else {
+     setVidroSelecionado(null);
+   }
 
     if (!perfil.showPassepartout) {
       setPassepartoutSelecionado(null);
-      setMargemPassepartout(0);
+      setMargemPassepartout(3);
     } else if (perfil.passepartoutSemMargem) {
-      setMargemPassepartout(0);
+      setMargemPassepartout(3);
     }
 
     if (perfil.foamExtraAuto) {
@@ -802,6 +823,8 @@ export default function OrcamentoForm() {
           markup: Number(markup) || 0,
           margemPassepartout: Number(margemPassepartout) || 0,
           margemFlutuanteCm: Number(margemFlutuante) || 0,
+           margemEntreVidros: Number(margemEntreVidros) || 0,
+          margemFlutuante: Number(margemFlutuante) || 0,
           moldura1,
           moldura2,
           moldura3,
@@ -827,6 +850,8 @@ export default function OrcamentoForm() {
           vidroSomenteComum: perfil.vidroSomenteComum,
           foamExtraAuto: perfil.foamExtraAuto,
           bagueteAuto: perfil.bagueteAuto,
+          bagueteAuto: perfil.bagueteAuto,
+         forcarPassepartoutM2: Boolean(perfil.ppComoFundoColorido),
 
           // passe-partout
           numAberturas,
@@ -857,6 +882,8 @@ export default function OrcamentoForm() {
 
         if (!resultado) return;
 
+        setCustosCalc(resultado.custos || null);
+
         setValorTotal(Number(resultado.valorTotal || 0));
         setValorSemMarkup(Number(resultado.valorSemMarkup || 0));
         setReforcoInfo(resultado.reforcoInfo || null);
@@ -875,7 +902,7 @@ export default function OrcamentoForm() {
 
         if (resultado.excedePassepartout) {
           setPassepartoutSelecionado(null);
-          setMargemPassepartout(0);
+          setMargemPassepartout(3);
         }
 
         const itens = [];
@@ -1130,20 +1157,34 @@ export default function OrcamentoForm() {
         const nome = tipoSelecionado?.nome || '';
         const isEV = /entre\s*vidros?/i.test(nome);
         const isCO = /(camisa|objeto)/i.test(nome);
+
         return (
           <>
+            {/* Entre vidros */}
             {isEV && (
-              <label className="inline-flex items-center gap-2 mt-2 mb-4 text-sm">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4"
-                  checked={ehCamisa}
-                  onChange={(e) => setEhCamisa(e.target.checked)}
+              <div className="mt-2 mb-4 space-y-3 text-sm">
+                <label className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={ehCamisa}
+                    onChange={(e) => setEhCamisa(e.target.checked)}
+                  />
+                  <span>É camisa?</span>
+                </label>
+
+                <FloatingInput
+                  label="Margem do entre-vidros (cm)"
+                  type="number"
+                  step="0.1"
+                  value={margemEntreVidros}
+                  onChange={(e) => setMargemEntreVidros(Number(e.target.value) || 0)}
+                  size="sm"
                 />
-                <span>É camisa?</span>
-              </label>
+              </div>
             )}
 
+            {/* Camisa / Objeto */}
             {isCO && (
               <div className="mt-2 space-y-2 text-sm">
                 <label className="inline-flex items-center gap-2">
@@ -1155,6 +1196,7 @@ export default function OrcamentoForm() {
                   />
                   <span>É camisa?</span>
                 </label>
+
                 <label className="inline-flex items-center gap-2">
                   <input
                     type="checkbox"
@@ -1164,11 +1206,23 @@ export default function OrcamentoForm() {
                   />
                   <span>Entre vidros?</span>
                 </label>
+
+                {entreVidrosNoCamisa && (
+                  <FloatingInput
+                    label="Margem do entre-vidros (cm)"
+                    type="number"
+                    step="0.1"
+                    value={margemEntreVidros}
+                    onChange={(e) => setMargemEntreVidros(Number(e.target.value) || 0)}
+                    size="sm"
+                  />
+                )}
               </div>
             )}
           </>
         );
       })()}
+
 
       {/* Passe-partout */}
       {perfil.showPassepartout && (
@@ -1555,7 +1609,13 @@ export default function OrcamentoForm() {
           <span className="emoji">📐</span> <strong>Interna</strong>: {fmt2(largura)} cm × {fmt2(altura)} cm
         </div>
 
-        {perfil.showPassepartout && passepartoutSelecionado && !ppBloqueado && (
+        {isFlutuante && Number(margemFlutuante) > 0 && (
+          <div>
+            <span className="emoji">🔲</span> <strong>Com margem (flutuante)</strong>:{' '}
+            {fmt2(dimensoesFinais.larguraReforco)} cm × {fmt2(dimensoesFinais.alturaReforco)} cm
+         </div>
+        )}
+        {perfil.showPassepartout && passepartoutSelecionado && !ppBloqueado && !isFlutuante && (
           <div>
             <span className="emoji">🔲</span> <strong>Com Passepartout</strong>:{' '}
             {fmt2(dimensoesFinais.larguraReforco)} cm × {fmt2(dimensoesFinais.alturaReforco)} cm
@@ -1587,12 +1647,20 @@ export default function OrcamentoForm() {
             </div>
           )}
 
+        {isEntreVidros && Number(margemEntreVidros) > 0 && (
+          <div>
+            <span className="emoji">🔲</span> <strong>Com margem (entre vidros)</strong>:{' '}
+            {fmt2(dimensoesFinais.larguraReforco)} cm × {fmt2(dimensoesFinais.alturaReforco)} cm
+          </div>
+        )}
+
         {isEntreVidros && (
           <div>
             <span className="emoji">🪟</span> <strong>Vidros</strong>: 2 (frente:{' '}
             {vidroSelecionado?.nome || vidroSelecionado?.descricao || '—'}, fundo: Vidro Comum)
           </div>
         )}
+
 
         {perfil.showPassepartout && passepartoutSelecionado && !ppBloqueado && (
           <div>
@@ -1628,12 +1696,70 @@ export default function OrcamentoForm() {
         Valor estimado: {money(valorTotal)}
       </div>
 
+
+<div className="mt-3 text-xs text-gray-600">
+  <label className="inline-flex items-center gap-2 cursor-pointer">
+    <input type="checkbox" className="h-4 w-4"
+           checked={debugVisivel}
+           onChange={(e)=>setDebugVisivel(e.target.checked)} />
+    <span>Mostrar debug de custos</span>
+  </label>
+
+  {debugVisivel && custosCalc && (
+    <div className="mt-2 bg-gray-50 rounded p-2">
+      <div className="font-medium text-gray-700 mb-1">Breakdown:</div>
+
+      {(custosCalc.moldurasCamadas || []).map((c, i) => (
+        <div key={i}>
+          M{i+1}: {fmt2(c.ml)} m × R$ {fmt2(c.precoML)} = R$ {fmt2(c.custo)}
+        </div>
+      ))}
+
+      <div>Vidro: R$ {fmt2(custosCalc.vidro)}</div>
+      <div>Fundo: R$ {fmt2(custosCalc.fundo)}</div>
+      <div>Fundo extra: R$ {fmt2(custosCalc.fundoExtra)}</div>
+      <div>Passe-partout: R$ {fmt2(custosCalc.passepartout)}</div>
+      {Number(custosCalc.passepartoutAberturasExtra||0)>0 && (
+        <div>Aberturas extras: R$ {fmt2(custosCalc.passepartoutAberturasExtra)}</div>
+      )}
+      <div>Impressão: R$ {fmt2(custosCalc.impressao)}</div>
+      <div>Baguete interna: R$ {fmt2(custosCalc.bagueteInterna)}</div>
+      <div>Chassi: R$ {fmt2(custosCalc.chassi)}</div>
+      <div>Reforço: R$ {fmt2(custosCalc.reforco)}</div>
+      <div>Camisa/Objeto: R$ {fmt2(custosCalc.camisaObjeto)}</div>
+      <div>Diversos: R$ {fmt2(custosCalc.diversos)}</div>
+    </div>
+  )}
+</div>
+
+
+
+
+
+
+
+
+
+
+
       {/* Modal de zoom */}
       {zoomImg && (
         <div className="modal-backdrop" onClick={() => setZoomImg(null)}>
           <img src={zoomImg} alt="Moldura" />
         </div>
       )}
+
+
+
+
+
+
+
+
+
+
+
+
     </div>
   );
 }

@@ -182,6 +182,7 @@ export async function calcularOrcamento(params = {}) {
 
     // passe-partout
     margemPassepartout = 0,
+    margemEntreVidros = 0,   
     margemFlutuanteCm = 0, 
     passepartoutSelecionado = null,
     numAberturas = 1,
@@ -209,6 +210,8 @@ export async function calcularOrcamento(params = {}) {
     foamExtraAuto = false, // front já injeta o item
     bagueteAuto = false,
 
+    forcarPassepartoutM2 = false, // 👈 NOVO (para “fundo colorido”)
+
     // Camisa/Objeto
     camisaObjetoTabela = [],
     camisaObjetoExtra = 0,
@@ -235,15 +238,23 @@ export async function calcularOrcamento(params = {}) {
 
   // Passe-partout: pode ser bloqueado pela folha
   const excedePP = Boolean(
-    passepartoutSelecionado && excedeFolhaPP(W, H, margemPassepartout)
+    passepartoutSelecionado &&
+    !forcarPassepartoutM2 &&                           // flutuante não bloqueia por folha
+    excedeFolhaPP(W, H, num(margemPassepartout))       // só a margem do PP
   );
 
   // “dimensão de referência” (vidro/fundo/baguete):
-  // usa a maior entre: interna, com PP (se houver) e a margem do flutuante
+  // usa a maior entre: interna, com PP (se houver) e a margem de respiro (flutuante/EV)
   const baseW = !excedePP && passepartoutSelecionado ? W + 2 * num(margemPassepartout) : W;
   const baseH = !excedePP && passepartoutSelecionado ? H + 2 * num(margemPassepartout) : H;
-  const wRef = baseW + 2 * num(margemFlutuanteCm);
-  const hRef = baseH + 2 * num(margemFlutuanteCm);
+
+  // margem de respiro aplicável (pega a maior entre flutuante e entre-vidros)
+  const margemRespiroCm = Math.max(
+    num(margemFlutuanteCm || 0),
+    entreVidros ? num(margemEntreVidros || 0) : 0
+  );
+  const wRef = baseW + 2 * margemRespiroCm;
+  const hRef = baseH + 2 * margemRespiroCm;
 
   // área interna e área "com PP"
   const areaInternaM2 = toM2(W, H);
@@ -309,16 +320,19 @@ export async function calcularOrcamento(params = {}) {
 
   if (passepartoutSelecionado && !excedePP) {
     const precoMLpp = pickPrecoML(passepartoutSelecionado);
-    const precoM2pp = pickPrecoM2(passepartoutSelecionado);
+   const precoM2pp = pickPrecoM2(passepartoutSelecionado);
 
-    if (precoMLpp > 0) {
-      const ml = perimetroML(wRef, hRef);
-      custos.passepartout = ml * precoMLpp;
-      modoCobrancaPassepartout = "ml";
-    } else if (precoM2pp > 0) {
-      custos.passepartout = areaRefM2 * precoM2pp;
-      modoCobrancaPassepartout = "m2";
-    }
+   if (forcarPassepartoutM2 && precoM2pp > 0) {
+     custos.passepartout = areaRefM2 * precoM2pp;
+     modoCobrancaPassepartout = "m2";
+   } else if (precoMLpp > 0) {
+     const ml = perimetroML(wRef, hRef);
+     custos.passepartout = ml * precoMLpp;
+     modoCobrancaPassepartout = "ml";
+   } else if (precoM2pp > 0) {
+     custos.passepartout = areaRefM2 * precoM2pp;
+     modoCobrancaPassepartout = "m2";
+   }
 
     const unitExtra = num(precoAberturaExtra);
     const extras = Math.max(0, numAberturasConsideradas - 1);
@@ -361,16 +375,10 @@ export async function calcularOrcamento(params = {}) {
   
   if (fundoExtraSelecionado || foamExtraAuto) {
     const f = fundoExtraSelecionado;
-    const mesmoSKU =
-      f && fundoSelecionado &&
-      (f.id ?? f.uuid ?? f.codigo) === (fundoSelecionado.id ?? fundoSelecionado.uuid ?? fundoSelecionado.codigo);
-
-    // No flutuante/camisa (foamExtraAuto), cobra SEM desduplicar (é outra chapa).
-    if (foamExtraAuto || !mesmoSKU) {
-      const precoM2 = f ? pickPrecoM2(f) : 0;
-      if (precoM2 > 0) {
-        custos.fundoExtra = areaRefM2 * precoM2; // 👈 com a margem aplicada nos refs
-      }
+    const precoM2 = f ? pickPrecoM2(f) : 0;
+    if (precoM2 > 0) {
+      // flutuante quer 2× foam: não bloqueia duplicado
+      custos.fundoExtra = areaRefM2 * precoM2;
     }
   }
 
