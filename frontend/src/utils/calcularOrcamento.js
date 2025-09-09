@@ -182,6 +182,7 @@ export async function calcularOrcamento(params = {}) {
 
     // passe-partout
     margemPassepartout = 0,
+    margemFlutuanteCm = 0, 
     passepartoutSelecionado = null,
     numAberturas = 1,
     precoAberturaExtra = 0,
@@ -237,9 +238,12 @@ export async function calcularOrcamento(params = {}) {
     passepartoutSelecionado && excedeFolhaPP(W, H, margemPassepartout)
   );
 
-  // “dimensão de referência” (para vidro/fundo/baguete/PP)
-  const wRef = !excedePP && passepartoutSelecionado ? W + 2 * num(margemPassepartout) : W;
-  const hRef = !excedePP && passepartoutSelecionado ? H + 2 * num(margemPassepartout) : H;
+  // “dimensão de referência” (vidro/fundo/baguete):
+  // usa a maior entre: interna, com PP (se houver) e a margem do flutuante
+  const baseW = !excedePP && passepartoutSelecionado ? W + 2 * num(margemPassepartout) : W;
+  const baseH = !excedePP && passepartoutSelecionado ? H + 2 * num(margemPassepartout) : H;
+  const wRef = baseW + 2 * num(margemFlutuanteCm);
+  const hRef = baseH + 2 * num(margemFlutuanteCm);
 
   // área interna e área "com PP"
   const areaInternaM2 = toM2(W, H);
@@ -357,17 +361,17 @@ export async function calcularOrcamento(params = {}) {
   
   if (fundoExtraSelecionado || foamExtraAuto) {
     const f = fundoExtraSelecionado;
-    // se for o MESMO item do fundo, não cobrar duas vezes
     const mesmoSKU =
-      f && fundoSelecionado && (f.id ?? f.uuid ?? f.codigo) === (fundoSelecionado.id ?? fundoSelecionado.uuid ?? fundoSelecionado.codigo);
-    if (mesmoSKU) {
-      // não soma fundoExtra
-    } else {
-       const precoM2 = f ? pickPrecoM2(f) : 0;
-       if (precoM2 > 0) {
-         custos.fundoExtra = areaRefM2 * precoM2;
-       }
-   }
+      f && fundoSelecionado &&
+      (f.id ?? f.uuid ?? f.codigo) === (fundoSelecionado.id ?? fundoSelecionado.uuid ?? fundoSelecionado.codigo);
+
+    // No flutuante/camisa (foamExtraAuto), cobra SEM desduplicar (é outra chapa).
+    if (foamExtraAuto || !mesmoSKU) {
+      const precoM2 = f ? pickPrecoM2(f) : 0;
+      if (precoM2 > 0) {
+        custos.fundoExtra = areaRefM2 * precoM2; // 👈 com a margem aplicada nos refs
+      }
+    }
   }
 
   // ----------- fase 7: impressão (m²) -----------

@@ -74,6 +74,7 @@ export default function OrcamentoForm() {
   };
   
   const [margemPassepartout, setMargemPassepartout] = useState(0);
+  const [margemFlutuante, setMargemFlutuante] = useState(3); // padrão 3 cm (ajuste se quiser)
 
   const [molduras, setMolduras] = useState([]);
   const [moldura1, setMoldura1] = useState(null);
@@ -800,6 +801,7 @@ export default function OrcamentoForm() {
           quantidade: Number(quantidade) || 1,
           markup: Number(markup) || 0,
           margemPassepartout: Number(margemPassepartout) || 0,
+          margemFlutuanteCm: Number(margemFlutuante) || 0,
           moldura1,
           moldura2,
           moldura3,
@@ -1258,10 +1260,22 @@ export default function OrcamentoForm() {
       )}
 
       {isFlutuante && (
-        <Alert severity="info" className="mt-2">
-          No tipo <strong>Flutuante</strong> não se usa passe-partout — ele encosta na peça e
-          perde o efeito de flutuar.
-        </Alert>
+        <>
+          <Alert severity="info" className="mt-2">
+            No tipo <strong>Flutuante</strong> não se usa passe-partout na frente. A cor de fundo
+            vem do <strong>Fundo</strong> selecionado. Defina abaixo a <em>margem de respiro</em>.
+          </Alert>
+          <div className="grid grid-cols-2 gap-4 mt-3">
+            <FloatingInput
+              label="Margem do flutuante (cm)"
+              type="number"
+              step="0.1"
+              value={margemFlutuante}
+              onChange={(e) => setMargemFlutuante(e.target.value)}
+              size="sm"
+            />
+         </div>
+        </>
       )}
 
       {/* Tela: chassi/impressão */}
