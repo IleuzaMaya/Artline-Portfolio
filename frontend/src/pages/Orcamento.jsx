@@ -1672,15 +1672,6 @@ export default function OrcamentoForm() {
           </div>
         )}
 
-        <div>
-          <span className="emoji">🖼️</span> <strong>Final (com moldura)</strong>:{' '}
-          {fmt2(dimensoesFinais.largura)} cm × {fmt2(dimensoesFinais.altura)} cm
-        </div>
-        <div>
-          <span className="emoji">📦</span> <strong>Área total</strong>:{' '}
-          {Number(dimensoesFinais.area || 0).toFixed(3)} m²
-        </div>
-
         {isTela && incluirImpressaoTela && (
           <div>
             <span className="emoji">🖨️</span> <strong>Impressão</strong>: canvas (incluída)
@@ -1712,12 +1703,22 @@ export default function OrcamentoForm() {
           </div>
         )}
 
-
         {perfil.showPassepartout && passepartoutSelecionado && !ppBloqueado && (
           <div>
             <span className="emoji">🔳</span> <strong>Aberturas no passe-partout</strong>: {numAberturasCalc}
           </div>
         )}
+
+        <div>
+          <span className="emoji">📦</span> <strong>Área total</strong>:{' '}
+          {Number(dimensoesFinais.area || 0).toFixed(3)} m²
+        </div>
+
+        <div>
+          <span className="emoji">🖼️</span> <strong>Final (com moldura)</strong>:{' '}
+          {fmt2(dimensoesFinais.largura)} cm × {fmt2(dimensoesFinais.altura)} cm
+        </div>
+        
 
         {itensSomados.length > 0 && (
           <div className="pt-2">
