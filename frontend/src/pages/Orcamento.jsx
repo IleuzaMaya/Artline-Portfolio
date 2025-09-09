@@ -1162,27 +1162,30 @@ export default function OrcamentoForm() {
           <>
             {/* Entre vidros */}
             {isEV && (
-              <div className="mt-2 mb-4 space-y-3 text-sm">
-                <label className="inline-flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4"
-                    checked={ehCamisa}
-                    onChange={(e) => setEhCamisa(e.target.checked)}
-                  />
-                  <span>É camisa?</span>
-                </label>
+              <label className="inline-flex items-center gap-2 mt-2 mb-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={ehCamisa}
+                  onChange={(e) => setEhCamisa(e.target.checked)}
+                />
+                <span>É camisa?</span>
+              </label>
+            )}
 
+            {/(^|\s)entre\s*vidros?/i.test(tipoSelecionado?.nome || '') && (
+              <div className="mt-2">
                 <FloatingInput
                   label="Margem do entre-vidros (cm)"
                   type="number"
                   step="0.1"
                   value={margemEntreVidros}
-                  onChange={(e) => setMargemEntreVidros(Number(e.target.value) || 0)}
+                  onChange={(e) => setMargemEntreVidros(e.target.value)}
                   size="sm"
                 />
               </div>
             )}
+
 
             {/* Camisa / Objeto */}
             {isCO && (
@@ -1290,16 +1293,17 @@ export default function OrcamentoForm() {
       {/* Vidro */}
       {perfil.vidroFrontalCombo && (
         <FloatingSelect
-          label="Vidro"
+          label="Vidro (frente)"
           options={vidros || []}
           value={vidroSelecionado}
           setValue={setVidroSelecionado}
-          disabled={perfil.vidroSomenteComum || vidros.length === 1}
+          disabled={perfil.vidroSomenteComum} // só desabilita em tipos que exigem comum
           labelKey="nome"
           valueKey="id"
           size="sm"
         />
       )}
+
       {perfil.vidroFrontalCombo && perfil.vidroFundoComumFixo && (
         <div className="mt-2 text-sm text-gray-600">
           Entre Vidros utiliza <strong>2 vidros</strong>: o frontal (
@@ -1307,11 +1311,13 @@ export default function OrcamentoForm() {
           <strong> vidro comum</strong> no fundo. Ambos já estão incluídos no cálculo.
         </div>
       )}
+
       {!perfil.vidroFrontalCombo && perfil.vidroSomenteComum && (
         <div className="mt-2 text-sm text-gray-600">
           Vidro comum aplicado automaticamente neste tipo.
         </div>
       )}
+
 
       {isFlutuante && (
         <>
@@ -1653,6 +1659,7 @@ export default function OrcamentoForm() {
             {fmt2(dimensoesFinais.larguraReforco)} cm × {fmt2(dimensoesFinais.alturaReforco)} cm
           </div>
         )}
+
 
         {isEntreVidros && (
           <div>
