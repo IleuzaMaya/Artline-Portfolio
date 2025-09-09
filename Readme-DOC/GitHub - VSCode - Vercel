@@ -9,15 +9,41 @@ git push origin main
 
 Commit Vercel:
 
-chmod +x commit-frontend.sh
+./commit-frontend.sh "feat(frontend): mensagem do commit"
 
 
 cd frontend
 npm run build   # testa local (ou pnpm/yarn), mostra o mesmo erro que a Vercel
 
 
+Criando Função na Supabase:
+
+./commit-frontend.sh "feat(frontend): mensagem do commit"
+
+
+supabase link --project-ref nwtfynwrmhggbeudwpus
+supabase functions deploy admin-invite --no-verify-jwt
+supabase functions list
+
+supabase secrets set \
+  SUPABASE_URL=https://nwtfynwrmhggbeudwpus.supabase.co \
+  SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53dGZ5bndybWhnZ2JldWR3cHVzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTg3MDk2NywiZXhwIjoyMDcxNDQ2OTY3fQ.xnNTje8wg7mamIvwIeKOVAXXRc9_7OmoAUT_NlOOKN0
+
+
+
+
+
+mkdir -p supabase/functions/sarrafo
+
+mkdir -p supabase/functions/admin-invite
+
+
 Commit só função determinada:
 supabase functions deploy catalogo --project-ref nwtfynwrmhggbeudwpus
+supabase functions deploy sarrafo --project-ref nwtfynwrmhggbeudwpus
+
+supabase functions deploy tipos-orcamento --project-ref nwtfynwrmhggbeudwpus
+supabase functions deploy molduras         --project-ref nwtfynwrmhggbeudwpus
 
 ========
 
@@ -25,10 +51,26 @@ Commit Supab
 
 supabase link --project-ref nwtfynwrmhggbeudwpus
 
+
+
 ========
 
-
-Variáveis de ambiente = Environment Variables:
-Na Vercel (Project → Settings → Environment Variables)  
+supabase link --project-ref nwtfynwrmhggbeudwpus
 
 
+supabase functions list
+supabase functions deploy catalogo
+supabase functions deploy reforco
+
+
+
+curl -i "https://nwtfynwrmhggbeudwpus.functions.supabase.co/catalogo/reforco?tipo=matte"
+curl -i -H "apikey: $VITE_SUPABASE_ANON_KEY" \
+       -H "Authorization: Bearer $VITE_SUPABASE_ANON_KEY" \
+"https://nwtfynwrmhggbeudwpus.functions.supabase.co/catalogo/tipos-orcamento"
+
+
+https://nwtfynwrmhggbeudwpus.supabase.co/functions/v1
+
+
+========

@@ -542,7 +542,7 @@ Backend (antes MySQL, agora Supabase):
 
 Tabelas usadas:
 
-mt_molduras, mt_passepartouts, mt_vidros, mt_fundos,
+mt_molduras, mt_passepartouts, mt_vidros, mt_fundos, mt_reforco (criado na Supabase),
 mt_impressoes, mt_chassis, mt_baguetes, mt_diversos, mt_camisa_objeto.
 
 Regras de reforço: estruturas_reforco.
