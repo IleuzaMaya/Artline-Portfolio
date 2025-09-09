@@ -63,6 +63,8 @@ export default function OrcamentoForm() {
   const [debugVisivel, setDebugVisivel] = useState(false);
   const [custosCalc, setCustosCalc] = useState(null);
 
+  const [acabamentoCaixa, setAcabamentoCaixa] = useState('foam_branco'); // 'foam_branco' | 'foam_preto' | 'pp'
+
   const [margemEntreVidros, setMargemEntreVidros] = useState(2); // padrão 2 cm
 
   const [tiposOrcamento, setTiposOrcamento] = useState([]);
@@ -189,7 +191,7 @@ export default function OrcamentoForm() {
 
     setPassepartoutSelecionado(null);
     setMargemPassepartout(3);
-    setMargemEntreVidros(2,5);
+    setMargemEntreVidros(2.5);
     setFundoSelecionado(null);
     setVidroSelecionado(null);
     setImpressaoSelecionada(null);
@@ -399,6 +401,12 @@ export default function OrcamentoForm() {
     [moldura1, moldura2, moldura3]
   );
 
+  // opções filtradas (somente molduras tipo "C" / caixa)
+  const moldurasApenasCaixa = useMemo(
+    () => (molduras || []).filter(ehCaixa),
+    [molduras]
+  );
+
   // largura de face em cm (usa mm se existir)
   const larguraFaceCm = (m) => {
     const mm = Number(m?.largura_mm || 0);
@@ -496,19 +504,31 @@ export default function OrcamentoForm() {
   }, [isCaixaSelecionada, tipoReforco, reforcoPermitidoPorTipo, forcarReforcoMesmoAssim]);
 
   // ===== coerções de M2/M3 =====
+ 
   useEffect(() => {
-    if (ehAluminio(moldura1)) {
-      if (moldura2) setMoldura2(null);
-      if (moldura3) setMoldura3(null);
-    }
-    if (moldura1 && !ehRetaOuPP(moldura1)) {
-      if (moldura2) setMoldura2(null);
-      if (moldura3) setMoldura3(null);
-    }
+      if (ehAluminio(moldura1)) {
+        if (moldura2) setMoldura2(null);
+        if (moldura3) setMoldura3(null);
+        return;
+      }
+      // Se M1 for CAIXA: permitir M2 somente CAIXA e sempre desabilitar M3
+      if (ehCaixa(moldura1)) {
+        if (moldura3) setMoldura3(null);
+        if (moldura2 && !ehCaixa(moldura2)) setMoldura2(null);
+        return;
+      }
+      // Para outros tipos que não são Reta/PP: bloquear M2 e M3
+      if (moldura1 && !ehRetaOuPP(moldura1)) {
+        if (moldura2) setMoldura2(null);
+        if (moldura3) setMoldura3(null);
+      }
   }, [moldura1]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (ehCaixa(moldura2) && moldura3) setMoldura3(null);
-  }, [moldura2]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Se M1 for CAIXA, garantir que M2 também seja CAIXA
+    if (ehCaixa(moldura1) && moldura2 && !ehCaixa(moldura2)) setMoldura2(null);
+  }, [moldura2, moldura1]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ===== carregamentos iniciais =====
   useEffect(() => {
@@ -557,6 +577,16 @@ export default function OrcamentoForm() {
   useEffect(() => {
     if (!usaBagueteInterna) setBagueteInternaSelecionada(null);
   }, [usaBagueteInterna]);
+
+  // CAIXA sempre com baguete interna: seleciona uma padrão automaticamente
+  useEffect(() => {
+    if (isCaixaSelecionada && !bagueteInternaSelecionada && (baguetes || []).length) {
+      const padrao =
+        (baguetes || []).find(b => /passepartout/i.test(b?.nome || '')) ||
+        (baguetes || [])[0] || null;
+      if (padrao) setBagueteInternaSelecionada(padrao);
+    }
+  }, [isCaixaSelecionada, baguetes, bagueteInternaSelecionada]);
 
   useEffect(() => {
     if (!perfil.showPassepartout || ppBloqueado) {
@@ -822,9 +852,10 @@ export default function OrcamentoForm() {
           quantidade: Number(quantidade) || 1,
           markup: Number(markup) || 0,
           margemPassepartout: Number(margemPassepartout) || 0,
+
           margemFlutuanteCm: Number(margemFlutuante) || 0,
-          margemEntreVidros: Number(margemEntreVidros) || 0,
-          margemFlutuante: Number(margemFlutuante) || 0,
++         margemEntreVidros: Number(margemEntreVidros) || 0,
+
           moldura1,
           moldura2,
           moldura3,
@@ -849,7 +880,6 @@ export default function OrcamentoForm() {
           entreVidros: perfil.vidroFundoComumFixo,
           vidroSomenteComum: perfil.vidroSomenteComum,
           foamExtraAuto: perfil.foamExtraAuto,
-          bagueteAuto: perfil.bagueteAuto,
           bagueteAuto: perfil.bagueteAuto,
          forcarPassepartoutM2: Boolean(perfil.ppComoFundoColorido),
 
@@ -1391,18 +1421,19 @@ export default function OrcamentoForm() {
             size="sm"
           />
 
-          {perfil.permiteM2M3 && !ehAluminio(moldura1) && ehRetaOuPP(moldura1) && (
+          {perfil.permiteM2M3 && !ehAluminio(moldura1) && (ehRetaOuPP(moldura1) || ehCaixa(moldura1)) && (
             <>
               <FloatingSelect
                 label="Moldura 2 (opcional)"
-                options={molduras || []}
+                options={ehCaixa(moldura1) ? moldurasApenasCaixa : (molduras || [])}
                 value={moldura2}
                 setValue={setMoldura2}
                 labelKey="display"
                 valueKey="id"
                 size="sm"
               />
-              {!ehCaixa(moldura2) && (
+              {/* M3 só aparece se M1 NÃO for caixa e M2 também NÃO for caixa */}
+              {!ehCaixa(moldura1) && !ehCaixa(moldura2) && (
                 <FloatingSelect
                   label="Moldura 3 (opcional)"
                   options={molduras || []}
@@ -1567,17 +1598,17 @@ export default function OrcamentoForm() {
                       size="sm"
                     />
 
-                    {!ehAluminio(moldura1) && ehRetaOuPP(moldura1) && (
+                    {!ehAluminio(moldura1) && (ehRetaOuPP(moldura1) || ehCaixa(moldura1)) && (
                       <>
                         <FloatingSelect
                           label="Moldura 2 (opcional)"
-                          options={molduras || []}
+                          options={ehCaixa(moldura1) ? moldurasApenasCaixa : (molduras || [])}
                           value={moldura2}
                           setValue={setMoldura2}
                           labelKey="display"
                           size="sm"
                         />
-                        {!ehCaixa(moldura2) && (
+                        {!ehCaixa(moldura1) && !ehCaixa(moldura2) && (
                           <FloatingSelect
                             label="Moldura 3 (opcional)"
                             options={molduras || []}
@@ -1740,31 +1771,12 @@ export default function OrcamentoForm() {
 </div>
 
 
-
-
-
-
-
-
-
-
-
       {/* Modal de zoom */}
       {zoomImg && (
         <div className="modal-backdrop" onClick={() => setZoomImg(null)}>
           <img src={zoomImg} alt="Moldura" />
         </div>
       )}
-
-
-
-
-
-
-
-
-
-
 
 
     </div>
