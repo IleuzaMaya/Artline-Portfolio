@@ -65,7 +65,7 @@ export default function OrcamentoForm() {
 
   const [acabamentoCaixa, setAcabamentoCaixa] = useState('foam_branco'); // 'foam_branco' | 'foam_preto' | 'pp'
 
-  const [margemEntreVidros, setMargemEntreVidros] = useState(2); // padrão 2 cm
+  const [margemEntreVidros, setMargemEntreVidros] = useState(2.5); // padrão 2 cm
 
   const [tiposOrcamento, setTiposOrcamento] = useState([]);
   const [tipoSelecionado, setTipoSelecionado] = useState(null);
@@ -401,6 +401,12 @@ export default function OrcamentoForm() {
     [moldura1, moldura2, moldura3]
   );
 
+  // opções para M2 quando M1 for CAIXA
+  const moldurasApenasCaixa = useMemo(
+    () => (molduras || []).filter(ehCaixa),
+    [molduras]
+  );
+
   // opções filtradas (somente molduras tipo "C" / caixa)
   const moldurasApenasCaixa = useMemo(
     () => (molduras || []).filter(ehCaixa),
@@ -506,22 +512,22 @@ export default function OrcamentoForm() {
   // ===== coerções de M2/M3 =====
  
   useEffect(() => {
-      if (ehAluminio(moldura1)) {
-        if (moldura2) setMoldura2(null);
-        if (moldura3) setMoldura3(null);
-        return;
-      }
-      // Se M1 for CAIXA: permitir M2 somente CAIXA e sempre desabilitar M3
-      if (ehCaixa(moldura1)) {
-        if (moldura3) setMoldura3(null);
-        if (moldura2 && !ehCaixa(moldura2)) setMoldura2(null);
-        return;
-      }
-      // Para outros tipos que não são Reta/PP: bloquear M2 e M3
-      if (moldura1 && !ehRetaOuPP(moldura1)) {
-        if (moldura2) setMoldura2(null);
-        if (moldura3) setMoldura3(null);
-      }
+    if (ehAluminio(moldura1)) {
+      if (moldura2) setMoldura2(null);
+      if (moldura3) setMoldura3(null);
+      return;
+    }
+    // M1 CAIXA: M2 deve ser CAIXA e M3 desabilita
+    if (ehCaixa(moldura1)) {
+      if (moldura3) setMoldura3(null);
+      if (moldura2 && !ehCaixa(moldura2)) setMoldura2(null);
+      return;
+    }
+    // Outros tipos ≠ Reta/PP bloqueiam M2/M3
+    if (moldura1 && !ehRetaOuPP(moldura1)) {
+      if (moldura2) setMoldura2(null);
+      if (moldura3) setMoldura3(null);
+    }
   }, [moldura1]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -851,10 +857,11 @@ export default function OrcamentoForm() {
           largura,
           quantidade: Number(quantidade) || 1,
           markup: Number(markup) || 0,
-          margemPassepartout: Number(margemPassepartout) || 0,
 
+          margemPassepartout: Number(margemPassepartout) || 0,
           margemFlutuanteCm: Number(margemFlutuante) || 0,
-+         margemEntreVidros: Number(margemEntreVidros) || 0,
+          // passa cru; o parser numérico no calcularOrcamento aceita "2,5"
+          margemEntreVidros: margemEntreVidros,
 
           moldura1,
           moldura2,
@@ -1246,7 +1253,7 @@ export default function OrcamentoForm() {
                     type="number"
                     step="0.1"
                     value={margemEntreVidros}
-                    onChange={(e) => setMargemEntreVidros(Number(e.target.value) || 0)}
+                    onChange={(e) => setMargemEntreVidros(e.target.value)}
                     size="sm"
                   />
                 )}
@@ -1473,9 +1480,15 @@ export default function OrcamentoForm() {
       {ehAluminio(moldura1) && (
         <Alert severity="info" className="mt-2">Moldura de alumínio não permite adicionais.</Alert>
       )}
-      {perfil.permiteM2M3 && moldura1 && !ehRetaOuPP(moldura1) && (
+      {perfil.permiteM2M3 && moldura1 && !ehRetaOuPP(moldura1) && !ehCaixa(moldura1) && (
         <Alert severity="info" className="mt-2">
           Moldura 1 diferente de Reta/Passepartout bloqueia Moldura 2 e 3.
+        </Alert>
+      )}
+
+      {perfil.permiteM2M3 && ehCaixa(moldura1) && (
+        <Alert severity="info" className="mt-2">
+          Moldura 1 do tipo <strong>Caixa</strong>: Moldura 2 permite apenas Caixa e Moldura 3 fica desabilitada.
         </Alert>
       )}
 

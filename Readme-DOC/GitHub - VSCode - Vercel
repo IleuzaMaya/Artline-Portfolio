@@ -12,6 +12,13 @@ Commit Vercel:
 ./commit-frontend.sh "feat(frontend): mensagem do commit"
 
 
+Comitar tudo (inclui novos arquivos)
+git status -s                  
+git add -A
+git commit -m "feat(frontend): atualizações locais"
+git pull --rebase             
+git push
+
 cd frontend
 npm run build   # testa local (ou pnpm/yarn), mostra o mesmo erro que a Vercel
 
