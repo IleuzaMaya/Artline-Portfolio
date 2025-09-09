@@ -22,6 +22,8 @@ git push
 cd frontend
 npm run build   # testa local (ou pnpm/yarn), mostra o mesmo erro que a Vercel
 
+https://app.artemoldurados.com.br/orcamento?v=ts123
+
 
 Criando Função na Supabase:
 
