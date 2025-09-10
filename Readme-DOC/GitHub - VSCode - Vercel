@@ -83,3 +83,7 @@ https://nwtfynwrmhggbeudwpus.supabase.co/functions/v1
 
 
 ========
+
+
+Pelo seu print mais recente o layout já está “Final (com moldura) → Área total”, então a versão nova apareceu em pelo menos um navegador. Se em outros ainda aparece a ordem antiga, é cache (do index.html no CDN/servidor ou do próprio navegador).
+E tem outro ponto importante: o guard de login que propusemos não está montado, porque o main.jsx ainda renderiza <App />. Por isso a rota /orcamento?v=ts123 pode abrir sem passar pelo login.
