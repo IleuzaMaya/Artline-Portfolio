@@ -114,13 +114,13 @@ export default function OrcamentoForm() {
   // ===== Diversos =====
   const [diversosBrutos, setDiversosBrutos] = useState([]);
   const DIVERSOS_OPCOES = [
+    { id: 'troca_passepartout', nome: 'Troca de Passepartout' },
     { id: 'troca_canvas', nome: 'Troca de Canvas' },
     { id: 'troca_matte', nome: 'Troca de Papel Matte' },
     { id: 'troca_chassi', nome: 'Troca de Chassis' },
     { id: 'troca_moldura', nome: 'Troca de Moldura' },
     { id: 'troca_vidro', nome: 'Troca de Vidro' },
     { id: 'retirar_arte', nome: 'Retirar arte' },
-    { id: 'troca_passepartout', nome: 'Troca de Passepartout' },
   ];
   const [diversoSelecionado, setDiversoSelecionado] = useState(null);
   const [incluirImpressaoDiversos, setIncluirImpressaoDiversos] = useState(false);
@@ -407,12 +407,6 @@ export default function OrcamentoForm() {
   );
 
   // opções para M2 quando M1 for CAIXA
-  const moldurasApenasCaixa = useMemo(
-    () => (molduras || []).filter(ehCaixa),
-    [molduras]
-  );
-
-  // opções filtradas (somente molduras tipo "C" / caixa)
   const moldurasApenasCaixa = useMemo(
     () => (molduras || []).filter(ehCaixa),
     [molduras]
