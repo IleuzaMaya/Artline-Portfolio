@@ -16,11 +16,13 @@ export const LIMIAR_REFORCO_M2 = 0.3149; // ~47 x 67 cm
 
 // ----------- helpers compartilhados (exportados) -----------
 export const num = (v, d = 0) => {
-  // número genérico (cm, m etc.) — aceita "30", "30,05", "1.234,56"
-  const s = String(v ?? "").replace(/\s/g, "");
-  const n = Number(s.replace(/\.(?=\d{3}(?:\D|$))/g, "").replace(",", "."));
-  return Number.isFinite(n) ? n : d;
-};
+   // Se já for Number válido, não mexa (evita 57.066 -> 57066)
+   if (typeof v === "number" && Number.isFinite(v)) return v;
+   // número genérico (cm, m etc.) — aceita "30", "30,05", "1.234,56"
+   const s = String(v ?? "").replace(/\s/g, "");
+   const n = Number(s.replace(/\.(?=\d{3}(?:\D|$))/g, "").replace(",", "."));
+   return Number.isFinite(n) ? n : d;
+ };
 
 // Dinheiro robusto: "27", "27,00", "27.00", "R$ 27,00", "2.700" (milhar),
 // "2700" (centavos), "27.000" (erro de escala)…
@@ -49,16 +51,12 @@ const FIELDS_M2 = ['preco_m2', 'valor_m2'];
 
 // campos por tipo para ML
 const FIELDS_ML_BY_KIND = {
-  // moldura pode vir como "preco_metro" ou "preco_ml_moldura" em algumas tabelas
   moldura: ['preco_ml', 'valor_ml', 'preco_metro', 'precoMetro', 'preco_ml_moldura'],
-  // para passe-partout não devemos aceitar campos de moldura
   pp:      ['preco_ml', 'valor_ml'],
-  // para baguete/chassi mantemos apenas ML "puro"
   baguete: ['preco_ml', 'valor_ml'],
   chassi:  ['preco_ml', 'valor_ml'],
-  // fallback
- default: ['preco_ml', 'valor_ml'],
-;
+  default: ['preco_ml', 'valor_ml'],
+};
 
 // Reescala e validação final por unidade (robusto contra cadastros em centavos/×1000 ou "preço de barra")
 const fixEscala = (n, kind) => {
@@ -128,20 +126,9 @@ export const clampPercent = (v) => {
 };
 
 export const aplicarMarkup = (valor, markupPercent) => {
-  const base = Math.max(0, num(valor, 0));
+  const base = typeof valor === "number" ? Math.max(0, valor) : Math.max(0, num(valor, 0));
   const m = clampPercent(markupPercent);
-
-  let total = base * (1 + m / 100);
-
-  // Guard-rails adicionais
-  if (m <= 300 && total > base * 100) {
-    total = base * (1 + m / 100);
-  }
-  if (total > base * 10 && m > 100) {
-    total = base * (1 + (m % 100) / 100);
-  }
-
-  return total;
+  return base * (1 + m / 100);
 };
 
 const FOLHA_PP = { maior: 152, menor: 102, seguranca: 2 };

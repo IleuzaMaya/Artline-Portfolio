@@ -5,7 +5,7 @@ import FloatingInput from '../components/FloatingInput';
 import FloatingSelect from '../components/FloatingSelect';
 import MolduraThumb from '../components/MolduraThumb';
 import { Alert } from '@mui/material';
-import { qtdPorUnidade } from "../lib/medidas";
+
 import {
   calcularOrcamento,
   LIMIAR_REFORCO_M2,
@@ -71,6 +71,15 @@ export default function OrcamentoForm() {
   const [tiposOrcamento, setTiposOrcamento] = useState([]);
   const [tipoSelecionado, setTipoSelecionado] = useState(null);
 
+  // --- Normalizadores do tipo selecionado (precisam vir antes de qualquer uso) ---
+  const tipo = (tipoSelecionado?.slug || tipoSelecionado || '').toLowerCase();
+  const tipoNome = String(tipoSelecionado?.nome || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim();
+
+
   const [corPassepartout, setCorPassepartout] = useState('');
 
   const [altura, setAltura] = useState('');
@@ -110,7 +119,7 @@ export default function OrcamentoForm() {
   // ===== Flags Camisa/Entre Vidros =====
   const [ehCamisa, setEhCamisa] = useState(false);
   const [entreVidrosNoCamisa, setEntreVidrosNoCamisa] = useState(false);
-  const isCamisaObjeto = /(camisa|objeto)/i.test(tipoSelecionado?.nome || '');
+  const isCamisaObjeto = /(camisa|objeto)/i.test(tipoNome);
 
   // ===== Diversos =====
   const [diversosBrutos, setDiversosBrutos] = useState([]);
@@ -124,7 +133,19 @@ export default function OrcamentoForm() {
     { id: 'retirar_arte', nome: 'Retirar arte' },
   ];
   const [diversoSelecionado, setDiversoSelecionado] = useState(null);
+
   const [incluirImpressaoDiversos, setIncluirImpressaoDiversos] = useState(false);
+
+  const isFlutuante = /flutuant/.test(tipoNome);
+  const showCamposPassepartout = useMemo(() => {
+    // mostra para: Superfície, Profundidade, Flutuante, Camisa/Objeto
+    const base = /(superficie|profundidade|flutuant|camisa|objeto)/.test(tipoNome);
+    // e em Diversos apenas quando for "troca de passepartout"
+    const divTrocaPP = /diversos/.test(tipoNome) && (diversoSelecionado?.id === 'troca_passepartout');
+    return base || divTrocaPP;
+  }, [tipoNome, diversoSelecionado]);
+  const opcoesCoresPassepartout = ['branco','preto','off-white','cinza','marfim'];
+
 
   // Nº de aberturas (mantém para Superfície)
   const [numAberturas, setNumAberturas] = useState(1);
@@ -293,18 +314,19 @@ export default function OrcamentoForm() {
       molduraUsoTipo: 'C',
       molduraUsos: { uso_profundidade: 1 },
       permiteM2M3: false,
+      showAberturas: true,
     },
     flutuante: {
-      showPassepartout: true,      // mostra o combo para cor
-    passepartoutSemMargem: true,   // margem vem do campo “Margem do flutuante”
-    showAberturas: false,
-    ppComoFundoColorido: true,     // flag de controle
-    ppApenasCor: true, 
-    vidroFrontalCombo: false,
-    vidroSomenteComum: true, 
-    showFundoCombo: true,
-    foamExtraAuto: true,
-    bagueteAuto: true,
+      showPassepartout: true,            // mantém área do PP
+      passepartoutSemMargem: true,       // margem vem do campo do flutuante
+      showAberturas: true,               // liberar Nº de aberturas
+      ppComoFundoColorido: true,
+      ppApenasCor: true,
+      vidroFrontalCombo: false,
+      vidroSomenteComum: true,
+      showFundoCombo: true,
+      foamExtraAuto: true,
+      bagueteAuto: true,
       molduraUsoTipo: 'C',
       molduraUsos: { uso_flutuante: 1 },
       permiteM2M3: false,
@@ -355,14 +377,13 @@ export default function OrcamentoForm() {
 
   const perfilBase = useMemo(() => perfilDoTipo(tipoSelecionado?.nome || ''), [tipoSelecionado?.nome]);
 
-  const isTela = /tela/i.test(tipoSelecionado?.nome || '');
-  const isDiversosTipo = /diversos/i.test(tipoSelecionado?.nome || '');
+  const isTela = /tela/i.test(tipoNome);
+  const isDiversosTipo = /diversos/i.test(tipoNome);
+
 
   // Gate: reforço permitido (Superfície e Entre Vidros)
-  const reforcoPermitidoPorTipo = useMemo(() => {
-    const k = norm(tipoSelecionado?.nome || '');
-    return /(superf|entre\s*vidros?)/i.test(k);
-  }, [tipoSelecionado]);
+  const reforcoPermitidoPorTipo = useMemo(() => /(superf|entre\s*vidros?)/i.test(tipoNome), [tipoNome]);
+
   const [forcarReforcoMesmoAssim, setForcarReforcoMesmoAssim] = useState(false);
 
   // Perfil efetivo + overrides especiais
@@ -1143,8 +1164,7 @@ export default function OrcamentoForm() {
     larguraM1cm <= LIMIAR_MOLDURA_CM &&
     (usoTipoM1 === 'N' || usoTipoM1 === 'A');
 
-  // ===== UI =====
-  const isFlutuante = /flutuant/i.test(tipoSelecionado?.nome || '');
+ 
 
   return (
     <div className="max-w-3xl mx-auto mt-6 p-4 bg-white shadow rounded overflow-visible">
@@ -1271,8 +1291,7 @@ export default function OrcamentoForm() {
         );
       })()}
 
-
-      {/* Passe-partout */}
+      {/* Passe-partout (ordem: Cor → Passepartout → Margem → Nº de aberturas) */}
       {perfil.showPassepartout && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
           {(dimensoesFinais?.mensagemAviso || previewExcedePP) && (
@@ -1284,6 +1303,15 @@ export default function OrcamentoForm() {
             </div>
           )}
 
+          {/* 1) Cor do passe-partout (texto) */}
+          <FloatingInput
+            label="Cor do passe-partout"
+            value={corPassepartout}
+            onChange={(e) => setCorPassepartout(e.target.value)}
+            size="sm"
+          />
+
+          {/* 2) Passepartout (select) */}
           <FloatingSelect
             label="Passepartout"
             options={passepartouts || []}
@@ -1295,64 +1323,40 @@ export default function OrcamentoForm() {
             size="sm"
           />
 
-          {/* Flutuante: campo COR no lugar da Margem (continua cobrando o PP) */}
-          {isFlutuante ? (
-            <FloatingInput
-              label="Cor do passe-partout"
-              value={corPassepartout}
-              onChange={(e) => setCorPassepartout(e.target.value)}
-              size="sm"
-            />
-          ) : (
-            <FloatingInput
-              label="Margem (cm)"
-              type="number"
-              step="0.1"
-              value={margemPassepartout}
-              onChange={(e) => setMargemPassepartout(e.target.value)}
-              disabled={ppBloqueado || perfil.passepartoutSemMargem}
-              size="sm"
-            />
-          )}
+         {/* Se a seção geral já exibe cor/margem/aberturas, não repetimos aqui */}
+          {!showCamposPassepartout && (
+            <>
 
-          {/* Camisa/Objeto: COR + Nº de aberturas lado a lado */}
-          {!ppBloqueado && /(camisa|objeto)/i.test(tipoSelecionado?.nome || '') ? (
-            <div className="col-span-2 md:col-span-2 grid grid-cols-2 gap-4">
+              {/* 3) Margem (cm): em Flutuante controla margemFlutuante; nos demais, margemPassepartout */}
               <FloatingInput
-                label="Cor do passe-partout"
-                value={corPassepartout}
-                onChange={(e) => setCorPassepartout(e.target.value)}
-                size="sm"
-              />
-              <FloatingInput
-                label="Nº de aberturas"
+                label="Margem (cm)"
                 type="number"
-                min={1}
-                value={numAberturas}
-                onChange={(e) => setNumAberturas(Math.max(1, Number(e.target.value) || 1))}
-                disabled={!passepartoutSelecionado}
+                step="0.1"
+                value={isFlutuante ? margemFlutuante : margemPassepartout}
+                onChange={(e) =>
+                  isFlutuante
+                    ? setMargemFlutuante(e.target.value)
+                    : setMargemPassepartout(e.target.value)
+                }
+                disabled={ppBloqueado || (perfil.passepartoutSemMargem && !isFlutuante)}
                 size="sm"
               />
-            </div>
-          ) : (
-            // Demais tipos que usam aberturas: mantém só o campo de aberturas
-            perfil.showAberturas && !ppBloqueado && (
-              <div className="col-span-2 md:col-span-1">
+
+              {/* 4) Nº de aberturas — agora number, sem limite de 5 */}
+              {perfil.showAberturas && !ppBloqueado && (
                 <FloatingInput
                   label="Nº de aberturas"
                   type="number"
                   min={1}
                   value={numAberturas}
                   onChange={(e) => setNumAberturas(Math.max(1, Number(e.target.value) || 1))}
-                  disabled={!passepartoutSelecionado}
                   size="sm"
                 />
-              </div>
-            )
+              )}
+            </>
           )}
         </div>
       )}
-
 
       {/* Fundo */}
       {perfil.showFundoCombo && (
@@ -1819,7 +1823,7 @@ export default function OrcamentoForm() {
         Valor estimado: {money(valorTotal)}
       </div>
 
-
+{/* -------- DEBUG DE CUSTOS -------- */}
 <div className="mt-3 text-xs text-gray-600">
   <label className="inline-flex items-center gap-2 cursor-pointer">
     <input type="checkbox" className="h-4 w-4"
@@ -1854,7 +1858,7 @@ export default function OrcamentoForm() {
     </div>
   )}
 </div>
-
+{/* ------- FIM DEBUG DE CUSTOS ------- */}
 
       {/* Modal de zoom */}
       {zoomImg && (
