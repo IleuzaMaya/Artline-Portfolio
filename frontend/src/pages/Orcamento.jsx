@@ -5,6 +5,7 @@ import FloatingInput from '../components/FloatingInput';
 import FloatingSelect from '../components/FloatingSelect';
 import MolduraThumb from '../components/MolduraThumb';
 import { Alert } from '@mui/material';
+import { qtdPorUnidade } from "../lib/medidas";
 import {
   calcularOrcamento,
   LIMIAR_REFORCO_M2,

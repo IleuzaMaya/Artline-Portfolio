@@ -19,15 +19,47 @@ git commit -m "feat(frontend): atualizações locais"
 git pull --rebase             
 git push
 
+
+
+cd frontend
+git add -A
+git commit -m "fix: import AppRoutes from routes"
+git push
+
+
 cd frontend
 npm run build   # testa local (ou pnpm/yarn), mostra o mesmo erro que a Vercel
+
+
+cd frontend
+npm ci
+npm run build
+
+
+cd frontend
+rm -rf node_modules dist
+npm ci
+npm run build
+
+cd frontend
+npm ci
+npm run build  
+npm run preview 
 
 https://app.artemoldurados.com.br/orcamento?v=ts123
 
 
-Criando Função na Supabase:
+============
 
-./commit-frontend.sh "feat(frontend): mensagem do commit"
+Rodar localmente:
+cd frontend
+npm run build
+npm run preview
+
+
+============
+
+Criando Função na Supabase:
 
 
 supabase link --project-ref nwtfynwrmhggbeudwpus
@@ -37,10 +69,6 @@ supabase functions list
 supabase secrets set \
   SUPABASE_URL=https://nwtfynwrmhggbeudwpus.supabase.co \
   SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53dGZ5bndybWhnZ2JldWR3cHVzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTg3MDk2NywiZXhwIjoyMDcxNDQ2OTY3fQ.xnNTje8wg7mamIvwIeKOVAXXRc9_7OmoAUT_NlOOKN0
-
-
-
-
 
 mkdir -p supabase/functions/sarrafo
 
@@ -87,3 +115,21 @@ https://nwtfynwrmhggbeudwpus.supabase.co/functions/v1
 
 Pelo seu print mais recente o layout já está “Final (com moldura) → Área total”, então a versão nova apareceu em pelo menos um navegador. Se em outros ainda aparece a ordem antiga, é cache (do index.html no CDN/servidor ou do próprio navegador).
 E tem outro ponto importante: o guard de login que propusemos não está montado, porque o main.jsx ainda renderiza <App />. Por isso a rota /orcamento?v=ts123 pode abrir sem passar pelo login.
+
+
+
+cd /caminho/para/art-emoldurados-webapp
+
+git status
+git pull --rebase
+git remote add giotto https://github.com/HugoGiotto/web-marba-giotto.git
+git push -u giotto main
+git push giotto --tags
+git push giotto --all
+
+
+
+=============
+
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+ssh-keygen -t ed25519 -C "ateliemarbagiotto@gmail.com" -f ~/.ssh/id_ed25519_giotto

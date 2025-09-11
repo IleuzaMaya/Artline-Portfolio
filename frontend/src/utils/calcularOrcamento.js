@@ -45,8 +45,20 @@ export const perimetroML = (wCm, hCm) => (2 * (num(wCm) + num(hCm))) / 100;
 
 
 // ---- pickers estritos por unidade + correção de escala ----
-const FIELDS_ML = ['preco_ml', 'valor_ml', 'preco_metro', 'precoMetro', 'preco_ml_moldura'];
 const FIELDS_M2 = ['preco_m2', 'valor_m2'];
+
+// campos por tipo para ML
+const FIELDS_ML_BY_KIND = {
+  // moldura pode vir como "preco_metro" ou "preco_ml_moldura" em algumas tabelas
+  moldura: ['preco_ml', 'valor_ml', 'preco_metro', 'precoMetro', 'preco_ml_moldura'],
+  // para passe-partout não devemos aceitar campos de moldura
+  pp:      ['preco_ml', 'valor_ml'],
+  // para baguete/chassi mantemos apenas ML "puro"
+  baguete: ['preco_ml', 'valor_ml'],
+  chassi:  ['preco_ml', 'valor_ml'],
+  // fallback
+ default: ['preco_ml', 'valor_ml'],
+;
 
 // Reescala e validação final por unidade (robusto contra cadastros em centavos/×1000 ou "preço de barra")
 const fixEscala = (n, kind) => {
@@ -68,8 +80,9 @@ const fixEscala = (n, kind) => {
   return x;
 };
 
-export const pickPrecoML = (o) => {
-  const raw = FIELDS_ML.map((k) => o?.[k])
+export const pickPrecoML = (o, kind = 'default') => {
+  const fields = FIELDS_ML_BY_KIND[kind] || FIELDS_ML_BY_KIND.default;
+  const raw = fields.map((k) => o?.[k])
     .find((v) => v !== undefined && v !== null && String(v).trim() !== '');
   // Estrito: se não houver campo de ML, retorna 0 (NÃO usa preco/valor genéricos)
   return fixEscala(moneyNum(raw, 0), 'ml');
@@ -284,7 +297,7 @@ export async function calcularOrcamento(params = {}) {
   let hAtual = hRef;
 
   molduras.forEach((m, idx) => {
-    const precoML = pickPrecoML(m);
+    const precoML = pickPrecoML(m, 'moldura');
     const perim = perimetroML(wAtual, hAtual);
     const custo = (precoML > 0 ? perim * precoML : 0);
 
@@ -307,7 +320,7 @@ export async function calcularOrcamento(params = {}) {
 
   // ----------- fase 3: baguete interna (ml) -----------
   if (bagueteInternaSelecionada) {
-    const precoML = pickPrecoML(bagueteInternaSelecionada);
+    const precoML = pickPrecoML(bagueteInternaSelecionada, 'baguete');
     if (precoML > 0) {
       const ml = perimetroML(wRef, hRef);
       custos.bagueteInterna = ml * precoML;
@@ -321,7 +334,7 @@ export async function calcularOrcamento(params = {}) {
   let numAberturasConsideradas = Math.max(1, num(numAberturas, 1));
 
   if (passepartoutSelecionado && !excedePP) {
-    const precoMLpp = pickPrecoML(passepartoutSelecionado);
+   const precoMLpp = pickPrecoML(passepartoutSelecionado, 'pp');
    const precoM2pp = pickPrecoM2(passepartoutSelecionado);
 
    if (forcarPassepartoutM2 && precoM2pp > 0) {
@@ -395,7 +408,7 @@ export async function calcularOrcamento(params = {}) {
   // ----------- fase 8: chassi (perímetro) -----------
   let chassiInfo = null;
   if (incluirChassi && chassiSelecionado) {
-    const precoML = pickPrecoML(chassiSelecionado);
+    const precoML = pickPrecoML(chassiSelecionado, 'chassi');
     const ml = perimetroML(W, H);
     custos.chassi = ml * precoML;
 
