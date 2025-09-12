@@ -605,13 +605,15 @@ export default function OrcamentoForm() {
 
   // CAIXA sempre com baguete interna: seleciona uma padrão automaticamente
   useEffect(() => {
-    if (isCaixaSelecionada && !bagueteInternaSelecionada && (baguetes || []).length) {
-      const padrao =
-        (baguetes || []).find(b => /passepartout/i.test(b?.nome || '')) ||
-        (baguetes || [])[0] || null;
-      if (padrao) setBagueteInternaSelecionada(padrao);
-    }
-  }, [isCaixaSelecionada, baguetes, bagueteInternaSelecionada]);
+   if (usaBagueteInterna && !bagueteInternaSelecionada && (baguetes || []).length) {
+     const padrao =
+       (baguetes || []).find(b => /foam\s*branco\s*adesiv/i.test(b?.nome || '')) ||
+       (baguetes || []).find(b => /passepartout/i.test(b?.nome || '')) ||
+       (baguetes || [])[0] || null;
+     if (padrao) setBagueteInternaSelecionada(padrao);
+   }
+  }, [usaBagueteInterna, baguetes, bagueteInternaSelecionada]);
+
 
   useEffect(() => {
     if (!perfil.showPassepartout || ppBloqueado) {
@@ -1634,6 +1636,8 @@ export default function OrcamentoForm() {
                     options={vidros || []}
                     value={vidroSelecionado}
                     setValue={setVidroSelecionado}
+                    labelKey="nome"
+                    valueKey="id"
                     size="sm"
                   />
                 )}

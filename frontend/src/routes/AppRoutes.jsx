@@ -2,29 +2,17 @@
 
 import { Routes, Route, Navigate, Outlet, useLocation } from "react-router-dom";
 import OrcamentoForm from "../pages/Orcamento.jsx";
-import Login from "../pages/Login.jsx"; // ajuste o caminho se for diferente
-
-function getToken() {
-  try {
-    const ls =
-      localStorage.getItem("token") ||
-      localStorage.getItem("auth_token");
-    if (ls) return ls;
-    const m = document.cookie.match(
-      /(?:^|;\s*)(?:token|auth_token|session|edge_session)=([^;]+)/
-    );
-    return m ? m[1] : null;
-  } catch {
-    return null;
-  }
-}
+import AuthSplit from "../components/AuthSplit.jsx";
+import ResetPassword from "../pages/ResetPassword.jsx";
+import { useAuth } from "../auth/AuthContext.jsx";
 
 function RequireAuth() {
+  const { user, loading } = useAuth();
   const location = useLocation();
-  const token = getToken();
-  if (!token) {
+  if (loading) return null; // pode pôr um spinner
+  if (!user) {
     const next = encodeURIComponent(location.pathname + location.search);
-    return <Navigate to={`/login?next=${next}`} replace />;
+    return <Navigate to={`/?next=${next}`} replace />;
   }
   return <Outlet />;
 }
@@ -32,12 +20,17 @@ function RequireAuth() {
 export default function AppRoutes() {
   return (
     <Routes>
-      <Route path="/login" element={<Login />} />
+      {/* públicas */}
+      <Route path="/" element={<AuthSplit />} />
+      <Route path="/reset" element={<ResetPassword />} />
+
+      {/* protegidas */}
       <Route element={<RequireAuth />}>
-        <Route path="/" element={<Navigate to="/orcamento" replace />} />
         <Route path="/orcamento" element={<OrcamentoForm />} />
       </Route>
-      <Route path="*" element={<Navigate to="/orcamento" replace />} />
+
+      {/* catch-all */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }
