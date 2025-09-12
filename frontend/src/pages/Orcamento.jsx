@@ -6,14 +6,10 @@ import FloatingSelect from '../components/FloatingSelect';
 import MolduraThumb from '../components/MolduraThumb';
 import { Alert } from '@mui/material';
 
-import {
-  calcularOrcamento,
-  LIMIAR_REFORCO_M2,
-  moneyNum,
-  num,
-  pickPrecoML,
-  pickPrecoM2,
+import { 
+  calcularOrcamento, LIMIAR_REFORCO_M2, moneyNum, num 
 } from '../utils/calcularOrcamento';
+
 
 export default function OrcamentoForm() {
 
@@ -64,21 +60,10 @@ export default function OrcamentoForm() {
   const [debugVisivel, setDebugVisivel] = useState(false);
   const [custosCalc, setCustosCalc] = useState(null);
 
-  const [acabamentoCaixa, setAcabamentoCaixa] = useState('foam_branco'); // 'foam_branco' | 'foam_preto' | 'pp'
-
   const [margemEntreVidros, setMargemEntreVidros] = useState(2.5); // padrão 2 cm
 
   const [tiposOrcamento, setTiposOrcamento] = useState([]);
   const [tipoSelecionado, setTipoSelecionado] = useState(null);
-
-  // --- Normalizadores do tipo selecionado (precisam vir antes de qualquer uso) ---
-  const tipo = (tipoSelecionado?.slug || tipoSelecionado || '').toLowerCase();
-  const tipoNome = String(tipoSelecionado?.nome || '')
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-    .trim();
-
 
   const [corPassepartout, setCorPassepartout] = useState('');
 
@@ -119,7 +104,19 @@ export default function OrcamentoForm() {
   // ===== Flags Camisa/Entre Vidros =====
   const [ehCamisa, setEhCamisa] = useState(false);
   const [entreVidrosNoCamisa, setEntreVidrosNoCamisa] = useState(false);
+  
+  // normaliza tipo (pode ser útil em outras regras)
+  const tipo = String(tipoSelecionado?.slug ?? tipoSelecionado ?? '').toLowerCase();
+
+  // nome do tipo normalizado (sem acento), para regex reutilizáveis
+  const tipoNome = String(tipoSelecionado?.nome || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .trim();
   const isCamisaObjeto = /(camisa|objeto)/i.test(tipoNome);
+  const isFlutuante = /flutuant/.test(tipoNome);
+
 
   // ===== Diversos =====
   const [diversosBrutos, setDiversosBrutos] = useState([]);
@@ -135,17 +132,6 @@ export default function OrcamentoForm() {
   const [diversoSelecionado, setDiversoSelecionado] = useState(null);
 
   const [incluirImpressaoDiversos, setIncluirImpressaoDiversos] = useState(false);
-
-  const isFlutuante = /flutuant/.test(tipoNome);
-  const showCamposPassepartout = useMemo(() => {
-    // mostra para: Superfície, Profundidade, Flutuante, Camisa/Objeto
-    const base = /(superficie|profundidade|flutuant|camisa|objeto)/.test(tipoNome);
-    // e em Diversos apenas quando for "troca de passepartout"
-    const divTrocaPP = /diversos/.test(tipoNome) && (diversoSelecionado?.id === 'troca_passepartout');
-    return base || divTrocaPP;
-  }, [tipoNome, diversoSelecionado]);
-  const opcoesCoresPassepartout = ['branco','preto','off-white','cinza','marfim'];
-
 
   // Nº de aberturas (mantém para Superfície)
   const [numAberturas, setNumAberturas] = useState(1);
@@ -216,7 +202,7 @@ export default function OrcamentoForm() {
 
     setPassepartoutSelecionado(null);
     setCorPassepartout('');
-    setMargemPassepartout(0);
+    setMargemPassepartout(3);
     setMargemEntreVidros(2.5);
     setFundoSelecionado(null);
     setVidroSelecionado(null);
@@ -251,6 +237,10 @@ export default function OrcamentoForm() {
       larguraReforco: 0,
       mensagemAviso: null,
     });
+
+    setDebugVisivel(false);
+    setCustosCalc(null);
+
   };
 
   // controle vindo do cálculo assíncrono
@@ -379,7 +369,6 @@ export default function OrcamentoForm() {
 
   const isTela = /tela/i.test(tipoNome);
   const isDiversosTipo = /diversos/i.test(tipoNome);
-
 
   // Gate: reforço permitido (Superfície e Entre Vidros)
   const reforcoPermitidoPorTipo = useMemo(() => /(superf|entre\s*vidros?)/i.test(tipoNome), [tipoNome]);
@@ -511,6 +500,15 @@ export default function OrcamentoForm() {
     return /tela/.test(nome) ? 'canvas' : 'matte';
   }, [tipoSelecionado?.nome]);
 
+
+  const temAlgumaMoldura = Boolean(moldura1 || moldura2 || moldura3);
+  
+  const isTrocaPP = useMemo(
+    () => isDiversosTipo && (diversoSelecionado?.id === 'troca_passepartout'),
+    [isDiversosTipo, diversoSelecionado?.id]
+  );
+
+
   useEffect(() => {
     if (!isCaixaSelecionada || (!reforcoPermitidoPorTipo && !forcarReforcoMesmoAssim)) {
       setReforcoTabela([]);
@@ -633,6 +631,14 @@ export default function OrcamentoForm() {
     if (!perfil.showFundoCombo) setFundoSelecionado(null);
   }, [perfil.showFundoCombo]);
 
+  useEffect(() => {
+  if (isTrocaPP) {
+    setMoldura1(null);
+    setMoldura2(null);
+    setMoldura3(null);
+  }
+  }, [isTrocaPP]);
+
   // ===== carregar molduras quando muda o tipo =====
   useEffect(() => {
     const carregarMolduras = async () => {
@@ -673,15 +679,15 @@ export default function OrcamentoForm() {
             nomeSafe ||
             codigo ||
             'Sem nome';
-          const imagem_url = pick(
-            m.imagem_url,
-            m.image_url,
-            m.url_imagem,
-            m.imagem,
-            m.foto,
-            m.foto_url,
-            null
-          );
+          const ABS = (u) => {
+            if (!u) return null;
+            if (/^https?:\/\//i.test(u)) return u;        // já é absoluta
+            const base = import.meta.env.VITE_API_URL || ''; // ex: http://localhost:3333
+            return base.replace(/\/$/, '') + '/' + String(u).replace(/^\//, '');
+          };
+
+          const _img = ABS(pick(m.imagem_url, m.image_url, m.url_imagem, m.imagem, m.foto, m.foto_url, null));
+
           const id = m.id ?? m.id_moldura ?? m.moldura_id ?? m.uuid ?? codigo ?? nomeSafe;
 
           // ⚠️ Moldura: aceitar SOMENTE campos de ML; se não houver, fica 0 (dimensão cresce do mesmo jeito)
@@ -697,7 +703,8 @@ export default function OrcamentoForm() {
             ...m,
             nome: pick(m.nome, nomeSafe, codigo, 'Sem nome'),
             display,
-            imagem_url,
+            imagem_url: _img,
+            image_url: _img,           
             preco_ml: precoML,
             valor_ml: precoML,
             uso_tipo,
@@ -882,7 +889,8 @@ export default function OrcamentoForm() {
           markup: Number(markup) || 0,
 
           margemPassepartout: Number(margemPassepartout) || 0,
-          margemFlutuanteCm: Number(margemFlutuante) || 0,
+          margemFlutuanteCm: isFlutuante ? (Number(margemFlutuante) || 0) : 0,
+
           // passa cru; o parser numérico no calcularOrcamento aceita "2,5"
           margemEntreVidros: margemEntreVidros,
 
@@ -1100,6 +1108,7 @@ export default function OrcamentoForm() {
       setValorSemMarkup(0);
       setReforcoInfo(null);
       setExcedePP(false);
+      setCustosCalc(null);
       setItensSomados([]);
       setDimensoesFinais({
         altura: 0,
@@ -1291,7 +1300,7 @@ export default function OrcamentoForm() {
         );
       })()}
 
-      {/* Passe-partout (ordem: Cor → Passepartout → Margem → Nº de aberturas) */}
+      {/* Passe-partout (ordem: Passepartout → Margem (cm) → Cor do passe-partout) */}
       {perfil.showPassepartout && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
           {(dimensoesFinais?.mensagemAviso || previewExcedePP) && (
@@ -1303,15 +1312,7 @@ export default function OrcamentoForm() {
             </div>
           )}
 
-          {/* 1) Cor do passe-partout (texto) */}
-          <FloatingInput
-            label="Cor do passe-partout"
-            value={corPassepartout}
-            onChange={(e) => setCorPassepartout(e.target.value)}
-            size="sm"
-          />
-
-          {/* 2) Passepartout (select) */}
+          {/* 1) Passepartout (select) */}
           <FloatingSelect
             label="Passepartout"
             options={passepartouts || []}
@@ -1323,38 +1324,41 @@ export default function OrcamentoForm() {
             size="sm"
           />
 
-         {/* Se a seção geral já exibe cor/margem/aberturas, não repetimos aqui */}
-          {!showCamposPassepartout && (
-            <>
+         {/* 2) Margem (cm) */}
+          <FloatingInput
+            label="Margem (cm)"
+            type="number"
+            step="0.1"
+            value={isFlutuante ? margemFlutuante : margemPassepartout}
+            onChange={(e) =>
+              isFlutuante
+                ? setMargemFlutuante(e.target.value)
+                : setMargemPassepartout(e.target.value)
+            }
+            disabled={ppBloqueado || (!isFlutuante && perfil.passepartoutSemMargem)}
+            size="sm"
+          />
 
-              {/* 3) Margem (cm): em Flutuante controla margemFlutuante; nos demais, margemPassepartout */}
-              <FloatingInput
-                label="Margem (cm)"
-                type="number"
-                step="0.1"
-                value={isFlutuante ? margemFlutuante : margemPassepartout}
-                onChange={(e) =>
-                  isFlutuante
-                    ? setMargemFlutuante(e.target.value)
-                    : setMargemPassepartout(e.target.value)
-                }
-                disabled={ppBloqueado || (perfil.passepartoutSemMargem && !isFlutuante)}
-                size="sm"
-              />
+          {/* 3) Cor do passe-partout */}
+          <FloatingInput
+            label="Cor do passe-partout"
+            value={corPassepartout}
+            onChange={(e) => setCorPassepartout(e.target.value)}
+            size="sm"
+          />
 
-              {/* 4) Nº de aberturas — agora number, sem limite de 5 */}
-              {perfil.showAberturas && !ppBloqueado && (
-                <FloatingInput
-                  label="Nº de aberturas"
-                  type="number"
-                  min={1}
-                  value={numAberturas}
-                  onChange={(e) => setNumAberturas(Math.max(1, Number(e.target.value) || 1))}
-                  size="sm"
-                />
-              )}
-            </>
+          {/* 4) Nº de aberturas — number, sem limite */}
+          {perfil.showAberturas && !ppBloqueado && (
+            <FloatingInput
+              label="Nº de aberturas"
+              type="number"
+              min={1}
+              value={numAberturas}
+              onChange={(e) => setNumAberturas(Math.max(1, Number(e.target.value) || 1))}
+              size="sm"
+            />
           )}
+
         </div>
       )}
 
@@ -1400,24 +1404,12 @@ export default function OrcamentoForm() {
         </div>
       )}
 
-
       {isFlutuante && (
-        <>
-          <Alert severity="info" className="mt-2">
-            No tipo <strong>Flutuante</strong> não se usa passe-partout na frente. A cor de fundo
-            vem do <strong>Fundo</strong> selecionado. Defina abaixo a <em>margem de respiro</em>.
-          </Alert>
-          <div className="grid grid-cols-2 gap-4 mt-3">
-            <FloatingInput
-              label="Margem do flutuante (cm)"
-              type="number"
-              step="0.1"
-              value={margemFlutuante}
-              onChange={(e) => setMargemFlutuante(e.target.value)}
-              size="sm"
-            />
-         </div>
-        </>
+        <Alert severity="info" className="mt-2">
+          No tipo <strong>Flutuante</strong> não se usa passe-partout na frente.
+          A cor de fundo pode vir do <strong>Passepartout</strong> selecionado.
+          Defina a <em>margem de respiro</em> no campo <strong>Margem (cm)</strong> acima.
+        </Alert>
       )}
 
       {/* Tela: chassi/impressão */}
@@ -1621,6 +1613,11 @@ export default function OrcamentoForm() {
             setValue={(v) => {
               setDiversoSelecionado(v);
               setIncluirImpressaoDiversos(false);
+              if (v?.id === 'troca_passepartout') {   // ← limpa molduras
+                setMoldura1(null);
+                setMoldura2(null);
+                setMoldura3(null);
+              }
             }}
             labelKey="nome"
             valueKey="id"
@@ -1704,6 +1701,18 @@ export default function OrcamentoForm() {
                       labelKey="nome"
                       valueKey="id"
                     />
+
+                    {/* NOVO: Margem (cm) para Troca de Passepartout */}
+                    <FloatingInput
+                      className="mt-2"
+                      label="Margem (cm)"
+                      type="number"
+                      step="0.1"
+                      value={margemPassepartout}
+                      onChange={(e) => setMargemPassepartout(e.target.value)}
+                      size="sm"
+                    />
+
                     <div className="grid grid-cols-2 gap-4">
                       <FloatingInput
                         label="Cor do passe-partout"
@@ -1724,11 +1733,14 @@ export default function OrcamentoForm() {
                   </>
                 )}
 
+
               </>
             );
           })()}
         </div>
       )}
+
+
 
       {/* Métricas e itens somados */}
       <div className="mt-4 text-sm text-gray-600 leading-relaxed space-y-1">
@@ -1742,12 +1754,31 @@ export default function OrcamentoForm() {
             {fmt2(dimensoesFinais.larguraReforco)} cm × {fmt2(dimensoesFinais.alturaReforco)} cm
          </div>
         )}
-        {perfil.showPassepartout && passepartoutSelecionado && !ppBloqueado && !isFlutuante && (
+
+        {/* 1) “Com passe-partout” aparece em Troca de PP também */}
+        {!ppBloqueado && !isFlutuante && ((perfil.showPassepartout && passepartoutSelecionado) || isTrocaPP) && (
           <div>
-            <span className="emoji">🔲</span> <strong>Com Passepartout</strong>:{' '}
+            <span className="emoji">🔲</span> <strong>Com passe-partout</strong>:{' '}
             {fmt2(dimensoesFinais.larguraReforco)} cm × {fmt2(dimensoesFinais.alturaReforco)} cm
           </div>
         )}
+
+        {/* 2) Renomeia o rótulo da área */}
+        <div>
+          <span className="emoji">📦</span>{' '}
+          <strong>{isTrocaPP ? 'Área com passe-partout' : 'Área total'}</strong>:{' '}
+          {Number(dimensoesFinais.area || 0).toFixed(3)} m²
+        </div>
+
+        {/* 3) Só mostra “Final (com moldura)” se houver moldura escolhida */}
+        {temAlgumaMoldura && (
+          <div>
+            <span className="emoji">🖼️</span> <strong>Final (com moldura)</strong>:{' '}
+            {fmt2(dimensoesFinais.largura)} cm × {fmt2(dimensoesFinais.altura)} cm
+          </div>
+        )}
+
+
 
         {isTela && incluirImpressaoTela && (
           <div>
@@ -1784,17 +1815,7 @@ export default function OrcamentoForm() {
             <span className="emoji">🔳</span> <strong>Aberturas no passe-partout</strong>: {numAberturasCalc}
           </div>
         )}
-
-        <div>
-          <span className="emoji">📦</span> <strong>Área total</strong>:{' '}
-          {Number(dimensoesFinais.area || 0).toFixed(3)} m²
-        </div>
-
-        <div>
-          <span className="emoji">🖼️</span> <strong>Final (com moldura)</strong>:{' '}
-          {fmt2(dimensoesFinais.largura)} cm × {fmt2(dimensoesFinais.altura)} cm
-        </div>
-        
+   
         {itensSomados.length > 0 && (
           <div className="pt-2">
             <div className="text-gray-700">
