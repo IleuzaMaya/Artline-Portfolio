@@ -126,3 +126,15 @@ para desenvolvimento local, prefira npm run dev. O vite preview só serve a past
 
 git rm frontend/src/lib/medidas.js
 git add -A && git commit -m "remove medidas.js não utilizado"
+
+
+
+
+
+
+
+
+
+
+
+
