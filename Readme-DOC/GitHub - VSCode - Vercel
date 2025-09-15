@@ -71,7 +71,12 @@ supabase functions deploy admin-invite --no-verify-jwt
 supabase functions list
 
 
+Onde pegar o SUPABASE_SERVICE_ROLE_KEY
+No Supabase Dashboard: Project → Settings → API → seção Project API keys → copie a Service Role (secret).
+
 supabase secrets set \
+
+  ADMIN_API_TOKEN="$VITE_ADMIN_API_TOKEN"
   SUPABASE_URL=https://nwtfynwrmhggbeudwpus.supabase.co \
   SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53dGZ5bndybWhnZ2JldWR3cHVzIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTg3MDk2NywiZXhwIjoyMDcxNDQ2OTY3fQ.xnNTje8wg7mamIvwIeKOVAXXRc9_7OmoAUT_NlOOKN0
 
@@ -144,13 +149,11 @@ git rm frontend/src/lib/medidas.js
 git add -A && git commit -m "remove medidas.js não utilizado"
 
 
-mkdir -p supabase/functions/admin-set-access
-cat > supabase/functions/admin-set-access/supabase.toml <<'EOF'
+mkdir -p supabase/functions/admin-list-accounts
+cat > supabase/functions/admin-list-accounts/supabase.toml <<'EOF'
 [functions]
 verify_jwt = false
 EOF
-
-
 
 
 fec330a8fb2b580b15806268c2f7422aca75fab6df3043d144c507b84742a7e9
@@ -173,8 +176,100 @@ curl -i -X POST "$FN" \
 
 
 
-mkdir -p supabase/functions/admin-set-access
-cat > supabase/functions/admin-set-access/index.ts <<'EOF'
+ls -la supabase/functions/admin-list-accounts
+
+wc -l supabase/functions/admin-list-accounts/index.ts
+
+
+
+==============
+
+ls -la supabase/functions/admin-list-accounts
+wc -l supabase/functions/admin-list-accounts/index.ts
+
+
+=============
+
+supabase secrets set \
+  ADMIN_API_TOKEN="$VITE_ADMIN_API_TOKEN" \
+  SUPABASE_SERVICE_ROLE_KEY="fec330a8fb2b580b15806268c2f7422aca75fab6df3043d144c507b84742a7e9" \
+  SUPABASE_URL="https://nwtfynwrmhggbeudwpus.supabase.co"
+
+===========
+
+
+FN=https://nwtfynwrmhggbeudwpus.functions.supabase.co/admin-create-client
+ORIGIN=https://app.artemoldurados.com.br
+TOKEN='<<eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53dGZ5bndybWhnZ2JldWR3cHVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU4NzA5NjcsImV4cCI6MjA3MTQ0Njk2N30.rwkLakCJDDjOGgTs1oG8uCM-xzYjGbXmPl1tYY6HQNA>>'
+
+# (a) Preflight — deve voltar 200 com Access-Control-Allow-Origin:
+curl -i -X OPTIONS "$FN" \
+  -H "Origin: $ORIGIN" \
+  -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: authorization,apikey,x-client-info,x-admin-token,content-type"
+
+# (b) POST real — vai imprimir o JSON de erro se houver:
+curl -i -X POST "$FN" \
+  -H "Origin: $ORIGIN" \
+  -H "Content-Type: application/json" \
+  -H "x-admin-token: $TOKEN" \
+  --data '{"email":"teste@example.com","name":"Teste","password":""}'
+
+
+
+export FN='https://nwtfynwrmhggbeudwpus.functions.supabase.co/admin-create-client'
+export ORIGIN='https://app.artemoldurados.com.br'
+export TOKEN='<<eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53dGZ5bndybWhnZ2JldWR3cHVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU4NzA5NjcsImV4cCI6MjA3MTQ0Njk2N30.rwkLakCJDDjOGgTs1oG8uCM-xzYjGbXmPl1tYY6HQN>>'
+
+10af6db819e9f7acc3452def98a485356f514a47384999e81f775eb7e1c7e99c
+10af6db819e9f7acc3452def98a485356f514a47384999e81f775eb7e1c7e99c
+
+
+Novo codigo: 50297567409366cf9fa7470f7e2173cd3cdb1e1a939b006aef26437300d8f273
+
+Substitua o SEU_TOKEN_AQUI pelo mesmo valor do 
+ADMIN_API_TOKEN que você salvou nos Edge Function Secrets 
+(ou no Vercel como VITE_ADMIN_API_TOKEN).
+
+curl -i -X OPTIONS 'https://nwtfynwrmhggbeudwpus.functions.supabase.co/admin-create-client' \
+  -H 'Origin: https://app.artemoldurados.com.br' \
+  -H 'Access-Control-Request-Method: POST' \
+  -H 'Access-Control-Request-Headers: authorization,apikey,x-client-info,x-admin-token,content-type'
+
+curl -i -X POST 'https://nwtfynwrmhggbeudwpus.functions.supabase.co/admin-create-client' \
+  -H 'Origin: https://app.artemoldurados.com.br' \
+  -H 'Content-Type: application/json' \
+  -H 'x-admin-token: SEU_TOKEN_AQUI10af6db819e9f7acc3452def98a485356f514a47384999e81f775eb7e1c7e99c' \
+  --data '{"email":"teste@example.com","name":"Teste","password":""}'
+
+supabase secrets set \
+  ADMIN_API_TOKEN="50297567409366cf9fa7470f7e2173cd3cdb1e1a939b006aef26437300d8f273" \
+  --project-ref nwtfynwrmhggbeudwpus
+
+
+curl -i -X POST 'https://nwtfynwrmhggbeudwpus.functions.supabase.co/admin-create-client' \
+  -H 'Origin: https://app.artemoldurados.com.br' \
+  -H 'Content-Type: application/json' \
+  -H "x-admin-token: 50297567409366cf9fa7470f7e2173cd3cdb1e1a939b006aef26437300d8f273 \
+  --data '{"email":"teste@example.com","name":"Teste","password":""}'
+
+
+
+================
+
+
+ls -la supabase/functions/admin-list-accounts
+
+[ -d supabase/functions/admin-list-accounts/index.ts ] && rm -rf supabase/functions/admin-list-accounts/index.ts
+
+mkdir -p supabase/functions/admin-list-accounts
+
+cat > supabase/functions/admin-list-accounts/supabase.toml <<'EOF'
+[functions]
+verify_jwt = false
+EOF
+
+cat > supabase/functions/admin-list-accounts/index.ts <<'EOF'
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -194,53 +289,180 @@ serve(async (req) => {
 
   try {
     const ADMIN_API_TOKEN = Deno.env.get("ADMIN_API_TOKEN") ?? "";
-    const SERVICE_ROLE    = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const SUPABASE_URL    = Deno.env.get("SUPABASE_URL") ?? "";
+    const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
     if (!ADMIN_API_TOKEN || !SERVICE_ROLE || !SUPABASE_URL) {
-      return new Response(JSON.stringify({ error: "Missing secrets" }), {
-        status: 500, headers: { ...headers, "Content-Type": "application/json" }
-      });
+      return new Response(JSON.stringify({ error: "Missing secrets" }), { status: 500, headers: { ...headers, "Content-Type": "application/json" }});
     }
 
     const token = req.headers.get("x-admin-token") ?? "";
     if (token !== ADMIN_API_TOKEN) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401, headers: { ...headers, "Content-Type": "application/json" }
-      });
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...headers, "Content-Type": "application/json" }});
     }
 
-    const { email, ativo, role } = await req.json();
-    if (!email) {
-      return new Response(JSON.stringify({ error: "email é obrigatório" }), {
-        status: 400, headers: { ...headers, "Content-Type": "application/json" }
-      });
-    }
-
+    const { page = 1, perPage = 50, q = "", role, ativo } = await req.json().catch(() => ({}));
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // upsert em acessos_permitidos
-    const fields: Record<string, any> = { email };
-    if (typeof ativo === "boolean") fields.ativo = ativo;
-    if (role) fields.role = role;
-    const { error: upErr } = await sb.from("acessos_permitidos").upsert(fields, { onConflict: "email" });
-    if (upErr) throw upErr;
+    const { data: usersPage, error: listErr } = await sb.auth.admin.listUsers({ page, perPage });
+    if (listErr) throw listErr;
 
-    // refletir role em profiles.tipo (se acharmos o user por email)
-    const { data: page } = await sb.auth.admin.listUsers({ page: 1, perPage: 200 });
-    const user = page?.users?.find(u => u.email === email);
-    if (user && role) {
-      const { error: pErr } = await sb.from("profiles").upsert({ id: user.id, tipo: role }, { onConflict: "id" });
-      if (pErr) throw pErr;
+    let users = usersPage?.users ?? [];
+    if (q) {
+      const qq = String(q).toLowerCase();
+      users = users.filter(u =>
+        u.email?.toLowerCase().includes(qq) ||
+        String(u.user_metadata?.name ?? "").toLowerCase().includes(qq)
+      );
     }
 
-    return new Response(JSON.stringify({ ok: true }), {
+    const emails = users.map(u => u.email!).filter(Boolean);
+    const ids    = users.map(u => u.id);
+
+    const [acc, prof, cli] = await Promise.all([
+      sb.from("acessos_permitidos").select("email,role,ativo").in("email", emails),
+      sb.from("profiles").select("id,nome,tipo").in("id", ids),
+      sb.from("clientes").select("id,email,nome,segmento,empresa").in("email", emails),
+    ]);
+    if (acc.error)  throw acc.error;
+    if (prof.error) throw prof.error;
+    if (cli.error)  throw cli.error;
+
+    const accByEmail = new Map((acc.data ?? []).map(r => [r.email, r]));
+    const profById   = new Map((prof.data ?? []).map(r => [r.id, r]));
+    const cliByEmail = new Map((cli.data ?? []).map(r => [r.email, r]));
+
+    let rows = users.map(u => {
+      const a = accByEmail.get(u.email ?? "") || null;
+      const p = profById.get(u.id) || null;
+      const c = cliByEmail.get(u.email ?? "") || null;
+      return {
+        id: u.id,
+        email: u.email,
+        created_at: u.created_at,
+        last_sign_in_at: u.last_sign_in_at,
+        nome: p?.nome ?? u.user_metadata?.name ?? c?.nome ?? null,
+        role: a?.role ?? p?.tipo ?? null,
+        ativo: a?.ativo ?? null,
+        cliente: { empresa: c?.empresa ?? null, segmento: c?.segmento ?? null },
+      };
+    });
+
+    if (role) rows = rows.filter(r => (r.role || "").toLowerCase() === String(role).toLowerCase());
+    if (typeof ativo === "boolean") rows = rows.filter(r => r.ativo === ativo);
+
+    return new Response(JSON.stringify({ page, perPage, count: rows.length, rows }), {
       headers: { ...headers, "Content-Type": "application/json" },
     });
   } catch (e) {
-    console.error("admin-set-access:", e);
+    console.error("admin-list-accounts:", e);
     return new Response(JSON.stringify({ error: String(e?.message ?? e) }), {
       status: 500, headers: { ...headers, "Content-Type": "application/json" }
     });
   }
 });
 EOF
+
+
+
+
+
+[ -d supabase/functions/admin-list-accounts/index.ts ] && rm -rf supabase/functions/admin-list-accounts/index.ts
+
+mkdir -p supabase/functions/admin-list-accounts
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const ORIGINS = ["https://app.artemoldurados.com.br", "http://localhost:5173"];
+const cors = (o: string | null) => ({
+  "Access-Control-Allow-Origin": (o && ORIGINS.includes(o)) ? o : ORIGINS[0],
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, x-admin-token, content-type",
+  "Access-Control-Max-Age": "86400",
+  "Vary": "Origin",
+});
+
+serve(async (req) => {
+  const headers = cors(req.headers.get("origin"));
+  if (req.method === "OPTIONS") return new Response("ok", { headers });
+  if (req.method !== "POST") return new Response("Method not allowed", { status: 405, headers });
+
+  try {
+    const ADMIN_API_TOKEN = Deno.env.get("ADMIN_API_TOKEN") ?? "";
+    const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+    if (!ADMIN_API_TOKEN || !SERVICE_ROLE || !SUPABASE_URL) {
+      return new Response(JSON.stringify({ error: "Missing secrets" }), { status: 500, headers: { ...headers, "Content-Type": "application/json" }});
+    }
+
+    const token = req.headers.get("x-admin-token") ?? "";
+    if (token !== ADMIN_API_TOKEN) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...headers, "Content-Type": "application/json" }});
+    }
+
+    const { page = 1, perPage = 50, q = "", role, ativo } = await req.json().catch(() => ({}));
+    const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
+
+    const { data: usersPage, error: listErr } = await sb.auth.admin.listUsers({ page, perPage });
+    if (listErr) throw listErr;
+
+    let users = usersPage?.users ?? [];
+    if (q) {
+      const qq = String(q).toLowerCase();
+      users = users.filter(u =>
+        u.email?.toLowerCase().includes(qq) ||
+        String(u.user_metadata?.name ?? "").toLowerCase().includes(qq)
+      );
+    }
+
+    const emails = users.map(u => u.email!).filter(Boolean);
+    const ids    = users.map(u => u.id);
+
+    const [acc, prof, cli] = await Promise.all([
+      sb.from("acessos_permitidos").select("email,role,ativo").in("email", emails),
+      sb.from("profiles").select("id,nome,tipo").in("id", ids),
+      sb.from("clientes").select("id,email,nome,segmento,empresa").in("email", emails),
+    ]);
+    if (acc.error)  throw acc.error;
+    if (prof.error) throw prof.error;
+    if (cli.error)  throw cli.error;
+
+    const accByEmail = new Map((acc.data ?? []).map(r => [r.email, r]));
+    const profById   = new Map((prof.data ?? []).map(r => [r.id, r]));
+    const cliByEmail = new Map((cli.data ?? []).map(r => [r.email, r]));
+
+    let rows = users.map(u => {
+      const a = accByEmail.get(u.email ?? "") || null;
+      const p = profById.get(u.id) || null;
+      const c = cliByEmail.get(u.email ?? "") || null;
+      return {
+        id: u.id,
+        email: u.email,
+        created_at: u.created_at,
+        last_sign_in_at: u.last_sign_in_at,
+        nome: p?.nome ?? u.user_metadata?.name ?? c?.nome ?? null,
+        role: a?.role ?? p?.tipo ?? null,
+        ativo: a?.ativo ?? null,
+        cliente: { empresa: c?.empresa ?? null, segmento: c?.segmento ?? null },
+      };
+    });
+
+    if (role) rows = rows.filter(r => (r.role || "").toLowerCase() === String(role).toLowerCase());
+    if (typeof ativo === "boolean") rows = rows.filter(r => r.ativo === ativo);
+
+    return new Response(JSON.stringify({ page, perPage, count: rows.length, rows }), {
+      headers: { ...headers, "Content-Type": "application/json" },
+    });
+  } catch (e) {
+    console.error("admin-list-accounts:", e);
+    return new Response(JSON.stringify({ error: String(e?.message ?? e) }), {
+      status: 500, headers: { ...headers, "Content-Type": "application/json" }
+    });
+  }
+});
+
+[functions]
+verify_jwt = false
+
+supabase functions deploy admin-list-accounts \
+  --project-ref nwtfynwrmhggbeudwpus \
+  --no-verify-jwt
