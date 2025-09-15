@@ -74,6 +74,13 @@ mkdir -p supabase/functions/sarrafo
 
 mkdir -p supabase/functions/admin-invite
 
+# na raiz do repo
+supabase functions deploy admin-create-client --project-ref nwtfynwrmhggbeudwpus
+supabase functions deploy admin-reset-password --project-ref nwtfynwrmhggbeudwpus
+
+supabase link --project-ref nwtfynwrmhggbeudwpus
+
+
 
 Commit só função determinada:
 supabase functions deploy catalogo --project-ref nwtfynwrmhggbeudwpus
