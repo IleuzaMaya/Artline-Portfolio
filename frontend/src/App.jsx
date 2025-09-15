@@ -5,6 +5,7 @@ import Login from "./pages/Login.jsx";
 import Orcamento from "./pages/Orcamento.jsx";
 import Admin from "./pages/Admin.jsx";
 import ResetPassword from "./pages/ResetPassword.jsx";
+import AdminGestao from "./pages/AdminGestao";
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/reset" element={<ResetPassword />} />
+        <Route path="/admin/gestao" element={<AdminGestao />} />
         <Route
           path="/orcamento"
           element={

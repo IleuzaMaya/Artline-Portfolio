@@ -1,5 +1,7 @@
 // frontend/src/pages/Admin.jsx
 import { useState } from "react";
+import { supabase } from '../lib/supabase';
+
 
 const FN_BASE = (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL || "").replace(/\/$/, "");
 const ADMIN_TOKEN = import.meta.env.VITE_ADMIN_API_TOKEN || "";
@@ -63,19 +65,17 @@ function PasswordInput({ label, value, onChange }) {
   );
 }
 
+
 async function callFunction(fnName, payload) {
-  const res = await fetch(`${FN_BASE}/${fnName}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-admin-token": ADMIN_TOKEN,
-    },
-    body: JSON.stringify(payload),
+  const { data, error } = await supabase.functions.invoke(fnName, {
+    body: payload,
+    headers: { 'x-admin-token': import.meta.env.VITE_ADMIN_API_TOKEN },
   });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
-  return json;
+  if (error) throw new Error(error.message || JSON.stringify(error));
+  return data;
 }
+
+
 
 export default function Admin() {
   const [email, setEmail] = useState("");
