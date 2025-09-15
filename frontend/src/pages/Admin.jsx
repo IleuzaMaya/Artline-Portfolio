@@ -124,11 +124,14 @@ export default function Admin() {
 
   return (
     <div className="max-w-xl mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h1 className="text-2xl font-bold text-emerald-900">Administração</h1>
-        <a href="/orcamento" className="px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">
-          Ir para o Orçamento
-        </a>
+        <div className="flex gap-2">
+          <a href="/admin/gestao" className="px-3 py-2 rounded-lg border">Gestão de contas</a>
+          <a href="/orcamento" className="px-3 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700">
+            Ir para o Orçamento
+          </a>
+        </div>
       </div>
 
       <form onSubmit={createClient} className="space-y-4 border p-5 rounded-2xl">

@@ -1,35 +1,51 @@
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "../lib/supabase";
+//frontend/src/pages/AdminGestao.jsx
 
+import { useEffect, useMemo, useState } from "react";
+
+const FN_BASE = (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL || "").replace(/\/$/, "");
 const ADMIN_TOKEN = import.meta.env.VITE_ADMIN_API_TOKEN || "";
 
-function Badge({ children, className = "" }) {
-  return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs border ${className}`} />;
+async function adminCall(fn, payload) {
+  const res = await fetch(`${FN_BASE}/${fn}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-token": ADMIN_TOKEN,
+    },
+    body: JSON.stringify(payload ?? {}),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json?.error || `HTTP ${res.status}`);
+  return json;
+}
+
+function Badge({ children, color = "slate" }) {
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs bg-${color}-100 text-${color}-700`}>
+      {children}
+    </span>
+  );
 }
 
 export default function AdminGestao() {
   const [rows, setRows] = useState([]);
-  const [q, setQ] = useState("");
-  const [onlyActive, setOnlyActive] = useState(false);
-  const [onlyAdmins, setOnlyAdmins] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState("");
+  const [role, setRole] = useState("");
+  const [ativo, setAtivo] = useState("");
+  const [page, setPage] = useState(1);
+  const perPage = 50;
   const [toast, setToast] = useState(null);
 
   async function load() {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("admin-list-accounts", {
-        body: {
-          page: 1,
-          perPage: 50,
-          q: q || undefined,
-          role: onlyAdmins ? "admin" : undefined,
-          ativo: onlyActive ? true : undefined,
-        },
-        headers: { "x-admin-token": ADMIN_TOKEN },
-      });
-      if (error) throw new Error(error.message || JSON.stringify(error));
-      setRows(data?.rows || []);
+      const body = { page, perPage };
+      if (q) body.q = q;
+      if (role) body.role = role;
+      if (ativo !== "") body.ativo = ativo === "true";
+      const { rows } = await adminCall("admin-list-accounts", body);
+      setRows(rows || []);
     } catch (e) {
       setToast({ ok: false, msg: e.message });
     } finally {
@@ -37,131 +53,139 @@ export default function AdminGestao() {
     }
   }
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
-
-  const filtered = useMemo(() => rows, [rows]);
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [page]);
+  const filteredCount = useMemo(() => rows.length, [rows]);
 
   async function toggleAtivo(email, value) {
     try {
-      const { error } = await supabase.functions.invoke("admin-set-access", {
-        body: { email, ativo: value },
-        headers: { "x-admin-token": ADMIN_TOKEN },
-      });
-      if (error) throw new Error(error.message || JSON.stringify(error));
+      await adminCall("admin-set-access", { email, ativo: value });
       setRows((rs) => rs.map(r => r.email === email ? { ...r, ativo: value } : r));
+      setToast({ ok: true, msg: value ? "Ativado" : "Desativado" });
     } catch (e) {
       setToast({ ok: false, msg: e.message });
     }
   }
 
-  async function changeRole(email, role) {
+  async function changeRole(email, newRole) {
     try {
-      const { error } = await supabase.functions.invoke("admin-set-access", {
-        body: { email, role },
-        headers: { "x-admin-token": ADMIN_TOKEN },
+      await adminCall("admin-set-access", { email, role: newRole });
+      setRows((rs) => rs.map(r => r.email === email ? { ...r, role: newRole } : r));
+      setToast({ ok: true, msg: `Role: ${newRole}` });
+    } catch (e) {
+      setToast({ ok: false, msg: e.message });
+    }
+  }
+
+  async function sendReset(email) {
+    try {
+      await adminCall("admin-reset-password", {
+        email,
+        redirectTo: `${window.location.origin}/reset`,
       });
-      if (error) throw new Error(error.message || JSON.stringify(error));
-      setRows((rs) => rs.map(r => r.email === email ? { ...r, role } : r));
+      setToast({ ok: true, msg: "Link de redefinição enviado." });
     } catch (e) {
       setToast({ ok: false, msg: e.message });
     }
   }
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-4">
+    <div className="max-w-5xl mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-emerald-900">Gestão de Contas</h1>
+        <h1 className="text-2xl font-bold text-emerald-900">Gestão de contas</h1>
         <div className="flex gap-2">
-          <a href="/admin" className="px-3 py-2 rounded-lg border">Voltar</a>
-          <a href="/orcamento" className="px-3 py-2 rounded-lg bg-emerald-600 text-white">Ir para Orçamento</a>
+          <a href="/admin" className="px-3 py-2 rounded-lg border">← Voltar</a>
+          <button onClick={load} className="px-3 py-2 rounded-lg bg-emerald-600 text-white disabled:opacity-60" disabled={loading}>
+            Recarregar
+          </button>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 items-center">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <input
-          className="border rounded-2xl px-3 py-2 w-64"
-          placeholder="Buscar por e-mail ou nome"
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          placeholder="Buscar por nome ou e-mail…"
+          className="border rounded-xl px-3 py-2 md:col-span-2"
         />
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={onlyActive} onChange={(e) => setOnlyActive(e.target.checked)} />
-          Mostrar apenas ativos
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input type="checkbox" checked={onlyAdmins} onChange={(e) => setOnlyAdmins(e.target.checked)} />
-          Mostrar apenas admins
-        </label>
-        <button onClick={load} className="px-3 py-2 rounded-2xl bg-emerald-600 text-white disabled:opacity-60" disabled={loading}>
-          {loading ? "Carregando..." : "Atualizar"}
+        <select value={role} onChange={(e) => setRole(e.target.value)} className="border rounded-xl px-3 py-2">
+          <option value="">Todos os perfis</option>
+          <option value="admin">Admin</option>
+          <option value="cliente">Cliente</option>
+        </select>
+        <select value={ativo} onChange={(e) => setAtivo(e.target.value)} className="border rounded-xl px-3 py-2">
+          <option value="">Ativos e inativos</option>
+          <option value="true">Apenas ativos</option>
+          <option value="false">Apenas inativos</option>
+        </select>
+        <button onClick={() => { setPage(1); load(); }} className="md:col-span-4 justify-self-start px-3 py-2 rounded-xl border">
+          Aplicar filtros
         </button>
       </div>
 
-      {toast && (
-        <div className={`p-3 rounded ${toast.ok ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700"}`}>
-          {toast.msg}
-        </div>
-      )}
-
-      <div className="overflow-auto border rounded-2xl">
+      <div className="rounded-2xl border overflow-x-auto">
         <table className="min-w-full text-sm">
-          <thead className="bg-slate-50">
+          <thead className="bg-slate-50 text-slate-600">
             <tr>
-              <th className="text-left p-3">Nome</th>
-              <th className="text-left p-3">E-mail</th>
-              <th className="text-left p-3">Role</th>
-              <th className="text-left p-3">Ativo</th>
-              <th className="text-left p-3">Último acesso</th>
-              <th className="text-left p-3">Empresa</th>
-              <th className="text-left p-3">Ações</th>
+              <th className="text-left px-3 py-2">Nome</th>
+              <th className="text-left px-3 py-2">E-mail</th>
+              <th className="text-left px-3 py-2">Criado</th>
+              <th className="text-left px-3 py-2">Role</th>
+              <th className="text-left px-3 py-2">Ativo</th>
+              <th className="text-left px-3 py-2">Ações</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r) => (
+            {rows.map((r) => (
               <tr key={r.id} className="border-t">
-                <td className="p-3">{r.nome || "—"}</td>
-                <td className="p-3">{r.email}</td>
-                <td className="p-3">
+                <td className="px-3 py-2">{r.nome || "-"}</td>
+                <td className="px-3 py-2">{r.email}</td>
+                <td className="px-3 py-2">{new Date(r.created_at).toLocaleDateString()}</td>
+                <td className="px-3 py-2">
                   <select
-                    className="border rounded px-2 py-1"
                     value={r.role || ""}
-                    onChange={(e) => changeRole(r.email, e.target.value || null)}
+                    onChange={(e) => changeRole(r.email, e.target.value)}
+                    className="border rounded-lg px-2 py-1"
                   >
-                    <option value="">(sem)</option>
-                    <option value="cliente">cliente</option>
+                    <option value="">—</option>
                     <option value="admin">admin</option>
+                    <option value="cliente">cliente</option>
                   </select>
                 </td>
-                <td className="p-3">
-                  <label className="inline-flex items-center gap-2">
-                    <input type="checkbox" checked={!!r.ativo} onChange={(e) => toggleAtivo(r.email, e.target.checked)} />
-                    {r.ativo ? <span className="text-emerald-700">ativo</span> : <span className="text-slate-500">inativo</span>}
+                <td className="px-3 py-2">
+                  <label className="inline-flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!r.ativo}
+                      onChange={(e) => toggleAtivo(r.email, e.target.checked)}
+                    />
+                    {r.ativo ? <Badge color="emerald">ativo</Badge> : <Badge color="red">inativo</Badge>}
                   </label>
                 </td>
-                <td className="p-3">{r.last_sign_in_at ? new Date(r.last_sign_in_at).toLocaleString() : "—"}</td>
-                <td className="p-3">{r.cliente?.empresa || "—"}</td>
-                <td className="p-3">
-                  <button
-                    className="px-2 py-1 rounded border mr-2"
-                    onClick={() => changeRole(r.email, "admin")}
-                  >
-                    Tornar admin
-                  </button>
-                  <button
-                    className="px-2 py-1 rounded border"
-                    onClick={() => changeRole(r.email, "cliente")}
-                  >
-                    Tornar cliente
+                <td className="px-3 py-2">
+                  <button onClick={() => sendReset(r.email)} className="text-emerald-700 underline">
+                    Resetar senha
                   </button>
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && !loading && (
-              <tr><td className="p-4 text-slate-500" colSpan="7">Sem resultados</td></tr>
+            {rows.length === 0 && !loading && (
+              <tr><td className="px-3 py-6 text-center text-slate-500" colSpan={6}>Sem resultados</td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      <div className="flex items-center gap-2">
+        <button disabled={page === 1} onClick={() => setPage((p) => Math.max(1, p - 1))} className="border rounded-lg px-3 py-1 disabled:opacity-50">Anterior</button>
+        <span className="text-sm text-slate-600">Página {page} • {filteredCount} itens</span>
+        <button onClick={() => setPage((p) => p + 1)} className="border rounded-lg px-3 py-1">Próxima</button>
+      </div>
+
+      {toast && (
+        <div className={`fixed bottom-5 right-5 px-4 py-2 rounded-xl shadow ${toast.ok ? "bg-emerald-600 text-white" : "bg-red-600 text-white"}`}>
+          {toast.msg}
+        </div>
+      )}
     </div>
   );
 }
