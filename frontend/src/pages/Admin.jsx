@@ -1,39 +1,62 @@
 // frontend/src/pages/Admin.jsx
+
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
 
-// ---------- Input reutilizável com floating label + olho ----------
-function FloatInput({
-  id, label, type = "text", value, onChange,
-  autoComplete, required
+// ====== UI helpers ======
+function Eye({ off }) {
+  return off ? (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4.5-7 11-7 11 7 11 7-4.5 7-11 7-11-7-11-7z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4.5-7 11-7 11 7 11 7-4.5 7-11 7-11-7-11-7z"/>
+      <circle cx="12" cy="12" r="3"/>
+      <line x1="3" y1="3" x2="21" y2="21"/>
+    </svg>
+  );
+}
+
+// Floating input + label (com suporte a password toggle)
+function FloatingInput({
+  id,
+  label,
+  type = "text",
+  value,
+  onChange,
+  autoComplete,
+  placeholder = " ",
+  required = false,
+  password = false,
 }) {
   const [show, setShow] = useState(false);
-  const isPassword = type === "password";
-  const actualType = isPassword && show ? "text" : type;
+  const isPassword = password || type === "password";
+  const inputType = isPassword ? (show ? "text" : "password") : type;
 
   return (
     <div className="relative">
       <input
         id={id}
-        type={actualType}
+        type={inputType}
         value={value}
         onChange={onChange}
         required={required}
         autoComplete={autoComplete}
-        placeholder=" " /* chave do floating */
-        className="
-          peer w-full rounded-xl border border-slate-300 px-4 py-3 outline-none
-          focus:ring-2 focus:ring-emerald-500
-        "
+        placeholder={placeholder} // precisa de placeholder para o peer-placeholder-shown funcionar
+        className="peer w-full rounded-xl border border-slate-300 px-4 py-3 pr-12 outline-none
+                   focus:ring-2 focus:ring-emerald-500 placeholder-transparent"
       />
       <label
         htmlFor={id}
-        className="
-          pointer-events-none absolute left-4 -top-2.5 px-1 bg-white
-          text-slate-500 text-sm transition-all
-          peer-placeholder-shown:top-3 peer-placeholder-shown:text-base peer-placeholder-shown:text-slate-400
-          peer-focus:-top-2.5 peer-focus:text-sm peer-focus:text-emerald-700
-        "
+        className="absolute left-4 top-3 text-slate-500 transition-all pointer-events-none
+                   peer-placeholder-shown:top-3 peer-placeholder-shown:text-base
+                   peer-focus:top-[-8px] peer-focus:text-xs
+                   peer-not-placeholder-shown:top-[-8px] peer-not-placeholder-shown:text-xs
+                   bg-white px-1"
       >
         {label}
       </label>
@@ -41,89 +64,112 @@ function FloatInput({
       {isPassword && (
         <button
           type="button"
-          onClick={() => setShow(s => !s)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-500"
+          onClick={() => setShow((s) => !s)}
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-md
+                     border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
           aria-label={show ? "Ocultar senha" : "Mostrar senha"}
-          title={show ? "Ocultar senha" : "Mostrar senha"}
         >
-          {/* Eye / Eye-off */}
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
-            {show ? (
-              <>
-                <path d="M1 12s4.5-7 11-7 11 7 11 7-4.5 7-11 7-11-7-11-7z" />
-                <circle cx="12" cy="12" r="3" />
-              </>
-            ) : (
-              <>
-                <path d="M1 12s4.5-7 11-7 11 7 11 7-4.5 7-11 7-11-7-11-7z" />
-                <circle cx="12" cy="12" r="3" />
-                <line x1="3" y1="3" x2="21" y2="21" />
-              </>
-            )}
-          </svg>
+          <Eye off={!show} />
         </button>
       )}
     </div>
   );
 }
 
+// ====== Página ======
 export default function Admin() {
   const [email, setEmail] = useState("");
   const [nome, setNome] = useState("");
   const [senha, setSenha] = useState("");
   const [toast, setToast] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [loadingCreate, setLoadingCreate] = useState(false);
+  const [loadingReset, setLoadingReset] = useState(false);
 
   const ADMIN_HEADERS = {
-    "x-admin-token": import.meta.env.VITE_ADMIN_API_TOKEN || ""
+    "x-admin-token": import.meta.env.VITE_ADMIN_API_TOKEN || "",
   };
 
-  // criar / convidar cliente (senha opcional)
-  const createClient = async (e) => {
+  function msg(err, fallback) {
+    if (!err) return fallback;
+    // supabase.functions.invoke retorna error genérico; às vezes o body vem em error.context
+    try {
+      const maybe = typeof err === "string" ? err : (err?.message || "");
+      return maybe || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  async function createClient(e) {
     e.preventDefault();
     setToast(null);
-    setLoading(true);
+    if (!email) return setToast({ ok: false, msg: "Informe o e-mail." });
 
-    const { data, error } = await supabase.functions.invoke("admin-create-client", {
-      headers: ADMIN_HEADERS,
-      body: {
-        email,
-        password: senha || undefined,       // vazio => a função envia convite
-        name: nome,
-        role: "cliente",
-        redirectTo: window.location.origin + "/reset"
+    setLoadingCreate(true);
+    try {
+      // Se senha vazia -> invite; senão -> create
+      const fn = senha.trim()
+        ? "admin-create-client"
+        : "admin-invite";
+
+      const payload = senha.trim()
+        ? { email, password: senha, name: nome, role: "cliente" }
+        : { email, nome, perfil: "cliente" }; // seu admin-invite aceita {nome,email,perfil}
+
+      const { data, error } = await supabase.functions.invoke(fn, {
+        headers: ADMIN_HEADERS,
+        body: payload,
+      });
+
+      if (error) {
+        // tenta mostrar a mensagem real do edge
+        return setToast({
+          ok: false,
+          msg: msg(error, "Falha ao criar/invitar o cliente."),
+        });
       }
-    });
 
-    setLoading(false);
-
-    if (error || data?.error) {
-      setToast({ ok: false, msg: (data?.error || error?.message || "Falha ao criar/convidar") });
-    } else {
-      setToast({ ok: true, msg: "Convite enviado / usuário criado." });
-      setEmail(""); setNome(""); setSenha("");
+      // sucesso
+      let extra = "";
+      if (fn === "admin-invite" && data?.senhaGerada) {
+        extra = ` Senha gerada: ${data.senhaGerada}`;
+      }
+      setToast({ ok: true, msg: `Cliente criado/invitedo com sucesso.${extra}` });
+      setEmail("");
+      setNome("");
+      setSenha("");
+    } finally {
+      setLoadingCreate(false);
     }
-  };
+  }
 
-  // envio de "esqueci a senha"
-  const resetPassword = async (e) => {
+  async function resetPassword(e) {
     e.preventDefault();
     setToast(null);
-    setLoading(true);
+    if (!email) return setToast({ ok: false, msg: "Informe o e-mail." });
 
-    const { data, error } = await supabase.functions.invoke("admin-reset-password", {
-      headers: ADMIN_HEADERS,
-      body: { email, redirectTo: window.location.origin + "/reset" }
-    });
+    setLoadingReset(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("admin-reset-password", {
+        headers: ADMIN_HEADERS,
+        body: { email, redirectTo: window.location.origin + "/reset" },
+      });
 
-    setLoading(false);
+      if (error) {
+        return setToast({
+          ok: false,
+          msg: msg(error, "Não foi possível enviar o e-mail de recuperação."),
+        });
+      }
 
-    if (error || data?.error) {
-      setToast({ ok: false, msg: (data?.error || error?.message || "Falha ao enviar e-mail") });
-    } else {
-      setToast({ ok: true, msg: "E-mail de redefinição enviado." });
+      setToast({
+        ok: true,
+        msg: "Se o e-mail existir, enviamos o link de redefinição.",
+      });
+    } finally {
+      setLoadingReset(false);
     }
-  };
+  }
 
   return (
     <div className="max-w-xl mx-auto p-6 space-y-6">
@@ -137,43 +183,62 @@ export default function Admin() {
         </a>
       </div>
 
-      <form onSubmit={createClient} className="space-y-3 border p-4 rounded-xl">
+      <form onSubmit={createClient} className="space-y-4 border p-4 rounded-xl">
         <h2 className="font-semibold">Criar/Convidar cliente</h2>
 
-        <FloatInput
-          id="email" label="E-mail" autoComplete="email"
-          value={email} onChange={(e) => setEmail(e.target.value)}
+        <FloatingInput
+          id="email"
+          label="E-mail"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="email"
+          required
         />
-        <FloatInput
-          id="nome" label="Nome"
-          value={nome} onChange={(e) => setNome(e.target.value)}
+
+        <FloatingInput
+          id="nome"
+          label="Nome"
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          autoComplete="name"
         />
-        <FloatInput
-          id="senha" label="Senha (opcional)"
-          type="password" autoComplete="new-password"
-          value={senha} onChange={(e) => setSenha(e.target.value)}
+
+        <FloatingInput
+          id="senha"
+          label="Senha (opcional)"
+          password
+          value={senha}
+          onChange={(e) => setSenha(e.target.value)}
+          autoComplete="new-password"
+          placeholder=" "
         />
 
         <div className="flex gap-2">
           <button
-            className="bg-emerald-600 text-white px-3 py-2 rounded disabled:opacity-60"
-            disabled={loading || !email}
+            className="bg-emerald-600 text-white px-4 py-2 rounded-xl disabled:opacity-60"
+            disabled={loadingCreate}
           >
-            {loading ? "Enviando..." : "Criar/Convidar"}
+            {loadingCreate ? "Processando..." : "Criar/Convidar"}
           </button>
 
           <button
-            onClick={resetPassword} type="button"
-            className="border px-3 py-2 rounded disabled:opacity-60"
-            disabled={loading || !email}
+            onClick={resetPassword}
+            type="button"
+            className="border px-4 py-2 rounded-xl disabled:opacity-60"
+            disabled={loadingReset}
           >
-            Enviar “Esqueci a senha”
+            {loadingReset ? "Enviando..." : 'Enviar “Esqueci a senha”'}
           </button>
         </div>
       </form>
 
       {toast && (
-        <div className={`p-3 rounded ${toast.ok ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-700"}`}>
+        <div
+          className={`p-3 rounded ${toast.ok
+            ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+            : "bg-red-50 text-red-700 border border-red-200"}`}
+        >
           {toast.msg}
         </div>
       )}
