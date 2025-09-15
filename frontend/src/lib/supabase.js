@@ -1,11 +1,19 @@
 // frontend/src/lib/supabase.js
 import { createClient } from '@supabase/supabase-js';
 
-const url   = import.meta.env.VITE_SUPABASE_URL;
-const key   = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const fnUrl = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL;
-
-export const supabase = createClient(url, key, {
-  auth: { persistSession: true, autoRefreshToken: true },
-  functions: { url: fnUrl }, // <- importante!
-});
+export const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,          // https://<proj>.supabase.co
+  import.meta.env.VITE_SUPABASE_ANON_KEY,
+  {
+    functions: {
+      // 👇 Obrigatório: use o host "functions.supabase.co"
+      url: import.meta.env.VITE_SUPABASE_FUNCTIONS_URL, // https://<proj>.functions.supabase.co
+    },
+    global: {
+      headers: {
+        // opcional: bom para logs/diagnóstico
+        'x-client-info': 'art-emoldurados-webapp',
+      },
+    },
+  }
+);
