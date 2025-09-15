@@ -28,11 +28,10 @@ export default function Login() {
       }
 
       // 2) Login Supabase
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password: senha,
+      const { data, error } = await supabase.functions.invoke('admin-create-client', {
+        body: { email, name, password: password || null },
+        headers: { 'x-admin-token': import.meta.env.VITE_ADMIN_API_TOKEN },
       });
-      console.log("[login] result:", { data, error });
 
       if (error) throw error;
       if (!data?.session?.access_token) throw new Error("Sem token de sessão.");
