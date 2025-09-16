@@ -2,6 +2,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth/AuthContext";
 import Login from "./pages/Login.jsx";
+import { ToastProvider } from "./ui/toast.jsx";
 import Orcamento from "./pages/Orcamento.jsx";
 import Admin from "./pages/Admin.jsx";
 import ResetPassword from "./pages/ResetPassword.jsx";
@@ -17,36 +18,38 @@ function ProtectedRoute({ children }) {
 export default function App() {
   return (
     <AuthProvider>
-      <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/reset" element={<ResetPassword />} />
-        <Route
-          path="/admin/gestao"
-          element={
-            <ProtectedRoute>
-              <AdminGestao />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/orcamento"
-          element={
-            <ProtectedRoute>
-              <Orcamento />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin"
-          element={
-            <ProtectedRoute>
-              <Admin />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+      <ToastProvider>
+        <Routes>
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/reset" element={<ResetPassword />} />
+          <Route
+            path="/admin/gestao"
+            element={
+              <ProtectedRoute>
+                <AdminGestao />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/orcamento"
+            element={
+              <ProtectedRoute>
+                <Orcamento />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute>
+                <Admin />
+              </ProtectedRoute>
+            }
+          />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </ToastProvider>
     </AuthProvider>
   );
 }

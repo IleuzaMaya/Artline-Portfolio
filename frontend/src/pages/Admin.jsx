@@ -3,14 +3,15 @@ import { useMemo, useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import { Link } from "react-router-dom";
 import { adminApi } from "../lib/adminApi";
+import { useToast } from "../ui/toast.jsx";
 
 function isValidEmail(v) {
-  const s = String(v || "").trim();
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(s);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(String(v||"").trim());
 }
 
 export default function Admin() {
   const navigate = useNavigate();
+  const { show } = useToast();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
@@ -22,16 +23,15 @@ export default function Admin() {
     navigate('/admin/gestao'); // evita “voltar para /”
   }
 
-  const canCreate = useMemo(() => {
-    return isValidEmail(email) && String(name).trim().length > 1;
-  }, [email, name]);
+ const canCreate = useMemo(
+    () => isValidEmail(email) && String(name).trim().length > 1,
+    [email, name]
+  );
 
 
   async function handleCreate() {
     setMsg(""); setBusy(true);
     try {
-      await adminApi.createClient({ email, name, password });
-      setMsg("Convite enviado / usuário criado.");
       const e = email.trim();
       const n = name.trim();
       const p = String(password || "");
@@ -41,7 +41,8 @@ export default function Admin() {
 
       const res = await adminApi.createClient({ email: e, name: n, password: p });
       if (res.action_link) {
-        setMsg(`Convite enviado. Link: ${res.action_link}`);
+        show("Convite enviado", { href: res.action_link, copy: res.action_link, duration: 6000 });
+        setMsg(""); // usamos só o toast quando há link
       } else {
         setMsg("Convite enviado / usuário criado.");
       }
