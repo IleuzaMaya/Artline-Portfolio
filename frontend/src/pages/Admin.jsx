@@ -1,12 +1,10 @@
 // frontend/src/pages/Admin.jsx
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { adminApi } from "../lib/adminApi";
 import { useToast } from "../ui/toast.jsx";
 
-function isValidEmail(v) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(String(v || "").trim());
-}
+const emailOk = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(String(v || "").trim());
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -19,38 +17,29 @@ export default function Admin() {
   const [busy, setBusy] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
 
-  const emailOk = useMemo(() => isValidEmail(email), [email]);
   const canCreate = useMemo(
-    () => emailOk && name.trim().length >= 2 && !busy,
-    [emailOk, name, busy]
+    () => emailOk(email) && name.trim().length >= 2 && !busy,
+    [email, name, busy]
   );
-  const canReset = useMemo(() => emailOk && !busy, [emailOk, busy]);
+  const canReset = useMemo(() => emailOk(email) && !busy, [email, busy]);
 
   async function handleCreate() {
     if (!canCreate) return;
-    setMsg("");
-    setBusy(true);
+    setMsg(""); setBusy(true);
     try {
-      const e = email.trim();
+      const e = email.trim().toLowerCase();
       const n = name.trim();
       const p = String(password || "");
-      if (!isValidEmail(e)) throw new Error("E-mail inválido");
-      if (n.length < 2) throw new Error("Informe o nome");
       if (p && p.length < 8) throw new Error("Senha precisa ter 8+ caracteres");
 
       const res = await adminApi.createClient({ email: e, name: n, password: p });
-
       if (res.action_link) {
-        // mostra toast com link (e copia)
-        show("Convite enviado", { href: res.action_link, copy: res.action_link, duration: 6000 });
-        setMsg(""); // quando tem link usamos só o toast
+        // mostra o link pra você copiar/abrir
+        show("Convite gerado", { href: res.action_link, copy: res.action_link, duration: 10000 });
       } else {
         setMsg("Convite enviado / usuário criado.");
       }
-
-      setEmail("");
-      setName("");
-      setPassword("");
+      setEmail(""); setName(""); setPassword("");
     } catch (e) {
       setMsg(String(e.message ?? e));
     } finally {
@@ -60,13 +49,10 @@ export default function Admin() {
 
   async function handleSendReset() {
     if (!canReset) return;
-    setMsg("");
-    setBusy(true);
+    setMsg(""); setBusy(true);
     try {
-      await adminApi.resetPassword({
-        email: email.trim(),
-        redirectTo: "https://app.artemoldurados.com.br/reset",
-      });
+      const e = email.trim().toLowerCase();
+      await adminApi.resetPassword({ email: e, redirectTo: "https://app.artemoldurados.com.br/reset" });
       setMsg("E-mail de redefinição enviado.");
     } catch (e) {
       setMsg(String(e.message ?? e));
@@ -79,19 +65,12 @@ export default function Admin() {
     <div className="mx-auto max-w-3xl px-4 py-10">
       <div className="flex items-center gap-3 mb-8">
         <h1 className="text-3xl font-bold text-emerald-900">Administração</h1>
-        <button
-          type="button"
-          className="ml-auto rounded-xl border px-4 py-2"
-          onClick={() => navigate("/admin/gestao")}
-        >
+        <Link to="/admin/gestao" className="ml-auto rounded-xl border px-4 py-2">
           Gestão de contas
-        </button>
-        <a
-          href="/orcamento"
-          className="rounded-xl bg-emerald-700 text-white px-4 py-2"
-        >
+        </Link>
+        <Link to="/orcamento" className="rounded-xl bg-emerald-700 text-white px-4 py-2">
           Ir para o Orçamento
-        </a>
+        </Link>
       </div>
 
       <div className="rounded-2xl border p-6">
@@ -148,13 +127,7 @@ export default function Admin() {
           </div>
 
           {msg && (
-            <div
-              className={`mt-4 rounded-lg px-4 py-3 ${
-                msg.startsWith("Convite") || msg.startsWith("E-mail")
-                  ? "bg-emerald-50 text-emerald-800"
-                  : "bg-red-50 text-red-800"
-              }`}
-            >
+            <div className={`mt-4 rounded-lg px-4 py-3 ${msg.startsWith("Convite") || msg.startsWith("E-mail") ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>
               {msg}
             </div>
           )}
