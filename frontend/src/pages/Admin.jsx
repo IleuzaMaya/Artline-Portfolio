@@ -1,7 +1,6 @@
 // frontend/src/pages/Admin.jsx
 import { useMemo, useState } from "react";
 import { useNavigate } from 'react-router-dom';
-import { Link } from "react-router-dom";
 import { adminApi } from "../lib/adminApi";
 import { useToast } from "../ui/toast.jsx";
 
@@ -19,17 +18,17 @@ export default function Admin() {
   const [busy, setBusy] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
   
-  function goGestao() {
-    navigate('/admin/gestao'); // evita “voltar para /”
-  }
-
- const canCreate = useMemo(
-    () => isValidEmail(email) && String(name).trim().length > 1,
-    [email, name]
+  const canCreate = useMemo(
+    () => isValidEmail(email) && name.trim().length >= 2 && !busy,
+    [email, name, busy]
+  );
+  const canReset = useMemo(
+    () => isValidEmail(email) && !busy,
+    [email, busy]
   );
 
-
   async function handleCreate() {
+    if (!canCreate) return;
     setMsg(""); setBusy(true);
     try {
       const e = email.trim();
@@ -53,6 +52,7 @@ export default function Admin() {
   }
 
   async function handleSendReset() {
+    if (!canReset) return;
     setMsg(""); setBusy(true);
     try {
       const e = email.trim();
@@ -71,9 +71,13 @@ export default function Admin() {
     <div className="mx-auto max-w-3xl px-4 py-10">
       <div className="flex items-center gap-3 mb-8">
         <h1 className="text-3xl font-bold text-emerald-900">Administração</h1>
-        <Link to="/admin/gestao" className="ml-auto rounded-xl border px-4 py-2">
+        <button
+          type="button"
+          className="ml-auto rounded-xl border px-4 py-2"
+          onClick={() => navigate('/admin/gestao')}
+        >
           Gestão de contas
-        </Link>
+        </button>
         <a href="/orcamento" className="rounded-xl bg-emerald-700 text-white px-4 py-2">
           Ir para o Orçamento
         </a>
@@ -116,7 +120,7 @@ export default function Admin() {
 
           <div className="flex gap-3">
             <button
-              disabled={busy || !canCreate}
+              disabled={!canCreate}
               onClick={handleCreate}
               className="rounded-xl bg-emerald-700 text-white px-5 py-3 disabled:opacity-50"
             >
@@ -124,8 +128,9 @@ export default function Admin() {
             </button>
 
             <button
-              disabled={busy || !isValidEmail(email)}
+              disabled={!canReset}
               onClick={handleSendReset}
+              type="button"
               className="rounded-xl border px-5 py-3 disabled:opacity-50"
             >
               Enviar “Esqueci a senha”
