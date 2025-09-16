@@ -1,35 +1,35 @@
 // frontend/src/pages/Admin.jsx
 import { useMemo, useState } from "react";
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from "react-router-dom";
 import { adminApi } from "../lib/adminApi";
 import { useToast } from "../ui/toast.jsx";
 
 function isValidEmail(v) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(String(v||"").trim());
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(String(v || "").trim());
 }
 
 export default function Admin() {
   const navigate = useNavigate();
   const { show } = useToast();
+
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
-  
+
+  const emailOk = useMemo(() => isValidEmail(email), [email]);
   const canCreate = useMemo(
-    () => isValidEmail(email) && name.trim().length >= 2 && !busy,
-    [email, name, busy]
+    () => emailOk && name.trim().length >= 2 && !busy,
+    [emailOk, name, busy]
   );
-  const canReset = useMemo(
-    () => isValidEmail(email) && !busy,
-    [email, busy]
-  );
+  const canReset = useMemo(() => emailOk && !busy, [emailOk, busy]);
 
   async function handleCreate() {
     if (!canCreate) return;
-    setMsg(""); setBusy(true);
+    setMsg("");
+    setBusy(true);
     try {
       const e = email.trim();
       const n = name.trim();
@@ -39,32 +39,40 @@ export default function Admin() {
       if (p && p.length < 8) throw new Error("Senha precisa ter 8+ caracteres");
 
       const res = await adminApi.createClient({ email: e, name: n, password: p });
+
       if (res.action_link) {
+        // mostra toast com link (e copia)
         show("Convite enviado", { href: res.action_link, copy: res.action_link, duration: 6000 });
-        setMsg(""); // usamos só o toast quando há link
+        setMsg(""); // quando tem link usamos só o toast
       } else {
         setMsg("Convite enviado / usuário criado.");
       }
-      setEmail(""); setName(""); setPassword("");
+
+      setEmail("");
+      setName("");
+      setPassword("");
     } catch (e) {
       setMsg(String(e.message ?? e));
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function handleSendReset() {
     if (!canReset) return;
-    setMsg(""); setBusy(true);
+    setMsg("");
+    setBusy(true);
     try {
-      const e = email.trim();
-      if (!isValidEmail(e)) throw new Error("E-mail inválido");
       await adminApi.resetPassword({
-        email: e,
-        redirectTo: "https://app.artemoldurados.com.br/reset"
+        email: email.trim(),
+        redirectTo: "https://app.artemoldurados.com.br/reset",
       });
       setMsg("E-mail de redefinição enviado.");
     } catch (e) {
       setMsg(String(e.message ?? e));
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -74,11 +82,14 @@ export default function Admin() {
         <button
           type="button"
           className="ml-auto rounded-xl border px-4 py-2"
-          onClick={() => navigate('/admin/gestao')}
+          onClick={() => navigate("/admin/gestao")}
         >
           Gestão de contas
         </button>
-        <a href="/orcamento" className="rounded-xl bg-emerald-700 text-white px-4 py-2">
+        <a
+          href="/orcamento"
+          className="rounded-xl bg-emerald-700 text-white px-4 py-2"
+        >
           Ir para o Orçamento
         </a>
       </div>
@@ -130,7 +141,6 @@ export default function Admin() {
             <button
               disabled={!canReset}
               onClick={handleSendReset}
-              type="button"
               className="rounded-xl border px-5 py-3 disabled:opacity-50"
             >
               Enviar “Esqueci a senha”
@@ -138,7 +148,13 @@ export default function Admin() {
           </div>
 
           {msg && (
-            <div className={`mt-4 rounded-lg px-4 py-3 ${msg.startsWith("Convite") || msg.startsWith("E-mail") ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>
+            <div
+              className={`mt-4 rounded-lg px-4 py-3 ${
+                msg.startsWith("Convite") || msg.startsWith("E-mail")
+                  ? "bg-emerald-50 text-emerald-800"
+                  : "bg-red-50 text-red-800"
+              }`}
+            >
               {msg}
             </div>
           )}
