@@ -78,13 +78,23 @@ serve(async (req) => {
         if (error) throw error;
         userId = data.user?.id ?? null;
       } else {
-        const { data, error } = await sbAdmin.auth.admin.inviteUserByEmail(normEmail, {
-          data: { name, tipo: role },
-          redirectTo: redirectTo || RESET_REDIRECT_TO,
-        });
-        if (error) throw error;
-        userId = data.user?.id ?? null;
-      }
+      // 1) dispara o e-mail padrão do Supabase
+      const { data: inv, error: invErr } = await sbAdmin.auth.admin.inviteUserByEmail(email, {
+        data: { name, tipo: role }, redirectTo: redirectTo || RESET_REDIRECT_TO,
+      });
+      if (invErr) throw invErr;
+      userId = inv.user?.id ?? null;
+
+      // 2) gera o mesmo link para você copiar/colar
+      var action_link: string | null = null;
+      const { data: linkData, error: linkErr } = await sbAdmin.auth.admin.generateLink({
+        type: "invite",
+        email,
+        options: { data: { name, tipo: role }, redirectTo: redirectTo || RESET_REDIRECT_TO }
+      });
+      if (!linkErr) action_link = linkData?.action_link ?? null;
+    }
+
     } catch (e) {
       const msg = String((e as any)?.message ?? e ?? "").toLowerCase();
       if (msg.includes("already been registered")) {
@@ -127,7 +137,7 @@ serve(async (req) => {
       if (error) throw error;
     }
 
-    return new Response(JSON.stringify({ ok: true, userId }), {
+    return new Response(JSON.stringify({ ok: true, userId, action_link }), {
       headers: { ...headers, "Content-Type": "application/json" },
     });
   } catch (err) {

@@ -1,120 +1,207 @@
 //frontend/src/pages/AdminGestao.jsx
 import { useEffect, useMemo, useState } from "react";
 import { adminApi } from "../lib/adminApi";
+import { Link } from "react-router-dom";
 
 export default function AdminGestao() {
   const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [q, setQ] = useState("");
   const [role, setRole] = useState("");
   const [ativo, setAtivo] = useState("");
-  const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [page, setPage] = useState(1);
+
+  const perPage = 50;
 
   async function load() {
-    setBusy(true); setMsg("");
+    setLoading(true);
+    setMsg("");
     try {
-      const params = { q };
-      if (role) params.role = role;
-      if (ativo !== "") params.ativo = ativo === "true";
-      const data = await adminApi.listAccounts(params);
+      const payload = {
+        page,
+        perPage,
+        q: q || undefined,
+        role: role || undefined,
+        ativo: ativo === "" ? undefined : ativo === "true",
+      };
+      const data = await adminApi.listAccounts(payload);
       setRows(data.rows || []);
     } catch (e) {
       setMsg(String(e.message ?? e));
-    } finally { setBusy(false); }
+    } finally {
+      setLoading(false);
+    }
   }
 
-  useEffect(() => { load(); }, []); // primeira carga
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [page]);
 
-  async function toggleAtivo(email, current) {
-    setBusy(true); setMsg("");
+  const filteredInfo = useMemo(() => {
+    let f = rows;
+    if (role) f = f.filter(r => String(r.role || "") === role);
+    if (ativo !== "") f = f.filter(r => String(r.ativo) === ativo);
+    if (q) {
+      const qq = q.toLowerCase();
+      f = f.filter(r =>
+        String(r.email || "").toLowerCase().includes(qq) ||
+        String(r.nome || "").toLowerCase().includes(qq)
+      );
+    }
+    return f;
+  }, [rows, q, role, ativo]);
+
+  async function toggleAtivo(email, valor) {
+    setMsg("");
     try {
-      await adminApi.setAccess({ email, ativo: !current, role: (rows.find(r => r.email===email)?.role) || "cliente" });
+      await adminApi.setAccess({ email, ativo: valor });
       await load();
+      setMsg("Acesso atualizado.");
     } catch (e) {
       setMsg(String(e.message ?? e));
-      setBusy(false);
     }
   }
 
   async function changeRole(email, newRole) {
-    setBusy(true); setMsg("");
+    setMsg("");
     try {
       await adminApi.setAccess({ email, role: newRole });
       await load();
+      setMsg("Função atualizada.");
     } catch (e) {
       setMsg(String(e.message ?? e));
-      setBusy(false);
     }
   }
 
-  const filtered = useMemo(() => rows, [rows]); // filtros já aplicados no backend
+  async function sendReset(email) {
+    setMsg("");
+    try {
+      await adminApi.resetPassword({
+        email,
+        redirectTo: `${window.location.origin}/reset`,
+      });
+      setMsg("E-mail de redefinição enviado.");
+    } catch (e) {
+      setMsg(String(e.message ?? e));
+    }
+  }
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-10">
-      <div className="mb-6 flex items-center gap-3">
-        <h1 className="text-2xl font-bold">Gestão de contas</h1>
-        <div className="ml-auto flex gap-2">
-          <input className="rounded border px-3 py-2" placeholder="Buscar..." value={q} onChange={(e)=>setQ(e.target.value)} />
-          <select className="rounded border px-3 py-2" value={role} onChange={(e)=>setRole(e.target.value)}>
-            <option value="">Role: todas</option>
-            <option value="admin">admin</option>
-            <option value="cliente">cliente</option>
-          </select>
-          <select className="rounded border px-3 py-2" value={ativo} onChange={(e)=>setAtivo(e.target.value)}>
-            <option value="">Ativo: todos</option>
-            <option value="true">Ativo</option>
-            <option value="false">Inativo</option>
-          </select>
-          <button onClick={load} disabled={busy} className="rounded bg-emerald-700 text-white px-4 py-2 disabled:opacity-50">Atualizar</button>
-        </div>
+      <div className="flex items-center gap-3 mb-6">
+        <h1 className="text-3xl font-bold text-emerald-900">Gestão de contas</h1>
+        <Link to="/admin" className="ml-auto rounded-xl border px-4 py-2">Voltar</Link>
       </div>
 
-      {msg && <div className="mb-4 rounded bg-red-50 px-4 py-3 text-red-800">{msg}</div>}
+      <div className="mb-4 flex flex-wrap gap-3 items-center">
+        <input
+          className="rounded-xl border px-4 py-2"
+          placeholder="Buscar por e-mail ou nome"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+        <select
+          className="rounded-xl border px-3 py-2"
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+        >
+          <option value="">Todas as funções</option>
+          <option value="admin">admin</option>
+          <option value="cliente">cliente</option>
+        </select>
+        <select
+          className="rounded-xl border px-3 py-2"
+          value={ativo}
+          onChange={(e) => setAtivo(e.target.value)}
+        >
+          <option value="">Todos</option>
+          <option value="true">Ativos</option>
+          <option value="false">Inativos</option>
+        </select>
+        <button
+          onClick={() => { setPage(1); load(); }}
+          className="rounded-xl bg-emerald-700 text-white px-4 py-2 disabled:opacity-50"
+          disabled={loading}
+        >
+          Atualizar
+        </button>
+      </div>
 
-      <div className="overflow-x-auto rounded border">
+      {msg && (
+        <div className={`mb-4 rounded-lg px-4 py-3 ${msg.includes("atualizada") || msg.includes("enviado") ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>
+          {msg}
+        </div>
+      )}
+
+      <div className="overflow-auto rounded-2xl border">
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-3 py-2 text-left">Nome</th>
-              <th className="px-3 py-2 text-left">E-mail</th>
-              <th className="px-3 py-2">Role</th>
-              <th className="px-3 py-2">Ativo</th>
-              <th className="px-3 py-2">Criado</th>
+              <th className="text-left p-3">Email</th>
+              <th className="text-left p-3">Nome</th>
+              <th className="text-left p-3">Função</th>
+              <th className="text-left p-3">Ativo</th>
+              <th className="text-left p-3">Ações</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r) => (
+            {loading && (
+              <tr><td className="p-4" colSpan={5}>Carregando…</td></tr>
+            )}
+            {!loading && filteredInfo.length === 0 && (
+              <tr><td className="p-4" colSpan={5}>Sem resultados</td></tr>
+            )}
+            {!loading && filteredInfo.map((r) => (
               <tr key={r.id} className="border-t">
-                <td className="px-3 py-2">{r.nome || "—"}</td>
-                <td className="px-3 py-2">{r.email}</td>
-                <td className="px-3 py-2 text-center">
+                <td className="p-3">{r.email}</td>
+                <td className="p-3">{r.nome || "-"}</td>
+                <td className="p-3">
                   <select
-                    className="rounded border px-2 py-1"
-                    value={r.role || "cliente"}
+                    className="rounded-md border px-2 py-1"
+                    value={r.role || ""}
                     onChange={(e) => changeRole(r.email, e.target.value)}
-                    disabled={busy}
                   >
+                    <option value="">-</option>
                     <option value="admin">admin</option>
                     <option value="cliente">cliente</option>
                   </select>
                 </td>
-                <td className="px-3 py-2 text-center">
+                <td className="p-3">
                   <button
-                    onClick={() => toggleAtivo(r.email, !!r.ativo)}
-                    className={`rounded px-3 py-1 ${r.ativo ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-600"}`}
-                    disabled={busy}
+                    className={`rounded-md px-3 py-1 ${r.ativo ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-700"}`}
+                    onClick={() => toggleAtivo(r.email, !r.ativo)}
                   >
                     {r.ativo ? "Ativo" : "Inativo"}
                   </button>
                 </td>
-                <td className="px-3 py-2 text-center">{new Date(r.created_at).toLocaleDateString()}</td>
+                <td className="p-3">
+                  <button
+                    className="rounded-md border px-3 py-1"
+                    onClick={() => sendReset(r.email)}
+                  >
+                    Enviar reset
+                  </button>
+                </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
-              <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-500">Nenhum resultado</td></tr>
-            )}
           </tbody>
         </table>
+      </div>
+
+      <div className="mt-4 flex items-center gap-2">
+        <button
+          className="rounded-md border px-3 py-1 disabled:opacity-50"
+          onClick={() => setPage((p) => Math.max(1, p - 1))}
+          disabled={page === 1}
+        >
+          ◀ Página anterior
+        </button>
+        <span className="text-sm">Página {page}</span>
+        <button
+          className="rounded-md border px-3 py-1"
+          onClick={() => setPage((p) => p + 1)}
+        >
+          Próxima página ▶
+        </button>
       </div>
     </div>
   );

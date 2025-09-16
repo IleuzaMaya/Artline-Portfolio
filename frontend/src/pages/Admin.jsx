@@ -1,21 +1,50 @@
 // frontend/src/pages/Admin.jsx
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useNavigate } from 'react-router-dom';
 import { Link } from "react-router-dom";
 import { adminApi } from "../lib/adminApi";
 
+function isValidEmail(v) {
+  const s = String(v || "").trim();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(s);
+}
+
 export default function Admin() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
+  
+  function goGestao() {
+    navigate('/admin/gestao'); // evita “voltar para /”
+  }
+
+  const canCreate = useMemo(() => {
+    return isValidEmail(email) && String(name).trim().length > 1;
+  }, [email, name]);
+
 
   async function handleCreate() {
     setMsg(""); setBusy(true);
     try {
       await adminApi.createClient({ email, name, password });
       setMsg("Convite enviado / usuário criado.");
+      const e = email.trim();
+      const n = name.trim();
+      const p = String(password || "");
+      if (!isValidEmail(e)) throw new Error("E-mail inválido");
+      if (n.length < 2) throw new Error("Informe o nome");
+      if (p && p.length < 8) throw new Error("Senha precisa ter 8+ caracteres");
+
+      const res = await adminApi.createClient({ email: e, name: n, password: p });
+      if (res.action_link) {
+        setMsg(`Convite enviado. Link: ${res.action_link}`);
+      } else {
+        setMsg("Convite enviado / usuário criado.");
+      }
       setEmail(""); setName(""); setPassword("");
     } catch (e) {
       setMsg(String(e.message ?? e));
@@ -25,7 +54,12 @@ export default function Admin() {
   async function handleSendReset() {
     setMsg(""); setBusy(true);
     try {
-      await adminApi.resetPassword({ email, redirectTo: "https://app.artemoldurados.com.br/reset" });
+      const e = email.trim();
+      if (!isValidEmail(e)) throw new Error("E-mail inválido");
+      await adminApi.resetPassword({
+        email: e,
+        redirectTo: "https://app.artemoldurados.com.br/reset"
+      });
       setMsg("E-mail de redefinição enviado.");
     } catch (e) {
       setMsg(String(e.message ?? e));
@@ -51,6 +85,7 @@ export default function Admin() {
           <input
             className="w-full rounded-xl border px-4 py-3"
             placeholder="E-mail"
+            type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -80,7 +115,7 @@ export default function Admin() {
 
           <div className="flex gap-3">
             <button
-              disabled={busy}
+              disabled={busy || !canCreate}
               onClick={handleCreate}
               className="rounded-xl bg-emerald-700 text-white px-5 py-3 disabled:opacity-50"
             >
@@ -88,7 +123,7 @@ export default function Admin() {
             </button>
 
             <button
-              disabled={busy || !email}
+              disabled={busy || !isValidEmail(email)}
               onClick={handleSendReset}
               className="rounded-xl border px-5 py-3 disabled:opacity-50"
             >

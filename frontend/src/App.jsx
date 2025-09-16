@@ -21,7 +21,14 @@ export default function App() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
         <Route path="/reset" element={<ResetPassword />} />
-        <Route path="/admin/gestao" element={<AdminGestao />} />
+        <Route
+          path="/admin/gestao"
+          element={
+            <ProtectedRoute>
+              <AdminGestao />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/orcamento"
           element={
