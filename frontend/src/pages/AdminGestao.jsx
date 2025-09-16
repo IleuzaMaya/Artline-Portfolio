@@ -34,7 +34,8 @@ export default function AdminGestao() {
     }
   }
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [page]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [page]);
 
   const filteredInfo = useMemo(() => {
     let f = rows;
@@ -151,7 +152,7 @@ export default function AdminGestao() {
               <tr><td className="p-4" colSpan={5}>Sem resultados</td></tr>
             )}
             {!loading && filteredInfo.map((r) => (
-              <tr key={r.id} className="border-t">
+              <tr key={r.id || r.email} className="border-t">
                 <td className="p-3">{r.email}</td>
                 <td className="p-3">{r.nome || "-"}</td>
                 <td className="p-3">
@@ -169,6 +170,7 @@ export default function AdminGestao() {
                   <button
                     className={`rounded-md px-3 py-1 ${r.ativo ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-700"}`}
                     onClick={() => toggleAtivo(r.email, !r.ativo)}
+                    disabled={loading}
                   >
                     {r.ativo ? "Ativo" : "Inativo"}
                   </button>
@@ -177,6 +179,7 @@ export default function AdminGestao() {
                   <button
                     className="rounded-md border px-3 py-1"
                     onClick={() => sendReset(r.email)}
+                    disabled={loading}
                   >
                     Enviar reset
                   </button>

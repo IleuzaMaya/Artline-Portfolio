@@ -1,6 +1,6 @@
 // frontend/src/pages/Admin.jsx
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { adminApi } from "../lib/adminApi";
 import { useToast } from "../ui/toast.jsx";
 
@@ -110,7 +110,7 @@ export default function Admin() {
 
           <div className="flex gap-3">
             <button
-              disabled={!canCreate}
+              disabled={!canCreate || busy}
               onClick={handleCreate}
               className="rounded-xl bg-emerald-700 text-white px-5 py-3 disabled:opacity-50"
             >
@@ -118,7 +118,7 @@ export default function Admin() {
             </button>
 
             <button
-              disabled={!canReset}
+              disabled={!canReset || busy}
               onClick={handleSendReset}
               className="rounded-xl border px-5 py-3 disabled:opacity-50"
             >

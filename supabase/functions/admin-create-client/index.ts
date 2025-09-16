@@ -66,8 +66,10 @@ serve(async (req) => {
       return null;
     }
 
-    // Cria usuário com senha OU envia convite, tolerando "já registrado"
+    // Cria usuário com senha OU GERA LINK DE CONVITE (sempre retorna action_link)
     let userId: string | null = null;
+    let inviteLink: string | null = null;
+
     try {
       if (password && String(password).length > 0) {
         const { data, error } = await sbAdmin.auth.admin.createUser({
@@ -78,30 +80,42 @@ serve(async (req) => {
         if (error) throw error;
         userId = data.user?.id ?? null;
       } else {
-      // 1) dispara o e-mail padrão do Supabase
-      const { data: inv, error: invErr } = await sbAdmin.auth.admin.inviteUserByEmail(email, {
-        data: { name, tipo: role }, redirectTo: redirectTo || RESET_REDIRECT_TO,
-      });
-      if (invErr) throw invErr;
-      userId = inv.user?.id ?? null;
+        // Gera link de convite SEM depender do e-mail chegar
+        const { data, error } = await sbAdmin.auth.admin.generateLink({
+          type: "invite",
+          email: normEmail,
+          options: {
+            data: { name, tipo: role },
+            redirectTo: redirectTo || RESET_REDIRECT_TO,
+          },
+        });
+        if (error) throw error;
 
-      // 2) gera o mesmo link para você copiar/colar
-      var action_link: string | null = null;
-      const { data: linkData, error: linkErr } = await sbAdmin.auth.admin.generateLink({
-        type: "invite",
-        email,
-        options: { data: { name, tipo: role }, redirectTo: redirectTo || RESET_REDIRECT_TO }
-      });
-      if (!linkErr) action_link = linkData?.action_link ?? null;
-    }
+        // nas libs mais novas vem em data.properties.action_link
+        inviteLink =
+          (data as any)?.properties?.action_link ??
+          (data as any)?.action_link ??
+          null;
 
+        userId = data.user?.id ?? null;
+      }
     } catch (e) {
-      const msg = String((e as any)?.message ?? e ?? "").toLowerCase();
+      const msg = String(e?.message ?? e ?? "").toLowerCase();
       if (msg.includes("already been registered")) {
-        // usuário já existe -> seguimos com upserts
         userId = await findUserIdByEmail(sbAdmin, normEmail);
+        // Para usuário já existente, gere um link de recuperação para entregar algo clicável:
+        const { data, error } = await sbAdmin.auth.admin.generateLink({
+          type: "recovery",
+          email: normEmail,
+          options: { redirectTo: redirectTo || RESET_REDIRECT_TO },
+        });
+        if (!error) {
+          inviteLink =
+            (data as any)?.properties?.action_link ??
+            (data as any)?.action_link ??
+            null;
+        }
       } else if (msg.includes("email address") && msg.includes("invalid")) {
-        // e-mail inválido -> 400 amigável
         return new Response(JSON.stringify({ error: "E-mail inválido." }), {
           status: 400, headers: { ...headers, "Content-Type": "application/json" }
         });
@@ -137,7 +151,7 @@ serve(async (req) => {
       if (error) throw error;
     }
 
-    return new Response(JSON.stringify({ ok: true, userId, action_link }), {
+    
       headers: { ...headers, "Content-Type": "application/json" },
     });
   } catch (err) {
