@@ -2,17 +2,14 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
-import { AuthProvider } from "./auth/AuthContext.jsx";
-import AppRoutes from "./routes/AppRoutes.jsx";
+import App from "./App.jsx";              // <<< use App.jsx (o que tem as rotas novas)
 import "./index.css";
 import "./App.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
+      <App />
     </BrowserRouter>
   </React.StrictMode>
 );

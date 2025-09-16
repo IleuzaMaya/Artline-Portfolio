@@ -80,24 +80,26 @@ serve(async (req) => {
         if (error) throw error;
         userId = data.user?.id ?? null;
       } else {
-        // Gera link de convite SEM depender do e-mail chegar
+        // Gerar link de convite (não envia e-mail, só retorna o link)
         const { data, error } = await sbAdmin.auth.admin.generateLink({
           type: "invite",
           email: normEmail,
           options: {
-            data: { name, tipo: role },
-            redirectTo: redirectTo || RESET_REDIRECT_TO,
+            data: { name, tipo: role },                       // metadata do usuário
+            redirectTo: redirectTo || RESET_REDIRECT_TO,      // para onde redirecionar após aceitar
           },
         });
         if (error) throw error;
 
-        // nas libs mais novas vem em data.properties.action_link
-        inviteLink =
+        // Em versões mais novas vem em data.properties.action_link.
+        // Em outras, vem em data.action_link. Pegamos ambos:
+        const inviteLink =
           (data as any)?.properties?.action_link ??
           (data as any)?.action_link ??
           null;
 
-        userId = data.user?.id ?? null;
+        // Se quiser, também dá pra capturar o id do usuário criado/associado:
+        const userId = data.user?.id ?? null;
       }
     } catch (e) {
       const msg = String(e?.message ?? e ?? "").toLowerCase();
