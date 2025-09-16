@@ -22,4 +22,7 @@ export const adminApi = {
   listAccounts: (p) => call("admin-list-accounts", p),
   setAccess:   (p) => call("admin-set-access", p),
   resetPassword: (p) => call("admin-reset-password", p),
+
+  updateClient: (p: { id?: string; email: string; nome?: string; empresa?: string; segmento?: string; telefone?: string }) =>
+    post("admin-update-client", p),
 };
