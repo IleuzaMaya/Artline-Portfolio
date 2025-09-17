@@ -49,7 +49,8 @@ serve(async (req) => {
     const [acc, prof, cli] = await Promise.all([
       sb.from("acessos_permitidos").select("email,role,ativo").in("email", emails),
       sb.from("profiles").select("id,nome,tipo").in("id", ids),
-      sb.from("clientes").select("id,email,nome,segmento,empresa").in("email", emails),
+      // ⚠️ agora também busca TELEFONE
+      sb.from("clientes").select("id,email,nome,segmento,empresa,telefone").in("email", emails)
     ]);
     if (acc.error)  throw acc.error;
     if (prof.error) throw prof.error;
@@ -59,19 +60,25 @@ serve(async (req) => {
     const profById   = new Map((prof.data ?? []).map(r => [r.id, r]));
     const cliByEmail = new Map((cli.data ?? []).map(r => [r.email, r]));
 
-    let rows = users.map(u => {
+    let rows = users.map((u) => {
       const a = accByEmail.get(u.email ?? "") || null;
       const p = profById.get(u.id) || null;
       const c = cliByEmail.get(u.email ?? "") || null;
+
       return {
         id: u.id,
         email: u.email,
         created_at: u.created_at,
         last_sign_in_at: u.last_sign_in_at,
+
         nome: p?.nome ?? u.user_metadata?.name ?? c?.nome ?? null,
+
+        empresa:  c?.empresa ?? null,
+        segmento: c?.segmento ?? null,
+        telefone: c?.telefone ?? null,
+
         role: a?.role ?? p?.tipo ?? null,
-        ativo: a?.ativo ?? null,
-        cliente: { empresa: c?.empresa ?? null, segmento: c?.segmento ?? null },
+        ativo: a?.ativo ?? null
       };
     });
 
