@@ -1849,6 +1849,7 @@ export default function OrcamentoForm() {
       </div>
 
 {/* -------- DEBUG DE CUSTOS -------- */}
+{/*
 <div className="mt-3 text-xs text-gray-600">
   <label className="inline-flex items-center gap-2 cursor-pointer">
     <input type="checkbox" className="h-4 w-4"
@@ -1883,7 +1884,9 @@ export default function OrcamentoForm() {
     </div>
   )}
 </div>
+*/}
 {/* ------- FIM DEBUG DE CUSTOS ------- */}
+
 
       {/* Modal de zoom */}
       {zoomImg && (

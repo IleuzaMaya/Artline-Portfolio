@@ -4,6 +4,16 @@ import { Link } from "react-router-dom";
 import { adminApi } from "../lib/adminApi";
 import { useToast } from "../ui/toast.jsx";
 
+// helpers de telefone
+const onlyDigits = (s) => String(s || "").replace(/\D/g, "");
+function formatPhoneBR(v) {
+  const d = onlyDigits(v).slice(0, 11);
+  if (d.length <= 2)  return d;
+  if (d.length <= 6)  return `(${d.slice(0,2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
+  return                 `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+}
+
 // valida e-mail simples
 const emailOk = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(String(v || "").trim());
 
@@ -80,7 +90,17 @@ export default function Admin() {
       const payload = { page, perPage, q: q || undefined, role: role || undefined, ativo: ativo === "" ? undefined : ativo === "true" };
       const data = await adminApi.listAccounts(payload);
       // adiciona campos editáveis (empresa/segmento/telefone/nome)
-      const arr = (data.rows || []).map((r) => ({ ...r, _edit: { nome: r.nome || "", empresa: r.empresa || "", segmento: r.segmento || "", telefone: r.telefone || "" }, _dirty: false }));
+      const arr = (data.rows || []).map((r) => ({
+        ...r,
+        _edit: {
+          nome:     r.nome     || "",
+          empresa:  r.empresa  || "",
+          segmento: r.segmento || "",
+          telefone: formatPhoneBR(r.telefone || ""), // 👈
+        },
+        _dirty: false,
+      }));
+
       setRows(arr);
     } catch (e) {
       show(String(e.message ?? e));
@@ -103,32 +123,43 @@ export default function Admin() {
   }, [rows, q, role, ativo]);
 
   function setRowEdit(idOrEmail, field, value) {
-    setRows((prev) => prev.map((r) => {
-      const key = r.id || r.email;
-      if (key !== idOrEmail) return r;
-      const _edit = { ...r._edit, [field]: value };
-      const _dirty = _edit.nome !== (r.nome || "") || _edit.empresa !== (r.empresa || "") || _edit.segmento !== (r.segmento || "") || _edit.telefone !== (r.telefone || "");
-      return { ...r, _edit, _dirty };
-    }));
+    setRows((prev) =>
+      prev.map((r) => {
+        const key = r.id || r.email;
+        if (key !== idOrEmail) return r;
+
+        const nextVal = field === "telefone" ? formatPhoneBR(value) : value;
+        const _edit = { ...r._edit, [field]: nextVal };
+        const telDirty = onlyDigits(_edit.telefone) !== onlyDigits(r.telefone || "");
+        const _dirty =
+          _edit.nome     !== (r.nome     || "") ||
+          _edit.empresa  !== (r.empresa  || "") ||
+          _edit.segmento !== (r.segmento || "") ||
+          telDirty;
+
+        return { ...r, _edit, _dirty };
+      })
+    );
   }
 
   async function saveRow(r) {
-    try {
-      const payload = {
-        id: r.id,
-        email: r.email,
-        nome: r._edit.nome,
-        empresa: r._edit.empresa,
-        segmento: r._edit.segmento,
-        telefone: r._edit.telefone,
-      };
-      await adminApi.updateClient(payload);
-      show("Dados salvos");
-      await load();
-    } catch (e) {
-      show(String(e.message ?? e));
-    }
+  try {
+    const payload = {
+      id:       r.id,
+      email:    r.email,
+      nome:     r._edit.nome,
+      empresa:  r._edit.empresa,
+      segmento: r._edit.segmento,
+      telefone: onlyDigits(r._edit.telefone), // 👈
+    };
+    await adminApi.updateClient(payload);
+    show("Dados salvos");
+    await load();
+  } catch (e) {
+    show(String(e.message ?? e));
   }
+}
+
 
   async function toggleAtivo(email, valor) {
     try {
@@ -232,7 +263,16 @@ export default function Admin() {
                   <td className="p-2"><input className="w-full rounded-md border px-2 py-1" value={r._edit.nome} onChange={(e) => setRowEdit(r.id || r.email, "nome", e.target.value)} /></td>
                   <td className="p-2"><input className="w-full rounded-md border px-2 py-1" value={r._edit.empresa} onChange={(e) => setRowEdit(r.id || r.email, "empresa", e.target.value)} /></td>
                   <td className="p-2"><input className="w-full rounded-md border px-2 py-1" value={r._edit.segmento} onChange={(e) => setRowEdit(r.id || r.email, "segmento", e.target.value)} /></td>
-                  <td className="p-2"><input className="w-full rounded-md border px-2 py-1" value={r._edit.telefone} onChange={(e) => setRowEdit(r.id || r.email, "telefone", e.target.value)} /></td>
+                  <td className="p-2">
+                    <input
+                      className="w-full rounded-md border px-2 py-1"
+                      value={r._edit.telefone}
+                      onChange={(e) => setRowEdit(r.id || r.email, "telefone", e.target.value)}
+                      inputMode="numeric"  /* melhor UX no mobile */
+                      autoComplete="tel"
+                    />
+                  </td>
+                  
                   <td className="p-3">
                     <select className="rounded-md border px-2 py-1" value={r.role || ""} onChange={(e) => changeRole(r.email, e.target.value)}>
                       <option value="">-</option>
