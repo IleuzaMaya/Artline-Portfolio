@@ -190,6 +190,18 @@ export default function Admin() {
     }
   }
 
+  async function setPasswordFor(email) {
+    const p = window.prompt("Nova senha (mín. 8 caracteres):");
+    if (!p) return;
+    if (p.length < 8) return show("A senha precisa ter 8+ caracteres");
+    try {
+      await adminApi.setPassword({ email, password: p });
+      show("Senha definida com sucesso");
+    } catch (e) {
+      show(String(e.message ?? e));
+    }
+  }
+
   // 🔐 Definir senha diretamente (admin)
   async function setNewPassword(email) {
     const pwd = window.prompt(`Nova senha para ${email} (mín. 8 caracteres):`);
@@ -301,6 +313,7 @@ export default function Admin() {
                   <td className="p-3 space-x-2 whitespace-nowrap">
                     <button className="rounded-md border px-3 py-1 disabled:opacity-50" onClick={() => saveRow(r)} disabled={loading || !r._dirty}>Salvar</button>
                     <button className="rounded-md border px-3 py-1" onClick={() => sendReset(r.email)} disabled={loading}>Enviar reset</button>
+                    <button className="rounded-md border px-3 py-1" onClick={() => setPasswordFor(r.email)} disabled={loading}>Definir senha</button>
                   </td>
                 </tr>
               ))}
