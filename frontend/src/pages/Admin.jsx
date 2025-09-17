@@ -2,8 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { adminApi } from "../lib/adminApi";
-import { useToast } from "../ui/toast.jsx";
 import { supabase } from "../lib/supabase";
+import { useToast } from "../ui/toast.jsx";
 
 // helpers de telefone
 const onlyDigits = (s) => String(s || "").replace(/\D/g, "");
@@ -21,10 +21,10 @@ const emailOk = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(String(v || "").tri
 export default function Admin() {
   const { show } = useToast();
 
-  // quem está logado (para limitar "Definir minha senha")
+  // id do usuário logado (para mostrar “Definir minha senha” só na própria linha)
   const [myId, setMyId] = useState(null);
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setMyId(data?.user?.id || null));
+    supabase.auth.getUser().then(({ data }) => setMyId(data?.user?.id ?? null));
   }, []);
 
   // --- estado: criação/convite ---
@@ -96,7 +96,6 @@ export default function Admin() {
     try {
       const payload = { page, perPage, q: q || undefined, role: role || undefined, ativo: ativo === "" ? undefined : ativo === "true" };
       const data = await adminApi.listAccounts(payload);
-      // adiciona campos editáveis (empresa/segmento/telefone/nome)
       const arr = (data.rows || []).map((r) => ({
         ...r,
         _edit: {
@@ -107,7 +106,6 @@ export default function Admin() {
         },
         _dirty: false,
       }));
-
       setRows(arr);
     } catch (e) {
       show(String(e.message ?? e));
@@ -189,22 +187,27 @@ export default function Admin() {
 
   async function sendReset(email) {
     try {
-      await adminApi.resetPassword({ email, redirectTo: `${window.location.origin}/reset` });
-      show("E-mail de redefinição enviado");
+      const res = await adminApi.resetPassword({ email, redirectTo: `${window.location.origin}/reset` });
+      if (res?.action_link) {
+        // se o mailer estiver off, o link já vem pra copiar/abrir
+        show("Link de redefinição gerado", { href: res.action_link, copy: res.action_link, duration: 10000 });
+      } else {
+        show("E-mail de redefinição enviado");
+      }
     } catch (e) {
       show(String(e.message ?? e));
     }
   }
 
-  // Definir senha: apenas o usuário logado pode alterar a própria
-  async function defineMyPassword(row) {
-    if (!row?.id || row.id !== myId) return; // guard extra
-    const pwd = window.prompt("Nova senha (mín. 8 caracteres):") || "";
+  // só para o próprio usuário
+  async function setMyPassword() {
+    if (!myId) return;
+    const pwd = window.prompt("Nova senha (mín. 8 caracteres):");
     if (!pwd) return;
-    if (pwd.length < 8) { show("A senha precisa ter 8+ caracteres"); return; }
+    if (pwd.length < 8) return show("A senha precisa ter 8+ caracteres");
     try {
       await adminApi.setPassword({ id: myId, password: pwd });
-      show("Senha atualizada.");
+      show("Senha atualizada com sucesso");
     } catch (e) {
       show(String(e.message ?? e));
     }
@@ -309,9 +312,7 @@ export default function Admin() {
                     <button className="rounded-md border px-3 py-1 disabled:opacity-50" onClick={() => saveRow(r)} disabled={loading || !r._dirty}>Salvar</button>
                     <button className="rounded-md border px-3 py-1" onClick={() => sendReset(r.email)} disabled={loading}>Enviar reset</button>
                     {r.id === myId && (
-                      <button className="rounded-md border px-3 py-1" onClick={() => defineMyPassword(r)} disabled={loading} title="Alterar a minha própria senha">
-                        Definir minha senha
-                      </button>
+                      <button className="rounded-md border px-3 py-1" onClick={setMyPassword} disabled={loading}>Definir minha senha</button>
                     )}
                   </td>
                 </tr>
@@ -324,7 +325,6 @@ export default function Admin() {
           <button className="rounded-md border px-3 py-1 disabled:opacity-50" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>◀ Página anterior</button>
           <span className="text-sm">Página {page}</span>
           <button className="rounded-md border px-3 py-1" onClick={() => setPage((p) => p + 1)}>Próxima página ▶</button>
-          {/* (removido) botão solto de Definir senha */}
         </div>
       </div>
     </div>
