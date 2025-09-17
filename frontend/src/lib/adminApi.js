@@ -25,9 +25,14 @@ async function call(name, body = {}) {
 
 export const adminApi = {
   async updateClient(payload) {
+    const { data: { session } = {} } = await supabase.auth.getSession();
+    const jwt = session?.access_token;
     const { data, error } = await supabase.functions.invoke("admin-update-client", {
       body: payload,
-      headers: { "x-admin-token": import.meta.env.VITE_ADMIN_API_TOKEN },
+      headers: {
+        "x-admin-token": import.meta.env.VITE_ADMIN_API_TOKEN,
+        ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
+      },
     });
     if (error) throw error;
     if (data?.error) throw new Error(data.error);
