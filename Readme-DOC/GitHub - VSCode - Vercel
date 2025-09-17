@@ -70,6 +70,7 @@ supabase functions deploy admin-create-client --project-ref nwtfynwrmhggbeudwpus
 supabase functions deploy admin-reset-password --project-ref nwtfynwrmhggbeudwpus
 
 supabase link --project-ref nwtfynwrmhggbeudwpus
+supabase functions deploy admin-set-password
 
 supabase functions deploy admin-set-access --project-ref nwtfynwrmhggbeudwpus
 supabase functions list
@@ -83,7 +84,6 @@ supabase functions deploy tipos-orcamento --project-ref nwtfynwrmhggbeudwpus
 supabase functions deploy molduras         --project-ref nwtfynwrmhggbeudwpus
 
 
-supabase functions deploy admin-set-password
 
 ========
 
