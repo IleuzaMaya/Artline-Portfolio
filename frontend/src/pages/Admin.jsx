@@ -190,6 +190,19 @@ export default function Admin() {
     }
   }
 
+  // 🔐 Definir senha diretamente (admin)
+  async function setNewPassword(email) {
+    const pwd = window.prompt(`Nova senha para ${email} (mín. 8 caracteres):`);
+    if (!pwd) return;
+    if (pwd.length < 8) return show("A senha precisa ter 8+ caracteres");
+    try {
+      await adminApi.setPassword({ email, password: pwd });
+      show("Senha atualizada com sucesso");
+    } catch (e) {
+      show(String(e.message ?? e));
+    }
+  }
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 space-y-8">
       {/* topo */}
@@ -299,6 +312,7 @@ export default function Admin() {
           <button className="rounded-md border px-3 py-1 disabled:opacity-50" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>◀ Página anterior</button>
           <span className="text-sm">Página {page}</span>
           <button className="rounded-md border px-3 py-1" onClick={() => setPage((p) => p + 1)}>Próxima página ▶</button>
+          <button className="rounded-md border px-3 py-1" onClick={() => setNewPassword(r.email)} disabled={loading}>Definir senha</button>
         </div>
       </div>
     </div>

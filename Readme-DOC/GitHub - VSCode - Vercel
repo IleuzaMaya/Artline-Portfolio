@@ -109,7 +109,7 @@ Commit Supab
 
 supabase link --project-ref nwtfynwrmhggbeudwpus
 
-
+supabase functions deploy admin-set-password --project-ref nwtfynwrmhggbeudwpus
 
 ========
 
@@ -264,3 +264,51 @@ supabase functions deploy admin-update-client \
 supabase functions deploy admin-list-accounts \
   --project-ref nwtfynwrmhggbeudwpus \
   --no-verify-jwt
+
+
+
+=========
+
+1) Perfis (profiles)
+
+Preenche/atualiza profiles.id (igual ao auth.users.id), 
+tipo com base em acessos_permitidos.role e um nome de fallback 
+(antes do @), sem sobrescrever
+
+-- PROFILES: cria/atualiza tipo e nome (não sobrescreve nome já existente)
+insert into public.profiles (id, nome, tipo)
+select
+  u.id,
+  coalesce(p.nome, split_part(u.email,'@',1)) as nome,
+  coalesce(ap.role::public.user_tipo, 'cliente'::public.user_tipo) as tipo
+from auth.users u
+left join public.profiles p on p.id = u.id
+left join public.acessos_permitidos ap on ap.email ilike u.email
+on conflict (id) do update
+set
+  tipo = excluded.tipo,
+  nome = coalesce(public.profiles.nome, excluded.nome);  -- mantém nome existente
+
+
+2) Clientes (clientes)
+
+Gera/atualiza a linha por e-mail, ligado ao mesmo id do usuário 
+(mantém nome existente, só preenche se estiver nulo). Você pode 
+preencher empresa/segmento/telefone depois no próprio dashboard.
+
+-- CLIENTES: cria/atualiza vínculo por e-mail com o id do auth.users
+insert into public.clientes (id, email, nome)
+select
+  u.id,
+  u.email,
+  coalesce(p.nome, split_part(u.email,'@',1)) as nome
+from auth.users u
+left join public.clientes c on c.email ilike u.email
+left join public.profiles p on p.id = u.id
+where c.email is null
+on conflict (email) do update
+set
+  id   = excluded.id,
+  nome = coalesce(public.clientes.nome, excluded.nome);  -- mantém nome existente
+
+

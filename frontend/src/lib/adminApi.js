@@ -34,5 +34,6 @@ export const adminApi = {
   listAccounts: (p) => call("admin-list-accounts", p),
   setAccess:   (p) => call("admin-set-access", p),
   resetPassword: (p) => call("admin-reset-password", p),
+  setPassword:    (p) => call("admin-set-password", p), 
 
 };
