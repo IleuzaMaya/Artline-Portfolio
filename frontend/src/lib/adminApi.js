@@ -6,11 +6,17 @@ const TOKEN = import.meta.env.VITE_ADMIN_API_TOKEN;
 
 async function call(name, body = {}) {
   if (!BASE || !TOKEN) throw new Error("Env VITE_SUPABASE_FUNCTIONS_URL / VITE_ADMIN_API_TOKEN ausentes");
+  
+  // pega o access_token atual para enviar no Authorization (Edge precisa do JWT)
+  const { data: { session } = { session: null } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
+  const authHdr = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+  
   const res = await fetch(`${BASE}/${name}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "x-admin-token": TOKEN,
+      ...authHdr,
     },
     body: JSON.stringify(body),
   });
@@ -34,6 +40,6 @@ export const adminApi = {
   listAccounts: (p) => call("admin-list-accounts", p),
   setAccess:   (p) => call("admin-set-access", p),
   resetPassword: (p) => call("admin-reset-password", p),
-  setPassword:    (p) => call("admin-set-password", p), 
+  setPassword:   (p) => call("admin-set-password", p), 
 
 };

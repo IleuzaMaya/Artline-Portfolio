@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { adminApi } from "../lib/adminApi";
 import { useToast } from "../ui/toast.jsx";
+import { supabase } from "../lib/supabase";
 
 // helpers de telefone
 const onlyDigits = (s) => String(s || "").replace(/\D/g, "");
@@ -19,6 +20,12 @@ const emailOk = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(String(v || "").tri
 
 export default function Admin() {
   const { show } = useToast();
+
+  // quem está logado (para limitar "Definir minha senha")
+  const [myId, setMyId] = useState(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setMyId(data?.user?.id || null));
+  }, []);
 
   // --- estado: criação/convite ---
   const [email, setEmail] = useState("");
@@ -96,7 +103,7 @@ export default function Admin() {
           nome:     r.nome     || "",
           empresa:  r.empresa  || "",
           segmento: r.segmento || "",
-          telefone: formatPhoneBR(r.telefone || ""), // 👈
+          telefone: formatPhoneBR(r.telefone || ""),
         },
         _dirty: false,
       }));
@@ -143,23 +150,22 @@ export default function Admin() {
   }
 
   async function saveRow(r) {
-  try {
-    const payload = {
-      id:       r.id,
-      email:    r.email,
-      nome:     r._edit.nome,
-      empresa:  r._edit.empresa,
-      segmento: r._edit.segmento,
-      telefone: onlyDigits(r._edit.telefone), // 👈
-    };
-    await adminApi.updateClient(payload);
-    show("Dados salvos");
-    await load();
-  } catch (e) {
-    show(String(e.message ?? e));
+    try {
+      const payload = {
+        id:       r.id,
+        email:    r.email,
+        nome:     r._edit.nome,
+        empresa:  r._edit.empresa,
+        segmento: r._edit.segmento,
+        telefone: onlyDigits(r._edit.telefone),
+      };
+      await adminApi.updateClient(payload);
+      show("Dados salvos");
+      await load();
+    } catch (e) {
+      show(String(e.message ?? e));
+    }
   }
-}
-
 
   async function toggleAtivo(email, valor) {
     try {
@@ -190,26 +196,15 @@ export default function Admin() {
     }
   }
 
-  async function setPasswordFor(email) {
-    const p = window.prompt("Nova senha (mín. 8 caracteres):");
-    if (!p) return;
-    if (p.length < 8) return show("A senha precisa ter 8+ caracteres");
-    try {
-      await adminApi.setPassword({ email, password: p });
-      show("Senha definida com sucesso");
-    } catch (e) {
-      show(String(e.message ?? e));
-    }
-  }
-
-  // 🔐 Definir senha diretamente (admin)
-  async function setNewPassword(email) {
-    const pwd = window.prompt(`Nova senha para ${email} (mín. 8 caracteres):`);
+  // Definir senha: apenas o usuário logado pode alterar a própria
+  async function defineMyPassword(row) {
+    if (!row?.id || row.id !== myId) return; // guard extra
+    const pwd = window.prompt("Nova senha (mín. 8 caracteres):") || "";
     if (!pwd) return;
-    if (pwd.length < 8) return show("A senha precisa ter 8+ caracteres");
+    if (pwd.length < 8) { show("A senha precisa ter 8+ caracteres"); return; }
     try {
-      await adminApi.setPassword({ email, password: pwd });
-      show("Senha atualizada com sucesso");
+      await adminApi.setPassword({ id: myId, password: pwd });
+      show("Senha atualizada.");
     } catch (e) {
       show(String(e.message ?? e));
     }
@@ -293,11 +288,11 @@ export default function Admin() {
                       className="w-full rounded-md border px-2 py-1"
                       value={r._edit.telefone}
                       onChange={(e) => setRowEdit(r.id || r.email, "telefone", e.target.value)}
-                      inputMode="numeric"  /* melhor UX no mobile */
+                      inputMode="numeric"
                       autoComplete="tel"
                     />
                   </td>
-                  
+
                   <td className="p-3">
                     <select className="rounded-md border px-2 py-1" value={r.role || ""} onChange={(e) => changeRole(r.email, e.target.value)}>
                       <option value="">-</option>
@@ -313,7 +308,11 @@ export default function Admin() {
                   <td className="p-3 space-x-2 whitespace-nowrap">
                     <button className="rounded-md border px-3 py-1 disabled:opacity-50" onClick={() => saveRow(r)} disabled={loading || !r._dirty}>Salvar</button>
                     <button className="rounded-md border px-3 py-1" onClick={() => sendReset(r.email)} disabled={loading}>Enviar reset</button>
-                    <button className="rounded-md border px-3 py-1" onClick={() => setPasswordFor(r.email)} disabled={loading}>Definir senha</button>
+                    {r.id === myId && (
+                      <button className="rounded-md border px-3 py-1" onClick={() => defineMyPassword(r)} disabled={loading} title="Alterar a minha própria senha">
+                        Definir minha senha
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -325,7 +324,7 @@ export default function Admin() {
           <button className="rounded-md border px-3 py-1 disabled:opacity-50" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>◀ Página anterior</button>
           <span className="text-sm">Página {page}</span>
           <button className="rounded-md border px-3 py-1" onClick={() => setPage((p) => p + 1)}>Próxima página ▶</button>
-          <button className="rounded-md border px-3 py-1" onClick={() => setNewPassword(r.email)} disabled={loading}>Definir senha</button>
+          {/* (removido) botão solto de Definir senha */}
         </div>
       </div>
     </div>
