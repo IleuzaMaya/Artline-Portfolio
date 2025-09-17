@@ -9,8 +9,9 @@ async function call(name, body = {}) {
   const { data: { session } = {} } = await supabase.auth.getSession();
   const jwt = session?.access_token;
 
-  const res = await fetch(`${BASE}/${name}`, {
+  const res = await fetch(`${BASE}/${name}?_=${Date.now()}`, {
     method: "POST",
+    cache: "no-store",
     headers: {
       "Content-Type": "application/json",
       "x-admin-token": TOKEN,
