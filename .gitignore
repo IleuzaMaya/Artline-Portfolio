@@ -1,22 +1,49 @@
+# ───────── Gerais de SO/Editor ─────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# ───────── Logs ─────────
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# ───────── Build/output ─────────
+dist/
+build/
+**/dist/
+**/build/
+
+# ───────── Node ─────────
+node_modules/
+**/node_modules/
+
+# ───────── Env (manter .env.example versionado) ─────────
 .env
 .env.*
-node_modules
-dist
-.vercel
-.supabase
-backend/.env
-
 frontend/.env
 frontend/.env.*
 backend/.env
+backend/.env.*
 
-frontend/.env
-frontend/.env.*
-backend/.env
+# ───────── Vercel ─────────
+.vercel/
 
-frontend/.env
-frontend/.env.*
-backend/.env
-
-# Supabase temp
+# ───────── Supabase ─────────
+.supabase/
 supabase/.temp/
+
+# ───────── Cache/artefatos diversos ─────────
+*.local.*
+*.cache/
+cache/
+coverage/
+
+# ───────── Backups temporários ─────────
+*backup*.jsx
+*backup*.js
+*.swp
+*.swm
