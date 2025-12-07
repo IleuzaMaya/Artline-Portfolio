@@ -1,332 +1,306 @@
 // frontend/src/pages/Admin.jsx
 import { useEffect, useMemo, useState } from "react";
+import { Helmet } from "react-helmet-async";
 import { Link } from "react-router-dom";
-import { adminApi } from "../lib/adminApi";
 import { supabase } from "../lib/supabase";
+import { adminApi } from "../lib/adminApi";
 import { useToast } from "../ui/toast.jsx";
 
-// helpers de telefone
+/* ===================== Helpers ===================== */
+// Telefone BR
 const onlyDigits = (s) => String(s || "").replace(/\D/g, "");
 function formatPhoneBR(v) {
   const d = onlyDigits(v).slice(0, 11);
-  if (d.length <= 2)  return d;
-  if (d.length <= 6)  return `(${d.slice(0,2)}) ${d.slice(2)}`;
-  if (d.length <= 10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`;
-  return                 `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`;
+  if (d.length <= 2) return d;
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+}
+const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || "").trim());
+
+// Função utilitária para chamar Edge Functions (usa adminApi se existir)
+async function callFunction(path, payload) {
+  // 1) Tenta via adminApi (se você tiver configurado)
+  if (adminApi && typeof adminApi === "function") {
+    return adminApi(path, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-admin-token": import.meta.env.VITE_ADMIN_API_TOKEN,
+      },
+      body: JSON.stringify(payload),
+    }).then((r) => (r.json ? r.json() : r));
+  }
+  // 2) Fallback direto via fetch
+  const base = (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL || "").replace(/\/$/, "");
+  const url = `${base}/${path.replace(/^\//, "")}`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-admin-token": import.meta.env.VITE_ADMIN_API_TOKEN || "",
+    },
+    body: JSON.stringify(payload || {}),
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const msg = data?.error || data?.message || `Erro HTTP ${resp.status}`;
+    throw new Error(msg);
+  }
+  return data;
 }
 
-// valida e-mail simples
-const emailOk = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(String(v || "").trim());
-
+/* ===================== Componente ===================== */
 export default function Admin() {
   const { show } = useToast();
 
-  // id do usuário logado (para mostrar “Definir minha senha” só na própria linha)
-  const [myId, setMyId] = useState(null);
+  // Dados do usuário logado (para esconder "Trocar senha" da própria linha)
+  const [meEmail, setMeEmail] = useState("");
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setMyId(data?.user?.id ?? null));
+    supabase.auth.getUser().then(({ data }) => {
+      setMeEmail(data?.user?.email?.toLowerCase() || "");
+    });
   }, []);
 
-  // --- estado: criação/convite ---
+  /* ---------- Criar/Convidar cliente ---------- */
+  const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPwd, setShowPwd] = useState(false);
-  const [busyCreate, setBusyCreate] = useState(false);
-  const [msgCreate, setMsgCreate] = useState("");
+  const [telefone, setTelefone] = useState("");
+  const [empresa, setEmpresa] = useState("");
+  const [senha, setSenha] = useState(""); // opcional
+  const [loadingCreate, setLoadingCreate] = useState(false);
 
-  const canCreate = useMemo(
-    () => emailOk(email) && name.trim().length >= 2 && !busyCreate,
-    [email, name, busyCreate]
-  );
-  const canResetCreate = useMemo(() => emailOk(email) && !busyCreate, [email, busyCreate]);
-
-  async function handleCreate() {
-    if (!canCreate) return;
-    setMsgCreate("");
-    setBusyCreate(true);
-    try {
-      const e = email.trim().toLowerCase();
-      const n = name.trim();
-      const p = String(password || "");
-      if (p && p.length < 8) throw new Error("Senha precisa ter 8+ caracteres");
-
-      const res = await adminApi.createClient({ email: e, name: n, password: p });
-      if (res.action_link) {
-        show("Convite gerado", { href: res.action_link, copy: res.action_link, duration: 10000 });
-      } else {
-        setMsgCreate("Convite enviado / usuário criado.");
-      }
-      setEmail(""); setName(""); setPassword("");
-    } catch (e) {
-      setMsgCreate(String(e.message ?? e));
-    } finally {
-      setBusyCreate(false);
+  async function handleCreateClient(e) {
+    e.preventDefault();
+    if (!isEmail(email)) {
+      show({ type: "error", message: "Informe um e-mail válido." });
+      return;
     }
-  }
-
-  async function handleSendResetCreate() {
-    if (!canResetCreate) return;
-    setMsgCreate("");
-    setBusyCreate(true);
-    try {
-      const e = email.trim().toLowerCase();
-      await adminApi.resetPassword({ email: e, redirectTo: `${window.location.origin}/reset` });
-      setMsgCreate("E-mail de redefinição enviado.");
-    } catch (e) {
-      setMsgCreate(String(e.message ?? e));
-    } finally {
-      setBusyCreate(false);
-    }
-  }
-
-  // --- estado: listagem/gestão ---
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const perPage = 50;
-
-  // filtros locais (client-side)
-  const [q, setQ] = useState("");
-  const [role, setRole] = useState("");
-  const [ativo, setAtivo] = useState("");
-
-  async function load() {
-    setLoading(true);
-    try {
-      const payload = { page, perPage, q: q || undefined, role: role || undefined, ativo: ativo === "" ? undefined : ativo === "true" };
-      const data = await adminApi.listAccounts(payload);
-      const arr = (data.rows || []).map((r) => ({
-        ...r,
-        _edit: {
-          nome:     r.nome     || "",
-          empresa:  r.empresa  || "",
-          segmento: r.segmento || "",
-          telefone: formatPhoneBR(r.telefone || ""),
-        },
-        _dirty: false,
-      }));
-      setRows(arr);
-    } catch (e) {
-      show(String(e.message ?? e));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [page]);
-
-  const filtered = useMemo(() => {
-    let f = rows;
-    if (role) f = f.filter((r) => String(r.role || "") === role);
-    if (ativo !== "") f = f.filter((r) => String(r.ativo) === ativo);
-    if (q) {
-      const qq = q.toLowerCase();
-      f = f.filter((r) => String(r.email || "").toLowerCase().includes(qq) || String(r.nome || "").toLowerCase().includes(qq));
-    }
-    return f;
-  }, [rows, q, role, ativo]);
-
-  function setRowEdit(idOrEmail, field, value) {
-    setRows((prev) =>
-      prev.map((r) => {
-        const key = r.id || r.email;
-        if (key !== idOrEmail) return r;
-
-        const nextVal = field === "telefone" ? formatPhoneBR(value) : value;
-        const _edit = { ...r._edit, [field]: nextVal };
-        const telDirty = onlyDigits(_edit.telefone) !== onlyDigits(r.telefone || "");
-        const _dirty =
-          _edit.nome     !== (r.nome     || "") ||
-          _edit.empresa  !== (r.empresa  || "") ||
-          _edit.segmento !== (r.segmento || "") ||
-          telDirty;
-
-        return { ...r, _edit, _dirty };
-      })
-    );
-  }
-
-  async function saveRow(r) {
+    setLoadingCreate(true);
     try {
       const payload = {
-        id:       r.id,
-        email:    r.email,
-        nome:     r._edit.nome,
-        empresa:  r._edit.empresa,
-        segmento: r._edit.segmento,
-        telefone: onlyDigits(r._edit.telefone),
+        email: email.trim(),
+        nome: (nome || "").trim(),
+        telefone: onlyDigits(telefone),
+        empresa: (empresa || "").trim(),
+        senha: (senha || "").trim(), // se vazio, a Edge Function envia convite
       };
-      await adminApi.updateClient(payload);
-      show("Dados salvos");
-      await load();
-    } catch (e) {
-      show(String(e.message ?? e));
-    }
-  }
-
-  async function toggleAtivo(email, valor) {
-    try {
-      await adminApi.setAccess({ email, ativo: valor });
-      await load();
-      show("Acesso atualizado");
-    } catch (e) {
-      show(String(e.message ?? e));
-    }
-  }
-
-  async function changeRole(email, newRole) {
-    try {
-      await adminApi.setAccess({ email, role: newRole });
-      await load();
-      show("Função atualizada");
-    } catch (e) {
-      show(String(e.message ?? e));
-    }
-  }
-
-  async function sendReset(email) {
-    try {
-      const res = await adminApi.resetPassword({ email, redirectTo: `${window.location.origin}/reset` });
-      if (res?.action_link) {
-        // se o mailer estiver off, o link já vem pra copiar/abrir
-        show("Link de redefinição gerado", { href: res.action_link, copy: res.action_link, duration: 10000 });
+      const res = await callFunction("admin-create-client", payload);
+      if (res?.created) {
+        show({ type: "success", message: "Cliente criado com senha definida." });
+      } else if (res?.invited) {
+        show({ type: "success", message: "Convite enviado por e-mail (definir senha)." });
       } else {
-        show("E-mail de redefinição enviado");
+        show({ type: "success", message: "Operação concluída." });
       }
-    } catch (e) {
-      show(String(e.message ?? e));
+      setSenha("");
+    } catch (err) {
+      show({ type: "error", message: `Erro ao criar/convidar: ${err.message}` });
+    } finally {
+      setLoadingCreate(false);
     }
   }
 
-  // só para o próprio usuário
-  async function setMyPassword() {
-    if (!myId) return;
-    const pwd = window.prompt("Nova senha (mín. 8 caracteres):");
-    if (!pwd) return;
-    if (pwd.length < 8) return show("A senha precisa ter 8+ caracteres");
+  /* ---------- Enviar link de redefinição (card) ---------- */
+  const [emailReset, setEmailReset] = useState("");
+  const [loadingReset, setLoadingReset] = useState(false);
+
+  async function handleSendReset(e) {
+    e.preventDefault();
+    if (!isEmail(emailReset)) {
+      show({ type: "error", message: "Informe um e-mail válido para reset." });
+      return;
+    }
+    setLoadingReset(true);
     try {
-      await adminApi.setPassword({ id: myId, password: pwd });
-      show("Senha atualizada com sucesso");
-    } catch (e) {
-      show(String(e.message ?? e));
+      await callFunction("admin-reset-password", { email: emailReset.trim() });
+      show({ type: "success", message: "Link de redefinição enviado por e-mail." });
+      setEmailReset("");
+    } catch (err) {
+      show({ type: "error", message: `Erro ao enviar link: ${err.message}` });
+    } finally {
+      setLoadingReset(false);
     }
   }
+
+  /* ---------- Enviar link de redefinição (por linha da tabela) ---------- */
+  async function handleSendResetRow(email) {
+    try {
+      const target = String(email || "").trim();
+      if (!target) throw new Error("E-mail inválido");
+      await callFunction("admin-reset-password", { email: target });
+      show({ type: "success", message: "Link de redefinição enviado." });
+    } catch (err) {
+      show({ type: "error", message: `Erro ao enviar link: ${err.message}` });
+    }
+  }
+
+  const telefoneMask = useMemo(() => formatPhoneBR(telefone), [telefone]);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-10 space-y-8">
-      {/* topo */}
-      <div className="flex items-center gap-3">
-        <h1 className="text-3xl font-bold text-emerald-900">Administração</h1>
-        <Link to="/orcamento" className="ml-auto rounded-xl bg-emerald-700 text-white px-4 py-2">Ir para o Orçamento</Link>
-      </div>
+    <>
+      <Helmet>
+        <title>Artemoldurados — Administração</title>
+      </Helmet>
 
-      {/* card: criar/convidar */}
-      <div className="rounded-2xl border p-6">
-        <h2 className="text-xl font-semibold mb-4">Criar/Convidar cliente</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <input className="rounded-xl border px-4 py-3" placeholder="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <input className="rounded-xl border px-4 py-3" placeholder="Nome" value={name} onChange={(e) => setName(e.target.value)} />
-          <div className="relative">
-            <input className="w-full rounded-xl border px-4 py-3 pr-12" placeholder="Senha (opcional)" type={showPwd ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} />
-            <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 opacity-70" onClick={() => setShowPwd((v) => !v)} aria-label="Mostrar senha">👁</button>
+      <div className="max-w-4xl mx-auto p-4">
+        {/* Header */}
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="text-2xl font-semibold text-emerald-800">Administração</h1>
+          <div className="text-sm text-slate-600">
+            <Link to="/orcamento" className="underline hover:text-emerald-700">
+              Ir para o Orçamento
+            </Link>
           </div>
         </div>
-        <div className="mt-4 flex gap-3">
-          <button disabled={!canCreate || busyCreate} onClick={handleCreate} className="rounded-xl bg-emerald-700 text-white px-5 py-3 disabled:opacity-50">Criar/Convidar</button>
-          <button disabled={!canResetCreate || busyCreate} onClick={handleSendResetCreate} className="rounded-xl border px-5 py-3 disabled:opacity-50">Enviar “Esqueci a senha”</button>
+
+        {/* ========== Card: Criar/Convidar Cliente ========== */}
+        <div className="bg-white rounded-2xl shadow p-5">
+          <h2 className="text-lg font-medium text-slate-800">Criar/Convidar cliente</h2>
+          <p className="text-sm text-slate-500 mb-4">
+            Preencha os dados. Se <strong>senha</strong> ficar em branco, será enviado um convite para o cliente
+            definir a própria senha.
+          </p>
+
+          <form onSubmit={handleCreateClient} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm text-slate-600">Nome</label>
+              <input
+                className="w-full border rounded-lg px-3 py-2"
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                placeholder="Nome do cliente"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-slate-600">Empresa (opcional)</label>
+              <input
+                className="w-full border rounded-lg px-3 py-2"
+                value={empresa}
+                onChange={(e) => setEmpresa(e.target.value)}
+                placeholder="Empresa do cliente"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-slate-600">E-mail</label>
+              <input
+                type="email"
+                className="w-full border rounded-lg px-3 py-2"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="cliente@exemplo.com"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-slate-600">Telefone (opcional)</label>
+              <input
+                className="w-full border rounded-lg px-3 py-2"
+                value={telefoneMask}
+                onChange={(e) => setTelefone(e.target.value)}
+                placeholder="(11) 91234-5678"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-slate-600">Senha (opcional)</label>
+              <input
+                type="password"
+                className="w-full border rounded-lg px-3 py-2"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                placeholder="Deixe vazio para enviar convite"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <button
+                type="submit"
+                disabled={loadingCreate}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 disabled:opacity-60"
+              >
+                {loadingCreate ? "Processando..." : "Criar / Enviar convite"}
+              </button>
+            </div>
+          </form>
         </div>
-        {msgCreate && (
-          <div className={`mt-4 rounded-lg px-4 py-3 ${msgCreate.startsWith("Convite") || msgCreate.startsWith("E-mail") ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>{msgCreate}</div>
+
+        {/* ========== Card: Enviar link de redefinição (isolado) ========== */}
+        <div className="bg-white rounded-2xl shadow p-5 mt-6">
+          <h2 className="text-lg font-medium text-slate-800">Enviar link de redefinição</h2>
+          <p className="text-sm text-slate-500 mb-4">
+            {emailReset
+              ? (
+                <>
+                  Enviar link para <span className="font-medium">{emailReset.trim().toLowerCase()}</span> redefinir a senha.
+                </>
+                )
+              : <>Informe o e-mail para enviar o link de redefinição.</>}
+          </p>
+
+          <form onSubmit={handleSendReset} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2">
+              <label className="block text-sm text-slate-600">
+                {emailReset ? "Confirmar e-mail" : "E-mail do usuário"}
+              </label>
+              <input
+                type="email"
+                className="w-full border rounded-lg px-3 py-2"
+                value={emailReset}
+                onChange={(e) => setEmailReset(e.target.value)}
+                placeholder="usuario@exemplo.com"
+                required
+              />
+            </div>
+            <div className="md:col-span-1 flex items-end">
+              <button
+                type="submit"
+                disabled={loadingReset}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 disabled:opacity-60"
+              >
+                {loadingReset ? "Enviando..." : "Enviar link"}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* ========== Gestão de contas ==========
+            MANTENHA a sua tabela atual.
+            Apenas SUBSTITUA o conteúdo da célula de AÇÕES pelo bloco abaixo. */}
+        {/* EXEMPLO de célula de AÇÕES dentro do seu map de linhas (rows/users): */}
+        {false && (
+          <td className="px-3 py-2">
+            <div className="flex items-center gap-2">
+              <button className="btn btn-secondary" onClick={() => saveRow(row)}>
+                Salvar
+              </button>
+
+              <button className="btn btn-outline" onClick={() => handleSendResetRow(row.email)}>
+                Enviar reset
+              </button>
+
+              {row.email?.toLowerCase() !== meEmail && (
+                <button
+                  className="btn btn-outline"
+                  title="Enviar link para este usuário trocar a senha"
+                  onClick={() => handleSendResetRow(row.email)}
+                >
+                  Trocar senha
+                </button>
+              )}
+            </div>
+          </td>
         )}
-      </div>
+        {/* ====== /Gestão de contas ====== */}
 
-      {/* card: gestão/lista */}
-      <div className="rounded-2xl border p-6">
-        <div className="mb-4 flex flex-wrap items-center gap-3">
-          <h2 className="text-xl font-semibold">Gestão de contas</h2>
-          <input className="rounded-xl border px-4 py-2 ml-auto" placeholder="Buscar por e-mail ou nome" value={q} onChange={(e) => setQ(e.target.value)} />
-          <select className="rounded-xl border px-3 py-2" value={role} onChange={(e) => setRole(e.target.value)}>
-            <option value="">Todas as funções</option>
-            <option value="admin">admin</option>
-            <option value="cliente">cliente</option>
-          </select>
-          <select className="rounded-xl border px-3 py-2" value={ativo} onChange={(e) => setAtivo(e.target.value)}>
-            <option value="">Todos</option>
-            <option value="true">Ativos</option>
-            <option value="false">Inativos</option>
-          </select>
-          <button onClick={() => { setPage(1); load(); }} className="rounded-xl bg-emerald-700 text-white px-4 py-2 disabled:opacity-50" disabled={loading}>Atualizar</button>
-        </div>
-
-        <div className="overflow-auto rounded-xl border">
-          <table className="min-w-full text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="text-left p-3">Email</th>
-                <th className="text-left p-3">Nome</th>
-                <th className="text-left p-3">Empresa</th>
-                <th className="text-left p-3">Segmento</th>
-                <th className="text-left p-3">Telefone</th>
-                <th className="text-left p-3">Função</th>
-                <th className="text-left p-3">Ativo</th>
-                <th className="text-left p-3">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr><td className="p-4" colSpan={8}>Carregando…</td></tr>
-              )}
-              {!loading && filtered.length === 0 && (
-                <tr><td className="p-4" colSpan={8}>Sem resultados</td></tr>
-              )}
-              {!loading && filtered.map((r) => (
-                <tr key={r.id || r.email} className="border-t align-top">
-                  <td className="p-3 whitespace-nowrap">{r.email}</td>
-                  <td className="p-2"><input className="w-full rounded-md border px-2 py-1" value={r._edit.nome} onChange={(e) => setRowEdit(r.id || r.email, "nome", e.target.value)} /></td>
-                  <td className="p-2"><input className="w-full rounded-md border px-2 py-1" value={r._edit.empresa} onChange={(e) => setRowEdit(r.id || r.email, "empresa", e.target.value)} /></td>
-                  <td className="p-2"><input className="w-full rounded-md border px-2 py-1" value={r._edit.segmento} onChange={(e) => setRowEdit(r.id || r.email, "segmento", e.target.value)} /></td>
-                  <td className="p-2">
-                    <input
-                      className="w-full rounded-md border px-2 py-1"
-                      value={r._edit.telefone}
-                      onChange={(e) => setRowEdit(r.id || r.email, "telefone", e.target.value)}
-                      inputMode="numeric"
-                      autoComplete="tel"
-                    />
-                  </td>
-
-                  <td className="p-3">
-                    <select className="rounded-md border px-2 py-1" value={r.role || ""} onChange={(e) => changeRole(r.email, e.target.value)}>
-                      <option value="">-</option>
-                      <option value="admin">admin</option>
-                      <option value="cliente">cliente</option>
-                    </select>
-                  </td>
-                  <td className="p-3">
-                    <button className={`rounded-md px-3 py-1 ${r.ativo ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-700"}`} onClick={() => toggleAtivo(r.email, !r.ativo)} disabled={loading}>
-                      {r.ativo ? "Ativo" : "Inativo"}
-                    </button>
-                  </td>
-                  <td className="p-3 space-x-2 whitespace-nowrap">
-                    <button className="rounded-md border px-3 py-1 disabled:opacity-50" onClick={() => saveRow(r)} disabled={loading || !r._dirty}>Salvar</button>
-                    <button className="rounded-md border px-3 py-1" onClick={() => sendReset(r.email)} disabled={loading}>Enviar reset</button>
-                    {r.id === myId && (
-                      <button className="rounded-md border px-3 py-1" onClick={setMyPassword} disabled={loading}>Definir minha senha</button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="mt-4 flex items-center gap-2">
-          <button className="rounded-md border px-3 py-1 disabled:opacity-50" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>◀ Página anterior</button>
-          <span className="text-sm">Página {page}</span>
-          <button className="rounded-md border px-3 py-1" onClick={() => setPage((p) => p + 1)}>Próxima página ▶</button>
+        {/* Rodapé simples */}
+        <div className="text-xs text-slate-500 mt-6">
+          Logado como: <span className="font-medium">{meEmail || "—"}</span>
         </div>
       </div>
-    </div>
+    </>
   );
 }
