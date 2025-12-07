@@ -610,3 +610,15 @@ Configurar o deploy na Vercel e ligar ao domínio.
 Validar login + orçamento em produção.
 
 
+=============
+
+
+Acho melhor voltar no bônus e Como evitar que isso se repita 
+(plano simples e definitivo). Crio este SQL no supabase, 
+está pausado
+
+supabase login
+supabase link --project-ref nwtfynwrmhggbeudwpus
+supabase functions deploy ping --no-verify-jwt
+curl -i https://nwtfynwrmhggbeudwpus.functions.supabase.co/ping
+

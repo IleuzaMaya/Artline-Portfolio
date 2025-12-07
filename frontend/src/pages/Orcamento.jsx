@@ -5,14 +5,19 @@ import FloatingInput from '../components/FloatingInput';
 import FloatingSelect from '../components/FloatingSelect';
 import MolduraThumb from '../components/MolduraThumb';
 import { Alert } from '@mui/material';
+import { Helmet } from 'react-helmet-async';
 
-import { 
-  calcularOrcamento, LIMIAR_REFORCO_M2, moneyNum, num 
+import {
+  calcularOrcamento,
+  LIMIAR_REFORCO_M2,
+  moneyNum,
+  num,
 } from '../utils/calcularOrcamento';
 
-
-export default function OrcamentoForm() {
-
+// =====================================================
+// FORMULÁRIO (componente interno - sem export default)
+// =====================================================
+function OrcamentoForm() {
   // ===== helpers =====
   const asArray = (data) =>
     Array.isArray(data) ? data : (Array.isArray(data?.rows) ? data.rows : []);
@@ -28,13 +33,19 @@ export default function OrcamentoForm() {
 
   const money = (v) => {
     const n = typeof v === 'number' ? v : toNumberBR(v);
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n);
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(n);
   };
 
   const fmt2 = (v) => {
     const n = toNumberBR(v);
     if (!Number.isFinite(n)) return '0,00';
-    return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return n.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
   };
 
   // ---- sanitizadores por unidade (evitam “misturar” preco/valor genéricos) ----
@@ -79,7 +90,7 @@ export default function OrcamentoForm() {
     if (n > 300) n = 300;
     setMarkup(n);
   };
-  
+
   const [margemPassepartout, setMargemPassepartout] = useState(0);
   const [margemFlutuante, setMargemFlutuante] = useState(3); // padrão 3 cm (ajuste se quiser)
 
@@ -104,11 +115,11 @@ export default function OrcamentoForm() {
   // ===== Flags Camisa/Entre Vidros =====
   const [ehCamisa, setEhCamisa] = useState(false);
   const [entreVidrosNoCamisa, setEntreVidrosNoCamisa] = useState(false);
-  
+
   // normaliza tipo (pode ser útil em outras regras)
   const tipo = String(tipoSelecionado?.slug ?? tipoSelecionado ?? '').toLowerCase();
 
-  // nome do tipo normalizado (sem acento), para regex reutilizáveis
+  // nome do tipo normalizado (sem acento)
   const tipoNome = String(tipoSelecionado?.nome || '')
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
@@ -116,7 +127,6 @@ export default function OrcamentoForm() {
     .trim();
   const isCamisaObjeto = /(camisa|objeto)/i.test(tipoNome);
   const isFlutuante = /flutuant/.test(tipoNome);
-
 
   // ===== Diversos =====
   const [diversosBrutos, setDiversosBrutos] = useState([]);
@@ -169,13 +179,15 @@ export default function OrcamentoForm() {
   const [incluirImpressaoTela, setIncluirImpressaoTela] = useState(false);
 
   const impressaoCanvas = useMemo(
-    () => (impressoes || []).find((i) => /canvas/i.test(i.nome || i.descricao || '')) || null,
+    () =>
+      (impressoes || []).find((i) => /canvas/i.test(i.nome || i.descricao || '')) || null,
     [impressoes]
   );
   const impressaoMatte = useMemo(
     () =>
-      (impressoes || []).find((i) => /(matte|mate|fosco)/i.test(i.nome || i.descricao || '')) ||
-      null,
+      (impressoes || []).find((i) =>
+        /(matte|mate|fosco)/i.test(i.nome || i.descricao || '')
+      ) || null,
     [impressoes]
   );
 
@@ -240,7 +252,6 @@ export default function OrcamentoForm() {
 
     setDebugVisivel(false);
     setCustosCalc(null);
-
   };
 
   // controle vindo do cálculo assíncrono
@@ -259,7 +270,8 @@ export default function OrcamentoForm() {
   }
 
   // ===== perfis por tipo =====
-  const norm = (s = '') => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+  const norm = (s = '') =>
+    s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
 
   const DEFAULT_PERFIL = {
     showPassepartout: true,
@@ -287,10 +299,10 @@ export default function OrcamentoForm() {
       molduraUsos: { uso_superficie: 1 },
     },
     entre_vidros: {
-      showPassepartout: false,     // sem passe-partout
-      vidroFrontalCombo: true,     // mantém o combo de escolha
-      vidroSomenteComum: false,    // frente pode ser comum ou antirreflexo
-      vidroFundoComumFixo: true,   // fundo é sempre vidro comum (automático)
+      showPassepartout: false, // sem passe-partout
+      vidroFrontalCombo: true, // mantém o combo de escolha
+      vidroSomenteComum: false, // frente pode ser comum ou antirreflexo
+      vidroFundoComumFixo: true, // fundo é sempre vidro comum (automático)
       showFundoCombo: false,
       molduraUsoTipo: 'C',
       molduraUsos: { uso_entre_vidros: 1 },
@@ -307,9 +319,9 @@ export default function OrcamentoForm() {
       showAberturas: true,
     },
     flutuante: {
-      showPassepartout: true,            // mantém área do PP
-      passepartoutSemMargem: true,       // margem vem do campo do flutuante
-      showAberturas: true,               // liberar Nº de aberturas
+      showPassepartout: true, // mantém área do PP
+      passepartoutSemMargem: true, // margem vem do campo do flutuante
+      showAberturas: true, // liberar Nº de aberturas
       ppComoFundoColorido: true,
       ppApenasCor: true,
       vidroFrontalCombo: false,
@@ -365,13 +377,19 @@ export default function OrcamentoForm() {
     return { ...DEFAULT_PERFIL, ...overrides };
   }
 
-  const perfilBase = useMemo(() => perfilDoTipo(tipoSelecionado?.nome || ''), [tipoSelecionado?.nome]);
+  const perfilBase = useMemo(
+    () => perfilDoTipo(tipoSelecionado?.nome || ''),
+    [tipoSelecionado?.nome]
+  );
 
   const isTela = /tela/i.test(tipoNome);
   const isDiversosTipo = /diversos/i.test(tipoNome);
 
   // Gate: reforço permitido (Superfície e Entre Vidros)
-  const reforcoPermitidoPorTipo = useMemo(() => /(superf|entre\s*vidros?)/i.test(tipoNome), [tipoNome]);
+  const reforcoPermitidoPorTipo = useMemo(
+    () => /(superf|entre\s*vidros?)/i.test(tipoNome),
+    [tipoNome]
+  );
 
   const [forcarReforcoMesmoAssim, setForcarReforcoMesmoAssim] = useState(false);
 
@@ -436,26 +454,32 @@ export default function OrcamentoForm() {
   const usaBagueteInterna = useMemo(() => {
     if (isTela) return false;
     return (
-      isCaixaSelecionada || perfil.bagueteAuto || Boolean(Number(tipoSelecionado?.usa_baguete || 0))
+      isCaixaSelecionada ||
+      perfil.bagueteAuto ||
+      Boolean(Number(tipoSelecionado?.usa_baguete || 0))
     );
   }, [isTela, isCaixaSelecionada, perfil.bagueteAuto, tipoSelecionado]);
 
   // Preview excede PP e “bloqueio”
   const previewExcedePP =
-  perfil.showPassepartout &&
-  !cabeNaFolhaPassepartout(
-    largura, altura,
-    perfil.ppComoFundoColorido ? margemFlutuante : margemPassepartout
-  );
-  
-    const ppBloqueado = Boolean(perfil.showPassepartout && (previewExcedePP || excedePP));
+    perfil.showPassepartout &&
+    !cabeNaFolhaPassepartout(
+      largura,
+      altura,
+      perfil.ppComoFundoColorido ? margemFlutuante : margemPassepartout
+    );
+
+  const ppBloqueado = Boolean(perfil.showPassepartout && (previewExcedePP || excedePP));
 
   // Entre Vidros?
   const isEntreVidros = Boolean(perfil.vidroFundoComumFixo);
 
   // Vidro presente (frente selecionado/comum ou EV)
   const temVidro = useMemo(
-    () => Boolean(vidroSelecionado) || perfil.vidroSomenteComum || perfil.vidroFundoComumFixo,
+    () =>
+      Boolean(vidroSelecionado) ||
+      perfil.vidroSomenteComum ||
+      perfil.vidroFundoComumFixo,
     [vidroSelecionado, perfil.vidroSomenteComum, perfil.vidroFundoComumFixo]
   );
 
@@ -464,10 +488,15 @@ export default function OrcamentoForm() {
     const toCm = (m) => {
       if (!m) return 0;
       const mm =
-        Number(m?.profundidade_mm ?? m?.profundidadeInterna_mm ?? m?.profundidade_interna_mm ?? 0);
+        Number(m?.profundidade_mm ??
+          m?.profundidadeInterna_mm ??
+          m?.profundidade_interna_mm ?? 0);
       if (mm) return mm / 10; // 10 mm = 1 cm
       const cm = Number(
-        m?.profundidade ?? m?.profundidade_cm ?? m?.profundidadeInterna ?? m?.profundidade_interna
+        m?.profundidade ??
+          m?.profundidade_cm ??
+          m?.profundidadeInterna ??
+          m?.profundidade_interna
       );
       return Number.isFinite(cm) ? cm : 0;
     };
@@ -475,13 +504,12 @@ export default function OrcamentoForm() {
     return depths.length ? Math.max(...depths) : 0;
   }, [moldura1, moldura2, moldura3]);
 
-  // Área "de reforço" (usa as dimensões já calculadas para a estrutura) — calculado UMA vez
+  // Área "de reforço" — calculado UMA vez
   const wRefCm = parseFloat(dimensoesFinais.larguraReforco) || 0;
   const hRefCm = parseFloat(dimensoesFinais.alturaReforco) || 0;
   const areaRefM2 = (wRefCm / 100) * (hRefCm / 100);
 
-  // Critério para mostrar o checkbox manual de reforço em tipos que NÃO calculam automático
-  // - tamanho acima do limiar OU profundidade < 3 cm
+  // Critério para mostrar o checkbox manual de reforço
   const PROFUNDIDADE_GATE_CM = 3;
   const criterioProfundidade = profundidadeCaixaCm < PROFUNDIDADE_GATE_CM;
 
@@ -500,14 +528,12 @@ export default function OrcamentoForm() {
     return /tela/.test(nome) ? 'canvas' : 'matte';
   }, [tipoSelecionado?.nome]);
 
-
   const temAlgumaMoldura = Boolean(moldura1 || moldura2 || moldura3);
-  
+
   const isTrocaPP = useMemo(
-    () => isDiversosTipo && (diversoSelecionado?.id === 'troca_passepartout'),
+    () => isDiversosTipo && diversoSelecionado?.id === 'troca_passepartout',
     [isDiversosTipo, diversoSelecionado?.id]
   );
-
 
   useEffect(() => {
     if (!isCaixaSelecionada || (!reforcoPermitidoPorTipo && !forcarReforcoMesmoAssim)) {
@@ -529,7 +555,6 @@ export default function OrcamentoForm() {
   }, [isCaixaSelecionada, tipoReforco, reforcoPermitidoPorTipo, forcarReforcoMesmoAssim]);
 
   // ===== coerções de M2/M3 =====
- 
   useEffect(() => {
     if (ehAluminio(moldura1)) {
       if (moldura2) setMoldura2(null);
@@ -573,21 +598,19 @@ export default function OrcamentoForm() {
         ]);
 
         setTiposOrcamento(asArray(tipos.data).filter((t) => !/foto/i.test(t?.nome || '')));
-        
+
         setImpressoes(asArray(impr.data).map(sanitizeM2));
         setVidros(asArray(v.data).map(sanitizeM2));
         setSarrafoLista(asArray(sarr.data).map(sanitizeML));
 
         const fundosSan = asArray(f.data).map(sanitizeM2);
         setFundo(fundosSan.filter((x) => (x?.ativo ?? true) && moneyNum(x?.preco_m2) > 0));
-       
-        setPassepartouts(
-          asArray(pp.data).map((o) => ({ ...sanitizeML(o), ...sanitizeM2(o) }))
-        );
+
+        setPassepartouts(asArray(pp.data).map((o) => ({ ...sanitizeML(o), ...sanitizeM2(o) })));
         setBaguetes(asArray(bg.data).map(sanitizeML));
-        
+
         setCamisaObjetoTabela(asArray(camis.data));
-        
+
         setChassis(asArray(chs.data).map(sanitizeML));
 
         setDiversosBrutos(asArray(divs.data));
@@ -605,15 +628,15 @@ export default function OrcamentoForm() {
 
   // CAIXA sempre com baguete interna: seleciona uma padrão automaticamente
   useEffect(() => {
-   if (usaBagueteInterna && !bagueteInternaSelecionada && (baguetes || []).length) {
-     const padrao =
-       (baguetes || []).find(b => /foam\s*branco\s*adesiv/i.test(b?.nome || '')) ||
-       (baguetes || []).find(b => /passepartout/i.test(b?.nome || '')) ||
-       (baguetes || [])[0] || null;
-     if (padrao) setBagueteInternaSelecionada(padrao);
-   }
+    if (usaBagueteInterna && !bagueteInternaSelecionada && (baguetes || []).length) {
+      const padrao =
+        (baguetes || []).find((b) => /foam\s*branco\s*adesiv/i.test(b?.nome || '')) ||
+        (baguetes || []).find((b) => /passepartout/i.test(b?.nome || '')) ||
+        (baguetes || [])[0] ||
+        null;
+      if (padrao) setBagueteInternaSelecionada(padrao);
+    }
   }, [usaBagueteInterna, baguetes, bagueteInternaSelecionada]);
-
 
   useEffect(() => {
     if (!perfil.showPassepartout || ppBloqueado) {
@@ -634,11 +657,11 @@ export default function OrcamentoForm() {
   }, [perfil.showFundoCombo]);
 
   useEffect(() => {
-  if (isTrocaPP) {
-    setMoldura1(null);
-    setMoldura2(null);
-    setMoldura3(null);
-  }
+    if (isTrocaPP) {
+      setMoldura1(null);
+      setMoldura2(null);
+      setMoldura3(null);
+    }
   }, [isTrocaPP]);
 
   // ===== carregar molduras quando muda o tipo =====
@@ -661,7 +684,9 @@ export default function OrcamentoForm() {
             : 'superficie';
 
         const uso = tipoSelecionado ? mapTipoParaUso(tipoSelecionado?.nome || '') : null;
-        const params = uso ? { uso, ...(uso === 'camisa' && ehCamisa ? { permiteA: 1 } : {}) } : undefined;
+        const params = uso
+          ? { uso, ...(uso === 'camisa' && ehCamisa ? { permiteA: 1 } : {}) }
+          : undefined;
 
         let { data } = await api.get('/molduras', params ? { params } : undefined);
         let lista = asArray(data);
@@ -683,18 +708,34 @@ export default function OrcamentoForm() {
             'Sem nome';
           const ABS = (u) => {
             if (!u) return null;
-            if (/^https?:\/\//i.test(u)) return u;        // já é absoluta
+            if (/^https?:\/\//i.test(u)) return u; // já é absoluta
             const base = import.meta.env.VITE_API_URL || ''; // ex: http://localhost:3333
             return base.replace(/\/$/, '') + '/' + String(u).replace(/^\//, '');
           };
 
-          const _img = ABS(pick(m.imagem_url, m.image_url, m.url_imagem, m.imagem, m.foto, m.foto_url, null));
+          const _img = ABS(
+            pick(
+              m.imagem_url,
+              m.image_url,
+              m.url_imagem,
+              m.imagem,
+              m.foto,
+              m.foto_url,
+              null
+            )
+          );
 
           const id = m.id ?? m.id_moldura ?? m.moldura_id ?? m.uuid ?? codigo ?? nomeSafe;
 
-          // ⚠️ Moldura: aceitar SOMENTE campos de ML; se não houver, fica 0 (dimensão cresce do mesmo jeito)
+          // ⚠️ Moldura: aceitar SOMENTE campos de ML; se não houver, fica 0
           const precoML = moneyNum(
-            pick(m.preco_ml, m.valor_ml, m.preco_metro, m.precoMetro, m.preco_ml_moldura)
+            pick(
+              m.preco_ml,
+              m.valor_ml,
+              m.preco_metro,
+              m.precoMetro,
+              m.preco_ml_moldura
+            )
           );
 
           const uso_tipo =
@@ -706,7 +747,7 @@ export default function OrcamentoForm() {
             nome: pick(m.nome, nomeSafe, codigo, 'Sem nome'),
             display,
             imagem_url: _img,
-            image_url: _img,           
+            image_url: _img,
             preco_ml: precoML,
             valor_ml: precoML,
             uso_tipo,
@@ -727,16 +768,16 @@ export default function OrcamentoForm() {
   useEffect(() => {
     if (!tipoSelecionado) return;
 
-   const comum = vidros.find((v) => /comum/i.test(v?.nome || v?.descricao || ''));
-   if (perfil.vidroSomenteComum) {
-     // tipos que forçam vidro comum na frente
-     setVidroSelecionado(comum || null);
-   } else if (perfil.vidroFundoComumFixo && perfil.vidroFrontalCombo) {
-     // Entre Vidros: default comum na frente, mas usuário pode trocar
-     setVidroSelecionado((prev) => prev || comum || null);
-   } else {
-     setVidroSelecionado(null);
-   }
+    const comum = vidros.find((v) => /comum/i.test(v?.nome || v?.descricao || ''));
+    if (perfil.vidroSomenteComum) {
+      // tipos que forçam vidro comum na frente
+      setVidroSelecionado(comum || null);
+    } else if (perfil.vidroFundoComumFixo && perfil.vidroFrontalCombo) {
+      // Entre Vidros: default comum na frente, mas usuário pode trocar
+      setVidroSelecionado((prev) => prev || comum || null);
+    } else {
+      setVidroSelecionado(null);
+    }
 
     if (!perfil.showPassepartout) {
       setPassepartoutSelecionado(null);
@@ -775,12 +816,12 @@ export default function OrcamentoForm() {
   // ===== foam extra para Flutuante e Camisa/Objeto =====
   const precisaFoamExtra = /flutuante|camisa|objeto/i.test(tipoSelecionado?.nome || '');
   const foamExtra = precisaFoamExtra
-    ? fundo.find((f) => (f.nome || f.descricao || '').toLowerCase().includes('foam ad branco')) ||
-      null
+    ? fundo.find((f) =>
+        (f.nome || f.descricao || '').toLowerCase().includes('foam ad branco')
+      ) || null
     : null;
 
   // ===== Diversos: helpers de preço =====
-  // (num, moneyNum, pickPrecoML/M2 agora vêm de ../utils/calcularOrcamento)
   const toM2 = (wCm, hCm) => (num(wCm) / 100) * (num(hCm) / 100);
   /** perímetro em METROS a partir de cm */
   const perimetroML = (wCm, hCm) => (2 * (num(wCm) + num(hCm))) / 100;
@@ -810,7 +851,10 @@ export default function OrcamentoForm() {
         case 'troca_vidro':
           return n.includes('VIDRO') && n.includes('TROCA');
         case 'troca_passepartout':
-          return (n.includes('PASSEPARTOUT') || n.includes('PASSPARTOUT') || n.includes('PP')) && n.includes('TROCA');  
+          return (
+            (n.includes('PASSEPARTOUT') || n.includes('PASSPARTOUT') || n.includes('PP')) &&
+            n.includes('TROCA')
+          );
         case 'retirar_arte':
           return n.includes('RETIRAR') && n.includes('ARTE');
         default:
@@ -891,9 +935,9 @@ export default function OrcamentoForm() {
           markup: Number(markup) || 0,
 
           margemPassepartout: Number(margemPassepartout) || 0,
-          margemFlutuanteCm: isFlutuante ? (Number(margemFlutuante) || 0) : 0,
+          margemFlutuanteCm: isFlutuante ? Number(margemFlutuante) || 0 : 0,
 
-          // passa cru; o parser numérico no calcularOrcamento aceita "2,5"
+          // passa cru; parser numérico no calcularOrcamento aceita "2,5"
           margemEntreVidros: margemEntreVidros,
 
           moldura1,
@@ -931,7 +975,7 @@ export default function OrcamentoForm() {
           incluirChassi: Boolean(forcaChassi),
           chassiSelecionado: chassiEscolhido,
 
-          // Camisa / Entre Vidros flags
+          // Camisa/Objeto flags
           forcarCamisaObjetoTipo:
             (isCamisaObjeto && ehCamisa) || (isEntreVidros && ehCamisa)
               ? 'camisa'
@@ -1023,7 +1067,9 @@ export default function OrcamentoForm() {
             itens.push('Vidro (fundo): Vidro Comum');
           } else {
             itens.push(
-              `Vidro: ${vidroSelecionado.nome || vidroSelecionado.descricao || 'selecionado'}`
+              `Vidro: ${
+                vidroSelecionado.nome || vidroSelecionado.descricao || 'selecionado'
+              }`
             );
           }
         }
@@ -1038,7 +1084,11 @@ export default function OrcamentoForm() {
         }
         if (c.passepartout > 0) {
           const modo = (resultado.modoCobrancaPassepartout || 'ml').toUpperCase();
-          itens.push(`Passe-partout (${modo})${corPassepartout ? ` — cor: ${corPassepartout}` : ''}`);
+          itens.push(
+            `Passe-partout (${modo})${
+              corPassepartout ? ` — cor: ${corPassepartout}` : ''
+            }`
+          );
         }
         // Flutuante: cor sem custo
         if (isFlutuante && corPassepartout) {
@@ -1052,8 +1102,12 @@ export default function OrcamentoForm() {
           );
           const unit = Number(passepartoutSelecionado?.preco_abertura_extra || 0);
           const unitFmt = unit.toFixed(2).replace('.', ',');
-          const totalFmt = Number(c.passepartoutAberturasExtra).toFixed(2).replace('.', ',');
-          itens.push(`Passe-partout — aberturas extras: ${qtdExtras} × R$ ${unitFmt} = R$ ${totalFmt}`);
+          const totalFmt = Number(c.passepartoutAberturasExtra)
+            .toFixed(2)
+            .replace('.', ',');
+          itens.push(
+            `Passe-partout — aberturas extras: ${qtdExtras} × R$ ${unitFmt} = R$ ${totalFmt}`
+          );
         }
         if (c.impressao > 0) {
           itens.push(isTela ? 'Impressão em canvas' : 'Impressão');
@@ -1064,13 +1118,18 @@ export default function OrcamentoForm() {
         }
 
         // Reforço (moldura caixa)
-        if (resultado.reforcoInfo?.necessita_reforco && Number(resultado.reforcoInfo?.valorTotal) > 0) {
+        if (
+          resultado.reforcoInfo?.necessita_reforco &&
+          Number(resultado.reforcoInfo?.valorTotal) > 0
+        ) {
           const r = resultado.reforcoInfo;
           if (Number(r.ml) > 0 && Number(r.precoML) > 0) {
             itens.push(
               `Reforço (moldura caixa): ${Number(r.ml).toFixed(2)} m × R$ ${Number(r.precoML)
                 .toFixed(2)
-                .replace('.', ',')} = R$ ${Number(r.valorTotal).toFixed(2).replace('.', ',')}`
+                .replace('.', ',')} = R$ ${Number(r.valorTotal)
+                .toFixed(2)
+                .replace('.', ',')}`
             );
           } else {
             itens.push('Reforço (moldura caixa)');
@@ -1081,7 +1140,9 @@ export default function OrcamentoForm() {
         if (resultado.camisaObjetoInfo?.aplicado) {
           const info = resultado.camisaObjetoInfo;
           itens.push(
-            `Adicional Camisa/Objeto (${info.faixa}, ${info.modo === 'm2' ? 'por m²' : 'fixo'})`
+            `Adicional Camisa/Objeto (${info.faixa}, ${
+              info.modo === 'm2' ? 'por m²' : 'fixo'
+            })`
           );
         }
 
@@ -1089,11 +1150,9 @@ export default function OrcamentoForm() {
         if (Array.isArray(diversosPayload) && diversosPayload.length) {
           diversosPayload.forEach((it) => {
             itens.push(
-              `Serviço: ${it.nome}${it.faixa_aplicacao ? ` (${it.faixa_aplicacao})` : ''} — R$ ${Number(
-                it.preco
-              )
-                .toFixed(2)
-                .replace('.', ',')}`
+              `Serviço: ${it.nome}${
+                it.faixa_aplicacao ? ` (${it.faixa_aplicacao})` : ''
+              } — R$ ${Number(it.preco).toFixed(2).replace('.', ',')}`
             );
           });
         }
@@ -1175,11 +1234,11 @@ export default function OrcamentoForm() {
     larguraM1cm <= LIMIAR_MOLDURA_CM &&
     (usoTipoM1 === 'N' || usoTipoM1 === 'A');
 
- 
-
   return (
     <div className="max-w-3xl mx-auto mt-6 p-4 bg-white shadow rounded overflow-visible">
-      <h1 className="text-xl font-bold text-center text-blue-900 mb-3">Orçamento de Emoldurado</h1>
+      <h1 className="text-xl font-bold text-center text-blue-900 mb-3">
+        Orçamento de Emoldurado
+      </h1>
 
       <FloatingInput
         label="Markup (%)"
@@ -1262,7 +1321,6 @@ export default function OrcamentoForm() {
               </div>
             )}
 
-
             {/* Camisa / Objeto */}
             {isCO && (
               <div className="mt-2 space-y-2 text-sm">
@@ -1302,7 +1360,7 @@ export default function OrcamentoForm() {
         );
       })()}
 
-      {/* Passe-partout (ordem: Passepartout → Margem (cm) → Cor do passe-partout) */}
+      {/* Passe-partout */}
       {perfil.showPassepartout && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
           {(dimensoesFinais?.mensagemAviso || previewExcedePP) && (
@@ -1326,7 +1384,7 @@ export default function OrcamentoForm() {
             size="sm"
           />
 
-         {/* 2) Margem (cm) */}
+          {/* 2) Margem (cm) */}
           <FloatingInput
             label="Margem (cm)"
             type="number"
@@ -1349,7 +1407,7 @@ export default function OrcamentoForm() {
             size="sm"
           />
 
-          {/* 4) Nº de aberturas — number, sem limite */}
+          {/* 4) Nº de aberturas */}
           {perfil.showAberturas && !ppBloqueado && (
             <FloatingInput
               label="Nº de aberturas"
@@ -1360,7 +1418,6 @@ export default function OrcamentoForm() {
               size="sm"
             />
           )}
-
         </div>
       )}
 
@@ -1408,9 +1465,9 @@ export default function OrcamentoForm() {
 
       {isFlutuante && (
         <Alert severity="info" className="mt-2">
-          No tipo <strong>Flutuante</strong> não se usa passe-partout na frente.
-          A cor de fundo pode vir do <strong>Passepartout</strong> selecionado.
-          Defina a <em>margem de respiro</em> no campo <strong>Margem (cm)</strong> acima.
+          No tipo <strong>Flutuante</strong> não se usa passe-partout na frente. A cor de
+          fundo pode vir do <strong>Passepartout</strong> selecionado. Defina a{' '}
+          <em>margem de respiro</em> no campo <strong>Margem (cm)</strong> acima.
         </Alert>
       )}
 
@@ -1467,31 +1524,33 @@ export default function OrcamentoForm() {
             size="sm"
           />
 
-          {perfil.permiteM2M3 && !ehAluminio(moldura1) && (ehRetaOuPP(moldura1) || ehCaixa(moldura1)) && (
-            <>
-              <FloatingSelect
-                label="Moldura 2 (opcional)"
-                options={ehCaixa(moldura1) ? moldurasApenasCaixa : (molduras || [])}
-                value={moldura2}
-                setValue={setMoldura2}
-                labelKey="display"
-                valueKey="id"
-                size="sm"
-              />
-              {/* M3 só aparece se M1 NÃO for caixa e M2 também NÃO for caixa */}
-              {!ehCaixa(moldura1) && !ehCaixa(moldura2) && (
+          {perfil.permiteM2M3 &&
+            !ehAluminio(moldura1) &&
+            (ehRetaOuPP(moldura1) || ehCaixa(moldura1)) && (
+              <>
                 <FloatingSelect
-                  label="Moldura 3 (opcional)"
-                  options={molduras || []}
-                  value={moldura3}
-                  setValue={setMoldura3}
+                  label="Moldura 2 (opcional)"
+                  options={ehCaixa(moldura1) ? moldurasApenasCaixa : molduras || []}
+                  value={moldura2}
+                  setValue={setMoldura2}
                   labelKey="display"
                   valueKey="id"
                   size="sm"
                 />
-              )}
-            </>
-          )}
+                {/* M3 só aparece se M1 NÃO for caixa e M2 também NÃO for caixa */}
+                {!ehCaixa(moldura1) && !ehCaixa(moldura2) && (
+                  <FloatingSelect
+                    label="Moldura 3 (opcional)"
+                    options={molduras || []}
+                    value={moldura3}
+                    setValue={setMoldura3}
+                    labelKey="display"
+                    valueKey="id"
+                    size="sm"
+                  />
+                )}
+              </>
+            )}
         </div>
       )}
 
@@ -1510,14 +1569,16 @@ export default function OrcamentoForm() {
           <div className="text-xs text-gray-500 mt-1">
             {areaRefM2 >= LIMIAR_REFORCO_M2
               ? 'Área acima do limiar para reforço.'
-              : `Profundidade da caixa ${fmt2(profundidadeCaixaCm)} cm abaixo de ${PROFUNDIDADE_GATE_CM} cm.`}
+              : `Profundidade da caixa ${fmt2(profundidadeCaixaCm)} cm abaixo de 3 cm.`}
           </div>
         </div>
       )}
 
       {avisoM2 && <Alert severity="info" className="mt-2">{avisoM2}</Alert>}
       {ehAluminio(moldura1) && (
-        <Alert severity="info" className="mt-2">Moldura de alumínio não permite adicionais.</Alert>
+        <Alert severity="info" className="mt-2">
+          Moldura de alumínio não permite adicionais.
+        </Alert>
       )}
       {perfil.permiteM2M3 && moldura1 && !ehRetaOuPP(moldura1) && !ehCaixa(moldura1) && (
         <Alert severity="info" className="mt-2">
@@ -1527,7 +1588,8 @@ export default function OrcamentoForm() {
 
       {perfil.permiteM2M3 && ehCaixa(moldura1) && (
         <Alert severity="info" className="mt-2">
-          Moldura 1 do tipo <strong>Caixa</strong>: Moldura 2 permite apenas Caixa e Moldura 3 fica desabilitada.
+          Moldura 1 do tipo <strong>Caixa</strong>: Moldura 2 permite apenas Caixa e Moldura 3 fica
+          desabilitada.
         </Alert>
       )}
 
@@ -1543,13 +1605,18 @@ export default function OrcamentoForm() {
               'Moldura';
 
             return (
-              <div key={`${rot}-${m?.id ?? m?.codigo_principal ?? nomeM}`} className="preview-moldura flex items-start gap-4">
+              <div
+                key={`${rot}-${m?.id ?? m?.codigo_principal ?? nomeM}`}
+                className="preview-moldura flex items-start gap-4"
+              >
                 <MolduraThumb moldura={m} onZoom={(url) => setZoomImg(url)} />
                 <div className="text-sm">
                   <div className="font-medium">
                     {rot}: {nomeM}
                   </div>
-                  {m?.codigo_principal && <div className="text-gray-500">{m.codigo_principal}</div>}
+                  {m?.codigo_principal && (
+                    <div className="text-gray-500">{m.codigo_principal}</div>
+                  )}
                 </div>
               </div>
             );
@@ -1585,7 +1652,9 @@ export default function OrcamentoForm() {
       {mostrarAlertaPesoVidro && (
         <div className="mt-3">
           <Alert severity="warning">
-            ⚠️ Área grande com moldura fina. Moldura 1 com face ≤ 2,5 cm e tipo {usoTipoM1 === 'A' ? 'Alumínio' : 'Normal'} com vidro selecionado. Esta combinação pode não suportar o peso do vidro. Verificar com o responsável.
+            ⚠️ Área grande com moldura fina. Moldura 1 com face ≤ 2,5 cm e tipo{' '}
+            {usoTipoM1 === 'A' ? 'Alumínio' : 'Normal'} com vidro selecionado. Esta combinação pode
+            não suportar o peso do vidro. Verificar com o responsável.
           </Alert>
         </div>
       )}
@@ -1615,7 +1684,8 @@ export default function OrcamentoForm() {
             setValue={(v) => {
               setDiversoSelecionado(v);
               setIncluirImpressaoDiversos(false);
-              if (v?.id === 'troca_passepartout') {   // ← limpa molduras
+              if (v?.id === 'troca_passepartout') {
+                // limpa molduras
                 setMoldura1(null);
                 setMoldura2(null);
                 setMoldura3(null);
@@ -1661,7 +1731,7 @@ export default function OrcamentoForm() {
                       <>
                         <FloatingSelect
                           label="Moldura 2 (opcional)"
-                          options={ehCaixa(moldura1) ? moldurasApenasCaixa : (molduras || [])}
+                          options={ehCaixa(moldura1) ? moldurasApenasCaixa : molduras || []}
                           value={moldura2}
                           setValue={setMoldura2}
                           labelKey="display"
@@ -1690,7 +1760,9 @@ export default function OrcamentoForm() {
                       checked={incluirImpressaoDiversos}
                       onChange={(e) => setIncluirImpressaoDiversos(e.target.checked)}
                     />
-                    <span>Incluir impressão ({id === 'troca_canvas' ? 'canvas' : 'papel matte'})</span>
+                    <span>
+                      Incluir impressão ({id === 'troca_canvas' ? 'canvas' : 'papel matte'})
+                    </span>
                   </label>
                 )}
 
@@ -1729,43 +1801,44 @@ export default function OrcamentoForm() {
                         type="number"
                         min={1}
                         value={numAberturas}
-                        onChange={(e) => setNumAberturas(Math.max(1, Number(e.target.value) || 1))}
+                        onChange={(e) =>
+                          setNumAberturas(Math.max(1, Number(e.target.value) || 1))
+                        }
                         disabled={!passepartoutSelecionado}
                         size="sm"
                       />
                     </div>
                   </>
                 )}
-
-
               </>
             );
           })()}
         </div>
       )}
 
-
-
       {/* Métricas e itens somados */}
       <div className="mt-4 text-sm text-gray-600 leading-relaxed space-y-1">
         <div>
-          <span className="emoji">📐</span> <strong>Interna</strong>: {fmt2(largura)} cm × {fmt2(altura)} cm
+          <span className="emoji">📐</span> <strong>Interna</strong>: {fmt2(largura)} cm ×{' '}
+          {fmt2(altura)} cm
         </div>
 
         {isFlutuante && Number(margemFlutuante) > 0 && (
           <div>
             <span className="emoji">🔲</span> <strong>Com margem (flutuante)</strong>:{' '}
             {fmt2(dimensoesFinais.larguraReforco)} cm × {fmt2(dimensoesFinais.alturaReforco)} cm
-         </div>
+          </div>
         )}
 
         {/* 1) “Com passe-partout” aparece em Troca de PP também */}
-        {!ppBloqueado && !isFlutuante && ((perfil.showPassepartout && passepartoutSelecionado) || isTrocaPP) && (
-          <div>
-            <span className="emoji">🔲</span> <strong>Com passe-partout</strong>:{' '}
-            {fmt2(dimensoesFinais.larguraReforco)} cm × {fmt2(dimensoesFinais.alturaReforco)} cm
-          </div>
-        )}
+        {!ppBloqueado &&
+          !isFlutuante &&
+          ((perfil.showPassepartout && passepartoutSelecionado) || isTrocaPP) && (
+            <div>
+              <span className="emoji">🔲</span> <strong>Com passe-partout</strong>:{' '}
+              {fmt2(dimensoesFinais.larguraReforco)} cm × {fmt2(dimensoesFinais.alturaReforco)} cm
+            </div>
+          )}
 
         {/* 2) Renomeia o rótulo da área */}
         <div>
@@ -1782,8 +1855,6 @@ export default function OrcamentoForm() {
           </div>
         )}
 
-
-
         {isTela && incluirImpressaoTela && (
           <div>
             <span className="emoji">🖨️</span> <strong>Impressão</strong>: canvas (incluída)
@@ -1795,7 +1866,9 @@ export default function OrcamentoForm() {
           incluirChassi && (
             <div>
               <span className="emoji">🔩</span> <strong>Chassi</strong>:{' '}
-              {((parseFloat(altura) || 0) / 100) * ((parseFloat(largura) || 0) / 100) > 1 ? '5 mm' : '3 mm'}{' '}
+              {((parseFloat(altura) || 0) / 100) * ((parseFloat(largura) || 0) / 100) > 1
+                ? '5 mm'
+                : '3 mm'}{' '}
               (incluído no cálculo)
             </div>
           )}
@@ -1816,10 +1889,11 @@ export default function OrcamentoForm() {
 
         {perfil.showPassepartout && passepartoutSelecionado && !ppBloqueado && (
           <div>
-            <span className="emoji">🔳</span> <strong>Aberturas no passe-partout</strong>: {numAberturasCalc}
+            <span className="emoji">🔳</span> <strong>Aberturas no passe-partout</strong>:{' '}
+            {numAberturasCalc}
           </div>
         )}
-   
+
         {itensSomados.length > 0 && (
           <div className="pt-2">
             <div className="text-gray-700">
@@ -1837,7 +1911,8 @@ export default function OrcamentoForm() {
       {/* Totais */}
       <div className="mt-4 text-sm text-gray-700 space-y-1">
         <div>
-          <span className="emoji">💠</span> <strong>Total sem markup:</strong> {money(valorSemMarkup)}
+          <span className="emoji">💠</span> <strong>Total sem markup:</strong>{' '}
+          {money(valorSemMarkup)}
         </div>
         <div>
           <span className="emoji">💙</span> <strong>Total com markup:</strong> {money(valorTotal)}
@@ -1848,45 +1923,47 @@ export default function OrcamentoForm() {
         Valor estimado: {money(valorTotal)}
       </div>
 
-{/* -------- DEBUG DE CUSTOS -------- */}
-{/*
-<div className="mt-3 text-xs text-gray-600">
-  <label className="inline-flex items-center gap-2 cursor-pointer">
-    <input type="checkbox" className="h-4 w-4"
-           checked={debugVisivel}
-           onChange={(e)=>setDebugVisivel(e.target.checked)} />
-    <span>Mostrar debug de custos</span>
-  </label>
+      {/* -------- DEBUG DE CUSTOS -------- */}
+      {/*
+      <div className="mt-3 text-xs text-gray-600">
+        <label className="inline-flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            className="h-4 w-4"
+            checked={debugVisivel}
+            onChange={(e) => setDebugVisivel(e.target.checked)}
+          />
+          <span>Mostrar debug de custos</span>
+        </label>
 
-  {debugVisivel && custosCalc && (
-    <div className="mt-2 bg-gray-50 rounded p-2">
-      <div className="font-medium text-gray-700 mb-1">Breakdown:</div>
+        {debugVisivel && custosCalc && (
+          <div className="mt-2 bg-gray-50 rounded p-2">
+            <div className="font-medium text-gray-700 mb-1">Breakdown:</div>
 
-      {(custosCalc.moldurasCamadas || []).map((c, i) => (
-        <div key={i}>
-          M{i+1}: {fmt2(c.ml)} m × R$ {fmt2(c.precoML)} = R$ {fmt2(c.custo)}
-        </div>
-      ))}
+            {(custosCalc.moldurasCamadas || []).map((c, i) => (
+              <div key={i}>
+                M{i + 1}: {fmt2(c.ml)} m × R$ {fmt2(c.precoML)} = R$ {fmt2(c.custo)}
+              </div>
+            ))}
 
-      <div>Vidro: R$ {fmt2(custosCalc.vidro)}</div>
-      <div>Fundo: R$ {fmt2(custosCalc.fundo)}</div>
-      <div>Fundo extra: R$ {fmt2(custosCalc.fundoExtra)}</div>
-      <div>Passe-partout: R$ {fmt2(custosCalc.passepartout)}</div>
-      {Number(custosCalc.passepartoutAberturasExtra||0)>0 && (
-        <div>Aberturas extras: R$ {fmt2(custosCalc.passepartoutAberturasExtra)}</div>
-      )}
-      <div>Impressão: R$ {fmt2(custosCalc.impressao)}</div>
-      <div>Baguete interna: R$ {fmt2(custosCalc.bagueteInterna)}</div>
-      <div>Chassi: R$ {fmt2(custosCalc.chassi)}</div>
-      <div>Reforço: R$ {fmt2(custosCalc.reforco)}</div>
-      <div>Camisa/Objeto: R$ {fmt2(custosCalc.camisaObjeto)}</div>
-      <div>Diversos: R$ {fmt2(custosCalc.diversos)}</div>
-    </div>
-  )}
-</div>
-*/}
-{/* ------- FIM DEBUG DE CUSTOS ------- */}
-
+            <div>Vidro: R$ {fmt2(custosCalc.vidro)}</div>
+            <div>Fundo: R$ {fmt2(custosCalc.fundo)}</div>
+            <div>Fundo extra: R$ {fmt2(custosCalc.fundoExtra)}</div>
+            <div>Passe-partout: R$ {fmt2(custosCalc.passepartout)}</div>
+            {Number(custosCalc.passepartoutAberturasExtra || 0) > 0 && (
+              <div>Aberturas extras: R$ {fmt2(custosCalc.passepartoutAberturasExtra)}</div>
+            )}
+            <div>Impressão: R$ {fmt2(custosCalc.impressao)}</div>
+            <div>Baguete interna: R$ {fmt2(custosCalc.bagueteInterna)}</div>
+            <div>Chassi: R$ {fmt2(custosCalc.chassi)}</div>
+            <div>Reforço: R$ {fmt2(custosCalc.reforco)}</div>
+            <div>Camisa/Objeto: R$ {fmt2(custosCalc.camisaObjeto)}</div>
+            <div>Diversos: R$ {fmt2(custosCalc.diversos)}</div>
+          </div>
+        )}
+      </div>
+      */}
+      {/* ------- FIM DEBUG DE CUSTOS ------- */}
 
       {/* Modal de zoom */}
       {zoomImg && (
@@ -1894,8 +1971,20 @@ export default function OrcamentoForm() {
           <img src={zoomImg} alt="Moldura" />
         </div>
       )}
-
-
     </div>
+  );
+}
+
+// =====================================================
+// PÁGINA (export default ÚNICO)
+// =====================================================
+export default function Orcamento() {
+  return (
+    <>
+      <Helmet>
+        <title>Artemoldurados — Orçamento</title>
+      </Helmet>
+      <OrcamentoForm />
+    </>
   );
 }
