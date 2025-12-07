@@ -429,3 +429,12 @@ git commit -m "fix(orcamento): corrige cálculo de reforço e bloqueios de M2/M3
 # ou
 git commit -m "chore(ui): troca favicon e título via Helmet"
 
+====
+
+
+git status
+git add -A
+git status
+git diff --staged --name-only
+git commit -m "feat(admin/reset): textos e ações por linha; favicons claro/escuro; ajustes ResetPassword; add edge func ping"
+git push origin chore/brand-favicon

@@ -622,3 +622,6 @@ supabase link --project-ref nwtfynwrmhggbeudwpus
 supabase functions deploy ping --no-verify-jwt
 curl -i https://nwtfynwrmhggbeudwpus.functions.supabase.co/ping
 
+
+npx vercel@latest link --yes      
+npx vercel@latest --prod --yes    npx vercel@latest pull

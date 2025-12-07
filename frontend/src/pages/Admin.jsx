@@ -274,21 +274,16 @@ export default function Admin() {
         {false && (
           <td className="px-3 py-2">
             <div className="flex items-center gap-2">
-              <button className="btn btn-secondary" onClick={() => saveRow(row)}>
-                Salvar
-              </button>
+              <button className="btn btn-secondary" onClick={() => saveRow(row)}>Salvar</button>
 
-              <button className="btn btn-outline" onClick={() => handleSendResetRow(row.email)}>
-                Enviar reset
-              </button>
-
+              {/* Mostrar ação de reset/troca APENAS se NÃO for o usuário logado */}
               {row.email?.toLowerCase() !== meEmail && (
                 <button
                   className="btn btn-outline"
-                  title="Enviar link para este usuário trocar a senha"
                   onClick={() => handleSendResetRow(row.email)}
+                  title={`Enviar link para ${row.nome || row.email} redefinir a senha`}
                 >
-                  Trocar senha
+                  Enviar reset
                 </button>
               )}
             </div>
