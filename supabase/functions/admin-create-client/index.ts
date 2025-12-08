@@ -19,21 +19,54 @@ interface BodyPayload {
   telefone?: string;
   empresa?: string;
   password?: string;
-  role?: Role; // "admin" | "cliente"
+  role?: Role;
 }
 
+/* ============ CORS helpers ============ */
+
+const DEFAULT_ORIGIN = SITE_URL;
+
+function corsHeaders(origin?: string | null) {
+  const o = origin || DEFAULT_ORIGIN;
+  return {
+    "Access-Control-Allow-Origin": o,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, x-admin-token",
+  };
+}
+
+/* ============ Handler principal ============ */
+
 serve(async (req) => {
+  const origin = req.headers.get("origin") || DEFAULT_ORIGIN;
+
+  // Preflight CORS
+  if (req.method === "OPTIONS") {
+    return new Response("ok", {
+      status: 200,
+      headers: {
+        ...corsHeaders(origin),
+      },
+    });
+  }
+
   try {
-    // 1) Autorização por token
+    /* 1) Autorização por token */
     const token = req.headers.get("x-admin-token") ?? "";
     if (!token || token !== ADMIN_API_TOKEN) {
       return new Response(
         JSON.stringify({ error: "Não autorizado (token inválido)." }),
-        { status: 401, headers: { "Content-Type": "application/json" } },
+        {
+          status: 401,
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders(origin),
+          },
+        },
       );
     }
 
-    // 2) Body
+    /* 2) Body */
     const body = (await req.json()) as BodyPayload;
     const emailRaw = (body.email ?? "").trim().toLowerCase();
     const name = (body.name ?? "").trim();
@@ -45,86 +78,157 @@ serve(async (req) => {
     if (!emailRaw) {
       return new Response(
         JSON.stringify({ error: "E-mail é obrigatório." }),
-        { status: 400, headers: { "Content-Type": "application/json" } },
+        {
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders(origin),
+          },
+        },
       );
     }
 
-    // 3) Verifica se usuário já existe no Auth
-    const { data: userByEmail, error: getUserErr } =
+    /* 3) Verificar se já existe usuário no auth */
+    const { data: existingUser, error: getUserError } =
       await supabaseAdmin.auth.admin.getUserByEmail(emailRaw);
 
     let userId: string | null = null;
-    let outcome: "created" | "invited" | "recovery" | null = null;
+    let outcome: "created" | "invited" | "recovery" = "created";
 
-    if (getUserErr) {
-      // getUserByEmail retorna erro quando não encontra -> tratamos como "não existe"
-      if (!String(getUserErr.message || "").toLowerCase().includes("user not found")) {
-        console.error("Erro getUserByEmail:", getUserErr);
-      }
-    }
-
-    if (!userByEmail?.user) {
-      // 3a) Usuário não existe -> cria
-      if (password && password.length >= 8) {
-        // cria com senha definida
+    if (getUserError && getUserError.message?.includes("User not found")) {
+      // não existe usuário
+      if (password) {
+        // cria usuário com senha já definida
         const { data, error } = await supabaseAdmin.auth.admin.createUser({
           email: emailRaw,
           password,
           email_confirm: true,
-          user_metadata: { name },
         });
-        if (error || !data.user) {
-          console.error("Erro createUser:", error);
+        if (error || !data?.user) {
           return new Response(
-            JSON.stringify({ error: error?.message ?? "Falha ao criar usuário." }),
-            { status: 400, headers: { "Content-Type": "application/json" } },
+            JSON.stringify({ error: `Erro ao criar usuário: ${error?.message ?? "desconhecido"}` }),
+            {
+              status: 500,
+              headers: {
+                "Content-Type": "application/json",
+                ...corsHeaders(origin),
+              },
+            },
           );
         }
         userId = data.user.id;
         outcome = "created";
       } else {
-        // cria via convite (link de convite)
-        const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-          emailRaw,
-          { redirectTo: `${SITE_URL}/reset` },
-        );
+        // convida usuário por e-mail
+        const { data, error } =
+          await supabaseAdmin.auth.admin.inviteUserByEmail(emailRaw, {
+            redirectTo: `${SITE_URL}/reset`,
+          });
         if (error || !data?.user) {
-          console.error("Erro inviteUserByEmail:", error);
           return new Response(
-            JSON.stringify({ error: error?.message ?? "Falha ao convidar usuário." }),
-            { status: 400, headers: { "Content-Type": "application/json" } },
+            JSON.stringify({ error: `Erro ao convidar usuário: ${error?.message ?? "desconhecido"}` }),
+            {
+              status: 500,
+              headers: {
+                "Content-Type": "application/json",
+                ...corsHeaders(origin),
+              },
+            },
           );
         }
         userId = data.user.id;
         outcome = "invited";
       }
-    } else {
-      // 3b) Usuário já existe -> gera link de recuperação
-      userId = userByEmail.user.id;
-      const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+    } else if (existingUser?.user) {
+      // já existe usuário → gera link de recuperação
+      userId = existingUser.user.id;
+      const { error: linkError } = await supabaseAdmin.auth.admin.generateLink({
         type: "recovery",
         email: emailRaw,
         options: { redirectTo: `${SITE_URL}/reset` },
       });
-      if (error) {
-        console.error("Erro generateLink(recovery):", error);
+      if (linkError) {
         return new Response(
-          JSON.stringify({ error: error.message }),
-          { status: 400, headers: { "Content-Type": "application/json" } },
+          JSON.stringify({
+            error: `Usuário já existe, mas falhou gerar link de recuperação: ${linkError.message}`,
+          }),
+          {
+            status: 500,
+            headers: {
+              "Content-Type": "application/json",
+              ...corsHeaders(origin),
+            },
+          },
         );
       }
       outcome = "recovery";
+    } else if (getUserError) {
+      // outro erro qualquer
+      return new Response(
+        JSON.stringify({ error: `Erro ao buscar usuário: ${getUserError.message}` }),
+        {
+          status: 500,
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders(origin),
+          },
+        },
+      );
     }
 
     if (!userId) {
       return new Response(
-        JSON.stringify({ error: "Não foi possível obter o ID do usuário." }),
-        { status: 500, headers: { "Content-Type": "application/json" } },
+        JSON.stringify({ error: "Não foi possível determinar o ID do usuário." }),
+        {
+          status: 500,
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders(origin),
+          },
+        },
       );
     }
 
-    // 4) Upsert em profiles
-    const { error: profErr } = await supabaseAdmin
+    /* 4) Acessos_permitidos (reativar se estava deletado) */
+    const { data: acessoAntes } = await supabaseAdmin
+      .from("acessos_permitidos")
+      .select("is_deleted, ativo")
+      .eq("email", emailRaw)
+      .maybeSingle();
+
+    const wasDeleted =
+      acessoAntes?.is_deleted === true || acessoAntes?.ativo === false;
+
+    const { error: upsertAcessoError } = await supabaseAdmin
+      .from("acessos_permitidos")
+      .upsert(
+        {
+          email: emailRaw,
+          role,
+          ativo: true,
+          is_deleted: false,
+          deleted_at: null,
+        },
+        { onConflict: "email" },
+      );
+
+    if (upsertAcessoError) {
+      return new Response(
+        JSON.stringify({
+          error: `Erro ao salvar acessos_permitidos: ${upsertAcessoError.message}`,
+        }),
+        {
+          status: 500,
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders(origin),
+          },
+        },
+      );
+    }
+
+    /* 5) Profiles */
+    const { error: upsertProfileError } = await supabaseAdmin
       .from("profiles")
       .upsert(
         {
@@ -135,12 +239,24 @@ serve(async (req) => {
         },
         { onConflict: "id" },
       );
-    if (profErr) {
-      console.error("Erro upsert profiles:", profErr);
+
+    if (upsertProfileError) {
+      return new Response(
+        JSON.stringify({
+          error: `Erro ao salvar profile: ${upsertProfileError.message}`,
+        }),
+        {
+          status: 500,
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders(origin),
+          },
+        },
+      );
     }
 
-    // 5) Upsert em clientes (tabela de “usuários/contatos”)
-    const { error: cliErr } = await supabaseAdmin
+    /* 6) Clientes (todo mundo entra aqui, admin também) */
+    const { error: upsertClienteError } = await supabaseAdmin
       .from("clientes")
       .upsert(
         {
@@ -152,42 +268,49 @@ serve(async (req) => {
         },
         { onConflict: "id" },
       );
-    if (cliErr) {
-      console.error("Erro upsert clientes:", cliErr);
-    }
 
-    // 6) Upsert em acessos_permitidos
-    const { error: accErr } = await supabaseAdmin
-      .from("acessos_permitidos")
-      .upsert(
+    if (upsertClienteError) {
+      return new Response(
+        JSON.stringify({
+          error: `Erro ao salvar cliente: ${upsertClienteError.message}`,
+        }),
         {
-          email: emailRaw,
-          role,
-          ativo: true,
-          is_deleted: false,
-          deleted_at: null,
-          is_primary_admin: false,
+          status: 500,
+          headers: {
+            "Content-Type": "application/json",
+            ...corsHeaders(origin),
+          },
         },
-        { onConflict: "email" },
       );
-    if (accErr) {
-      console.error("Erro upsert acessos_permitidos:", accErr);
     }
 
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        outcome,
-        userId,
-        role,
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } },
-    );
+    /* 7) Resposta final */
+    const respBody: Record<string, unknown> = {
+      outcome,
+      email: emailRaw,
+      role,
+      userId,
+    };
+    if (wasDeleted) respBody.reactivated = true;
+
+    return new Response(JSON.stringify(respBody), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        ...corsHeaders(origin),
+      },
+    });
   } catch (err) {
-    console.error("Erro inesperado:", err);
+    console.error("admin-create-client error", err);
     return new Response(
-      JSON.stringify({ error: "Erro interno ao processar requisição." }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
+      JSON.stringify({ error: String(err?.message ?? err) }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+          ...corsHeaders(req.headers.get("origin")),
+        },
+      },
     );
   }
 });

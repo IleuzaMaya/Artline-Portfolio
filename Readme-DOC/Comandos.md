@@ -521,10 +521,14 @@ git commit -m "feat(admin): grid clientes/admins + soft-delete/reativar; adjust 
 git push origin main
 
 
-git status        # só pra conferir o que entrou
+git status 
 git add -A
 git commit -m "feat(admin): grid de acessos, soft-delete e reset de senha"
 git push origin main
+
+
+cd supabase/functions/admin-create-client
+supabase functions deploy admin-create-client --project-ref nwtfynwrmhggbeudwpus
 
 
 
