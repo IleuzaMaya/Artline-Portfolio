@@ -1,6 +1,5 @@
 // frontend/src/pages/ResetPassword.jsx
 import { useEffect, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { supabase } from "../lib/supabase";
 import { useToast } from "../ui/toast.jsx";
 
@@ -87,6 +86,13 @@ export default function ResetPassword() {
     : meEmail
       ? `Defina uma nova senha para ${meEmail}.`
       : "Informe a nova senha para sua conta.";
+
+
+  export default function ResetPassword() {
+  useEffect(() => {
+    document.title = "Artemoldurados — Redefinir senha";
+  }, []);
+      
 
   return (
     <>

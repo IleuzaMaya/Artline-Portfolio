@@ -5,7 +5,6 @@ import FloatingInput from '../components/FloatingInput';
 import FloatingSelect from '../components/FloatingSelect';
 import MolduraThumb from '../components/MolduraThumb';
 import { Alert } from '@mui/material';
-import { Helmet } from 'react-helmet-async';
 
 import {
   calcularOrcamento,
@@ -13,6 +12,14 @@ import {
   moneyNum,
   num,
 } from '../utils/calcularOrcamento';
+
+export default function Orcamento() {
+  useEffect(() => {
+    document.title = "Artemoldurados — Orçamento";
+  }, []);
+
+  return <OrcamentoForm />;
+}
 
 // =====================================================
 // FORMULÁRIO (componente interno - sem export default)
@@ -1975,16 +1982,4 @@ function OrcamentoForm() {
   );
 }
 
-// =====================================================
-// PÁGINA (export default ÚNICO)
-// =====================================================
-export default function Orcamento() {
-  return (
-    <>
-      <Helmet>
-        <title>Artemoldurados — Orçamento</title>
-      </Helmet>
-      <OrcamentoForm />
-    </>
-  );
-}
+

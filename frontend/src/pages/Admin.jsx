@@ -1,6 +1,5 @@
 // frontend/src/pages/Admin.jsx
 import { useEffect, useMemo, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { adminApi } from "../lib/adminApi";
@@ -137,12 +136,14 @@ export default function Admin() {
 
   const telefoneMask = useMemo(() => formatPhoneBR(telefone), [telefone]);
 
+
+export default function Admin() {
+  useEffect(() => {
+    document.title = "Artemoldurados — Administração";
+  }, []);
+
   return (
     <>
-      <Helmet>
-        <title>Artemoldurados — Administração</title>
-      </Helmet>
-
       <div className="max-w-4xl mx-auto p-4">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
