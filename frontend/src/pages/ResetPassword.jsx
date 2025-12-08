@@ -15,37 +15,48 @@ function parseHashParams() {
 
 export default function ResetPassword() {
   const { show } = useToast();
+
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
+
   const [meEmail, setMeEmail] = useState("");
   const [hasRecoverySession, setHasRecoverySession] = useState(false);
 
-  // 1) Se veio de link de recuperação do Supabase (#access_token/#refresh_token),
-  // cria a sessão localmente para permitir updateUser({ password }).
+  // Título da página (substitui Helmet)
+  useEffect(() => {
+    document.title = "Artemoldurados — Redefinir senha";
+  }, []);
+
+  // 1) Se veio por link de recuperação (#access_token/#refresh_token), cria sessão local
   useEffect(() => {
     const { access_token, refresh_token, type } = parseHashParams();
 
     async function ensureSessionFromHash() {
       if (access_token && refresh_token) {
         try {
-          const { data, error } = await supabase.auth.setSession({
+          const { error } = await supabase.auth.setSession({
             access_token,
             refresh_token,
           });
           if (error) throw error;
           setHasRecoverySession(type === "recovery");
-          // limpa o hash da URL para evitar reaplicação:
-          window.history.replaceState({}, document.title, window.location.pathname + window.location.search);
+          // limpa o hash da URL
+          window.history.replaceState(
+            {},
+            document.title,
+            window.location.pathname + window.location.search
+          );
         } catch (err) {
           show({ type: "error", message: `Falha ao validar link de recuperação: ${err.message}` });
         }
       }
     }
+
     ensureSessionFromHash();
   }, [show]);
 
-  // 2) Descobre o e-mail atual (se logado por sessão normal OU via recovery).
+  // 2) Descobre o e-mail atual (sessão normal ou via recovery)
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       setMeEmail(data?.user?.email || "");
@@ -72,8 +83,8 @@ export default function ResetPassword() {
       setPassword("");
       setConfirm("");
 
-      // Se veio por link de recuperação, opcionalmente redirecionar após alguns segundos
-      // window.setTimeout(() => (window.location.href = "/"), 1500);
+      // opcional: redirecionar após alguns segundos
+      // setTimeout(() => (window.location.href = "/login"), 1500);
     } catch (err) {
       show({ type: "error", message: `Não foi possível atualizar: ${err.message}` });
     } finally {
@@ -84,68 +95,55 @@ export default function ResetPassword() {
   const subtitle = hasRecoverySession
     ? "Defina uma nova senha para sua conta."
     : meEmail
-      ? `Defina uma nova senha para ${meEmail}.`
-      : "Informe a nova senha para sua conta.";
-
-
-  export default function ResetPassword() {
-  useEffect(() => {
-    document.title = "Artemoldurados — Redefinir senha";
-  }, []);
-      
+    ? `Defina uma nova senha para ${meEmail}.`
+    : "Informe a nova senha para sua conta.";
 
   return (
-    <>
-      <Helmet>
-        <title>Artemoldurados — Redefinir senha</title>
-      </Helmet>
+    <div className="min-h-[70vh] flex items-center justify-center px-4">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow p-6">
+        <h1 className="text-xl font-semibold text-emerald-800 mb-1">Definir nova senha</h1>
+        <p className="text-sm text-slate-600 mb-6">{subtitle}</p>
 
-      <div className="min-h-[70vh] flex items-center justify-center px-4">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow p-6">
-          <h1 className="text-xl font-semibold text-emerald-800 mb-1">Definir nova senha</h1>
-          <p className="text-sm text-slate-600 mb-6">{subtitle}</p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm text-slate-600 mb-1">Nova senha</label>
+            <input
+              type="password"
+              className="w-full border rounded-lg px-3 py-2"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Mínimo de 8 caracteres"
+              autoComplete="new-password"
+              required
+            />
+          </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm text-slate-600 mb-1">Nova senha</label>
-              <input
-                type="password"
-                className="w-full border rounded-lg px-3 py-2"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Mínimo de 8 caracteres"
-                autoComplete="new-password"
-                required
-              />
-            </div>
+          <div>
+            <label className="block text-sm text-slate-600 mb-1">Confirmar nova senha</label>
+            <input
+              type="password"
+              className="w-full border rounded-lg px-3 py-2"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              placeholder="Repita a nova senha"
+              autoComplete="new-password"
+              required
+            />
+          </div>
 
-            <div>
-              <label className="block text-sm text-slate-600 mb-1">Confirmar nova senha</label>
-              <input
-                type="password"
-                className="w-full border rounded-lg px-3 py-2"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                placeholder="Repita a nova senha"
-                autoComplete="new-password"
-                required
-              />
-            </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 disabled:opacity-60"
+          >
+            {loading ? "Salvando..." : "Salvar nova senha"}
+          </button>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 disabled:opacity-60"
-            >
-              {loading ? "Salvando..." : "Salvar nova senha"}
-            </button>
-
-            <p className="text-xs text-slate-500 mt-2">
-              Dica: use ao menos 8 caracteres, misturando letras e números.
-            </p>
-          </form>
-        </div>
+          <p className="text-xs text-slate-500 mt-2">
+            Dica: use ao menos 8 caracteres, misturando letras e números.
+          </p>
+        </form>
       </div>
-    </>
+    </div>
   );
 }
