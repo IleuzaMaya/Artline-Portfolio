@@ -521,15 +521,7 @@ git commit -m "feat(admin): grid clientes/admins + soft-delete/reativar; adjust 
 git push origin main
 
 
-Continuar o projeto “Art Emoldurados”.
-Front: Vite/React (frontend/), Tailwind, páginas Login/Admin/Orcamento/Reset.
-Auth Supabase com RLS. Functions: admin-create-client (retorna { outcome, action_link, reactivated }) e admin-reset-password.
-Quero o dashboard Admin com grids de clientes/admins, soft-delete, reativar, impedir excluir admin principal, e tudo que já combinamos aqui.
-
-
-Projeto: Art Emoldurados — Vite/React (frontend/), Supabase (Auth, RLS), Vercel.
-Tenho Edge Functions “admin-create-client” e “admin-reset-password”.
-JWT Legacy: sem troca por enquanto. Vercel Root: frontend.
-Preciso continuar: grid de clientes/admins; soft-delete; reativar por e-mail; admin principal não deletável.
-RLS já criada para acessos_permitidos (select self/admin; insert/update admin; delete bloqueado).
-Quero manter exatamente a lógica do admin-create-client que retorna { outcome, action_link, reactivated }.
+git status        # só pra conferir o que entrou
+git add -A
+git commit -m "feat(admin): grid de acessos, soft-delete e reset de senha"
+git push origin main

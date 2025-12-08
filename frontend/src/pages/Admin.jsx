@@ -243,6 +243,7 @@ export default function Admin() {
   const [telefone, setTelefone] = useState("");
   const [empresa, setEmpresa] = useState("");
   const [senha, setSenha] = useState("");
+  const [roleNovo, setRoleNovo] = useState("cliente"); // NOVO: tipo de acesso
   const [loadingCreate, setLoadingCreate] = useState(false);
 
   async function handleCreateClient(e) {
@@ -255,17 +256,17 @@ export default function Admin() {
     try {
       const payload = {
         email: email.trim(),
-        name: (nome || "").trim(), // função espera "name"
+        name: (nome || "").trim(), 
         telefone: onlyDigits(telefone),
         empresa: (empresa || "").trim(),
         password: (senha || "").trim(), // se vazio, gera link de convite
-        role: "cliente",
+        role: roleNovo,                 // ← cliente ou admin
       };
 
       const res = await callFunction("admin-create-client", payload);
-      // outcome: "created" | "invited" | "recovery"
+
       if (res?.outcome === "created") {
-        show({ type: "success", message: "Cliente criado com senha definida." });
+        show({ type: "success", message: "Usuário criado com senha definida." });
       } else if (res?.outcome === "invited") {
         show({ type: "success", message: "Convite gerado (link retornado pela API)." });
       } else if (res?.outcome === "recovery") {
@@ -277,11 +278,18 @@ export default function Admin() {
       if (res?.reactivated) {
         show({
           type: "success",
-          message: "Usuário/cliente estava desativado e foi reativado.",
+          message: "Usuário estava desativado e foi reativado.",
         });
       }
 
+      // Limpa o formulário depois de criar
+      setNome("");
+      setEmail("");
+      setTelefone("");
+      setEmpresa("");
       setSenha("");
+      setRoleNovo("cliente");
+
       // recarregar grids
       await Promise.all([refClientes(), refAdmins()]);
     } catch (err) {
@@ -313,7 +321,10 @@ export default function Admin() {
     }
   }
 
-  const telefoneMask = useMemo(() => formatPhoneBR(telefone), [telefone]);
+  const telefoneMask = useMemo(
+    () => (telefone ? formatPhoneBR(telefone) : ""),
+    [telefone]
+  );
 
   // tabs + dados
   const [tab, setTab] = useState("clientes");
@@ -342,7 +353,7 @@ export default function Admin() {
 
           <form
             onSubmit={handleCreateClient}
-            className="grid grid-cols-1 md:grid-cols-2 gap-4"
+            className="grid grid-cols-1 md:grid-cols-3 gap-4"
           >
             <div>
               <label className="block text-sm text-slate-600">Nome</label>
@@ -362,6 +373,18 @@ export default function Admin() {
                 onChange={(e) => setEmpresa(e.target.value)}
                 placeholder="Empresa do cliente"
               />
+            </div>
+
+            <div>
+              <label className="block text-sm text-slate-600">Tipo de acesso</label>
+              <select
+                className="w-full border rounded-lg px-3 py-2 bg-white"
+                value={roleNovo}
+                onChange={(e) => setRoleNovo(e.target.value)}
+              >
+                <option value="cliente">Cliente</option>
+                <option value="admin">Administrador</option>
+              </select>
             </div>
 
             <div>
@@ -397,7 +420,7 @@ export default function Admin() {
               />
             </div>
 
-            <div className="md:col-span-2">
+            <div className="md:col-span-3">
               <button
                 type="submit"
                 disabled={loadingCreate}
