@@ -17,9 +17,9 @@ function formatPhoneBR(v) {
 }
 const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || "").trim());
 
-// Função utilitária para chamar Edge Functions (usa adminApi se existir)
+// Chamada às Edge Functions (usa adminApi se existir)
 async function callFunction(path, payload) {
-  // 1) Tenta via adminApi (se você tiver configurado)
+  // 1) tenta via adminApi
   if (adminApi && typeof adminApi === "function") {
     return adminApi(path, {
       method: "POST",
@@ -30,7 +30,7 @@ async function callFunction(path, payload) {
       body: JSON.stringify(payload),
     }).then((r) => (r.json ? r.json() : r));
   }
-  // 2) Fallback direto via fetch
+  // 2) fallback direto
   const base = (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL || "").replace(/\/$/, "");
   const url = `${base}/${path.replace(/^\//, "")}`;
   const resp = await fetch(url, {
@@ -50,10 +50,15 @@ async function callFunction(path, payload) {
 }
 
 /* ===================== Componente ===================== */
-export default function Admin() {
+function Admin() {
   const { show } = useToast();
 
-  // Dados do usuário logado (para esconder "Trocar senha" da própria linha)
+  // título da página
+  useEffect(() => {
+    document.title = "Artemoldurados — Administração";
+  }, []);
+
+  // usuário logado (para ocultar ação na própria linha)
   const [meEmail, setMeEmail] = useState("");
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -135,12 +140,6 @@ export default function Admin() {
   }
 
   const telefoneMask = useMemo(() => formatPhoneBR(telefone), [telefone]);
-
-
-export default function Admin() {
-  useEffect(() => {
-    document.title = "Artemoldurados — Administração";
-  }, []);
 
   return (
     <>
@@ -233,13 +232,13 @@ export default function Admin() {
         <div className="bg-white rounded-2xl shadow p-5 mt-6">
           <h2 className="text-lg font-medium text-slate-800">Enviar link de redefinição</h2>
           <p className="text-sm text-slate-500 mb-4">
-            {emailReset
-              ? (
-                <>
-                  Enviar link para <span className="font-medium">{emailReset.trim().toLowerCase()}</span> redefinir a senha.
-                </>
-                )
-              : <>Informe o e-mail para enviar o link de redefinição.</>}
+            {emailReset ? (
+              <>
+                Enviar link para <span className="font-medium">{emailReset.trim().toLowerCase()}</span> redefinir a senha.
+              </>
+            ) : (
+              <>Informe o e-mail para enviar o link de redefinição.</>
+            )}
           </p>
 
           <form onSubmit={handleSendReset} className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -268,16 +267,11 @@ export default function Admin() {
           </form>
         </div>
 
-        {/* ========== Gestão de contas ==========
-            MANTENHA a sua tabela atual.
-            Apenas SUBSTITUA o conteúdo da célula de AÇÕES pelo bloco abaixo. */}
-        {/* EXEMPLO de célula de AÇÕES dentro do seu map de linhas (rows/users): */}
+        {/* ====== Gestão de contas (exemplo de AÇÕES por linha) ====== */}
         {false && (
           <td className="px-3 py-2">
             <div className="flex items-center gap-2">
               <button className="btn btn-secondary" onClick={() => saveRow(row)}>Salvar</button>
-
-              {/* Mostrar ação de reset/troca APENAS se NÃO for o usuário logado */}
               {row.email?.toLowerCase() !== meEmail && (
                 <button
                   className="btn btn-outline"
@@ -290,7 +284,6 @@ export default function Admin() {
             </div>
           </td>
         )}
-        {/* ====== /Gestão de contas ====== */}
 
         {/* Rodapé simples */}
         <div className="text-xs text-slate-500 mt-6">
@@ -300,3 +293,5 @@ export default function Admin() {
     </>
   );
 }
+
+export default Admin;
