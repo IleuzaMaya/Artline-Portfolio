@@ -2,6 +2,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+// importa seus estilos globais (Tailwind e customizações)
+import "./App.css";
 
 import Admin from "./pages/Admin.jsx";
 import Orcamento from "./pages/Orcamento.jsx";
