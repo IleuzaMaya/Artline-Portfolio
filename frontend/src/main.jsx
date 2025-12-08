@@ -2,7 +2,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { HelmetProvider } from "react-helmet-async";
 
 // Páginas existentes no seu projeto
 import Admin from "./pages/Admin.jsx";
@@ -32,10 +31,8 @@ function AppRoutes() {
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <HelmetProvider>
       <BrowserRouter>
         <AppRoutes />
       </BrowserRouter>
-    </HelmetProvider>
   </React.StrictMode>
 );

@@ -486,3 +486,12 @@ npx serve -s dist
 git add -A
 git commit -m "fix(frontend): main.jsx com rotas e montagem do app"
 git push origin main
+
+
+cd frontend
+npm i react-helmet-async
+npm ls react-helmet-async   
+cd ..
+git add -A
+git commit -m "fix(frontend): add react-helmet-async (HelmetProvider no main.jsx)"
+git push origin main
