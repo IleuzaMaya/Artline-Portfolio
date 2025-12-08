@@ -525,3 +525,9 @@ git status        # só pra conferir o que entrou
 git add -A
 git commit -m "feat(admin): grid de acessos, soft-delete e reset de senha"
 git push origin main
+
+
+
+ateliemarbagiotto@gmail.com
+Hg415406@
+13981477999
