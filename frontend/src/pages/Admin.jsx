@@ -336,8 +336,24 @@ export default function Admin() {
             </button>
           </div>
 
-          {tab === 'clientes' && <Grid rows={clientes} meEmail={meEmail} refresh={refClientes} show={useToast().show} />}
-          {tab === 'admins'   && <Grid rows={admins}   meEmail={meEmail} refresh={refAdmins}   show={useToast().show} />}
+          {tab === "clientes" && (
+            <Grid
+              rows={clientes}
+              meEmail={meEmail}
+              refresh={refClientes}
+              show={show}
+            />
+          )}
+
+          {tab === "admins" && (
+            <Grid
+              rows={admins}
+              meEmail={meEmail}
+              refresh={refAdmins}
+              show={show}
+            />
+          )}
+
         </div>
 
         {/* Card: Reset isolado */}
