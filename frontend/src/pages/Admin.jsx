@@ -64,44 +64,81 @@ function useAcessos(role) {
     setLoading(false);
   }
 
-  useEffect(() => { fetchRows(); }, [role]);
+  useEffect(() => {
+    fetchRows();
+  }, [role]);
 
   return { rows, loading, refresh: fetchRows };
 }
 
 /* ===================== Ações por linha ===================== */
 function RowActions({ row, meEmail, onRefresh, show }) {
-  const isMe = row.email?.toLowerCase() === meEmail?.toLowerCase();
+  const email = row.email?.toLowerCase();
+  const me = meEmail?.toLowerCase();
+
+  const isMe = email === me;
+  const isPrimaryAdmin = row.is_primary_admin === true;
+
+  // --- SOFT DELETE RULES ---
+  const canSoftDelete =
+    !row.is_deleted &&
+    !isMe && // nunca desativa a si mesma
+    !isPrimaryAdmin; // nunca desativa o admin principal
+
+  // --- REACTIVATE RULES ---
+  const canReactivate = row.is_deleted;
+
+  // --- RESET PASSWORD RULES ---
+  // só o próprio usuário logado pode resetar a própria senha
+  const canResetPassword = isMe;
 
   async function softDelete() {
-    if (row.is_primary_admin) {
-      show({ type: "error", message: "Não é permitido remover o administrador principal." });
-      return;
-    }
     const ok = confirm(`Desativar ${row.email}? (pode ser reativado depois)`);
     if (!ok) return;
+
     const { error } = await supabase
       .from("acessos_permitidos")
-      .update({ is_deleted: true, ativo: false, deleted_at: new Date().toISOString() })
+      .update({
+        is_deleted: true,
+        ativo: false,
+        deleted_at: new Date().toISOString(),
+      })
       .eq("email", row.email);
-    if (error) show({ type: "error", message: error.message });
-    else { show({ type: "success", message: "Desativado." }); onRefresh(); }
+
+    if (error) {
+      show({ type: "error", message: error.message });
+    } else {
+      show({ type: "success", message: "Usuário desativado." });
+      onRefresh();
+    }
   }
 
   async function reactivate() {
     const { error } = await supabase
       .from("acessos_permitidos")
-      .update({ is_deleted: false, ativo: true, deleted_at: null })
+      .update({
+        is_deleted: false,
+        ativo: true,
+        deleted_at: null,
+      })
       .eq("email", row.email);
-    if (error) show({ type: "error", message: error.message });
-    else { show({ type: "success", message: "Reativado." }); onRefresh(); }
+
+    if (error) {
+      show({ type: "error", message: error.message });
+    } else {
+      show({ type: "success", message: "Usuário reativado." });
+      onRefresh();
+    }
   }
 
   async function resetPassword() {
     try {
       const r = await adminApi("admin-reset-password", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-admin-token": import.meta.env.VITE_ADMIN_API_TOKEN },
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-token": import.meta.env.VITE_ADMIN_API_TOKEN,
+        },
         body: JSON.stringify({ email: row.email }),
       });
       const res = r.json ? await r.json() : r;
@@ -113,15 +150,31 @@ function RowActions({ row, meEmail, onRefresh, show }) {
   }
 
   return (
-    <div className="flex gap-2">
-      {!row.is_deleted && !row.is_primary_admin && !isMe && (
-        <button className="btn btn-outline" onClick={softDelete}>Desativar</button>
+    <div className="flex gap-3 text-sm">
+      {canSoftDelete && (
+        <button
+          className="hover:text-red-600 hover:underline transition"
+          onClick={softDelete}
+        >
+          Desativar
+        </button>
       )}
-      {row.is_deleted && (
-        <button className="btn btn-secondary" onClick={reactivate}>Reativar</button>
+
+      {canReactivate && (
+        <button
+          className="hover:text-emerald-700 hover:underline transition"
+          onClick={reactivate}
+        >
+          Reativar
+        </button>
       )}
-      {!row.is_deleted && !isMe && (
-        <button className="btn" onClick={resetPassword} title="Enviar link de redefinição">
+
+      {canResetPassword && (
+        <button
+          className="hover:text-emerald-600 hover:underline transition"
+          onClick={resetPassword}
+          title="Enviar link de redefinição para este usuário"
+        >
           Reset senha
         </button>
       )}
@@ -154,7 +207,12 @@ function Grid({ rows, meEmail, refresh, show }) {
               </td>
               <td className="px-3 py-2">{r.role}</td>
               <td className="px-3 py-2">
-                <RowActions row={r} meEmail={meEmail} onRefresh={refresh} show={show} />
+                <RowActions
+                  row={r}
+                  meEmail={meEmail}
+                  onRefresh={refresh}
+                  show={show}
+                />
               </td>
             </tr>
           ))}
@@ -197,7 +255,7 @@ export default function Admin() {
     try {
       const payload = {
         email: email.trim(),
-        name: (nome || "").trim(),      // ← nossa função espera "name"
+        name: (nome || "").trim(), // função espera "name"
         telefone: onlyDigits(telefone),
         empresa: (empresa || "").trim(),
         password: (senha || "").trim(), // se vazio, gera link de convite
@@ -217,11 +275,14 @@ export default function Admin() {
       }
 
       if (res?.reactivated) {
-        show({ type: "success", message: "Usuário/cliente estava desativado e foi reativado." });
+        show({
+          type: "success",
+          message: "Usuário/cliente estava desativado e foi reativado.",
+        });
       }
 
       setSenha("");
-      // opcional: recarregar grids
+      // recarregar grids
       await Promise.all([refClientes(), refAdmins()]);
     } catch (err) {
       show({ type: "error", message: `Erro ao criar/convidar: ${err.message}` });
@@ -257,7 +318,7 @@ export default function Admin() {
   // tabs + dados
   const [tab, setTab] = useState("clientes");
   const { rows: clientes, refresh: refClientes } = useAcessos("cliente");
-  const { rows: admins,   refresh: refAdmins   } = useAcessos("admin");
+  const { rows: admins, refresh: refAdmins } = useAcessos("admin");
 
   return (
     <>
@@ -279,40 +340,69 @@ export default function Admin() {
             Se <strong>senha</strong> ficar em branco, será gerado um <em>link de convite</em>.
           </p>
 
-          <form onSubmit={handleCreateClient} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <form
+            onSubmit={handleCreateClient}
+            className="grid grid-cols-1 md:grid-cols-2 gap-4"
+          >
             <div>
               <label className="block text-sm text-slate-600">Nome</label>
-              <input className="w-full border rounded-lg px-3 py-2"
-                     value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome do cliente" />
+              <input
+                className="w-full border rounded-lg px-3 py-2"
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                placeholder="Nome do cliente"
+              />
             </div>
 
             <div>
               <label className="block text-sm text-slate-600">Empresa (opcional)</label>
-              <input className="w-full border rounded-lg px-3 py-2"
-                     value={empresa} onChange={(e) => setEmpresa(e.target.value)} placeholder="Empresa do cliente" />
+              <input
+                className="w-full border rounded-lg px-3 py-2"
+                value={empresa}
+                onChange={(e) => setEmpresa(e.target.value)}
+                placeholder="Empresa do cliente"
+              />
             </div>
 
             <div>
               <label className="block text-sm text-slate-600">E-mail</label>
-              <input type="email" className="w-full border rounded-lg px-3 py-2"
-                     value={email} onChange={(e) => setEmail(e.target.value)} placeholder="cliente@exemplo.com" required />
+              <input
+                type="email"
+                className="w-full border rounded-lg px-3 py-2"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="cliente@exemplo.com"
+                required
+              />
             </div>
 
             <div>
               <label className="block text-sm text-slate-600">Telefone (opcional)</label>
-              <input className="w-full border rounded-lg px-3 py-2"
-                     value={telefoneMask} onChange={(e) => setTelefone(e.target.value)} placeholder="(11) 91234-5678" />
+              <input
+                className="w-full border rounded-lg px-3 py-2"
+                value={telefoneMask}
+                onChange={(e) => setTelefone(e.target.value)}
+                placeholder="(11) 91234-5678"
+              />
             </div>
 
             <div>
               <label className="block text-sm text-slate-600">Senha (opcional)</label>
-              <input type="password" className="w-full border rounded-lg px-3 py-2"
-                     value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="Deixe vazio para enviar convite" />
+              <input
+                type="password"
+                className="w-full border rounded-lg px-3 py-2"
+                value={senha}
+                onChange={(e) => setSenha(e.target.value)}
+                placeholder="Deixe vazio para enviar convite"
+              />
             </div>
 
             <div className="md:col-span-2">
-              <button type="submit" disabled={loadingCreate}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 disabled:opacity-60">
+              <button
+                type="submit"
+                disabled={loadingCreate}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 disabled:opacity-60"
+              >
                 {loadingCreate ? "Processando..." : "Criar / Enviar convite"}
               </button>
             </div>
@@ -323,14 +413,22 @@ export default function Admin() {
         <div className="bg-white rounded-2xl shadow p-5 mt-6">
           <div className="flex items-center gap-3 mb-4">
             <button
-              className={`px-3 py-1.5 rounded ${tab==='clientes'?'bg-emerald-600 text-white':'bg-slate-100'}`}
-              onClick={()=>setTab('clientes')}
+              className={`px-3 py-1.5 rounded ${
+                tab === "clientes"
+                  ? "bg-emerald-600 text-white"
+                  : "bg-slate-100"
+              }`}
+              onClick={() => setTab("clientes")}
             >
               Clientes
             </button>
             <button
-              className={`px-3 py-1.5 rounded ${tab==='admins'?'bg-emerald-600 text-white':'bg-slate-100'}`}
-              onClick={()=>setTab('admins')}
+              className={`px-3 py-1.5 rounded ${
+                tab === "admins"
+                  ? "bg-emerald-600 text-white"
+                  : "bg-slate-100"
+              }`}
+              onClick={() => setTab("admins")}
             >
               Administradores
             </button>
@@ -344,7 +442,6 @@ export default function Admin() {
               show={show}
             />
           )}
-
           {tab === "admins" && (
             <Grid
               rows={admins}
@@ -353,30 +450,50 @@ export default function Admin() {
               show={show}
             />
           )}
-
         </div>
 
         {/* Card: Reset isolado */}
         <div className="bg-white rounded-2xl shadow p-5 mt-6">
-          <h2 className="text-lg font-medium text-slate-800">Enviar link de redefinição</h2>
+          <h2 className="text-lg font-medium text-slate-800">
+            Enviar link de redefinição
+          </h2>
           <p className="text-sm text-slate-500 mb-4">
-            {emailReset
-              ? <>Enviar link para <span className="font-medium">{emailReset.trim().toLowerCase()}</span> redefinir a senha.</>
-              : <>Informe o e-mail para enviar o link de redefinição.</>}
+            {emailReset ? (
+              <>
+                Enviar link para{" "}
+                <span className="font-medium">
+                  {emailReset.trim().toLowerCase()}
+                </span>{" "}
+                redefinir a senha.
+              </>
+            ) : (
+              <>Informe o e-mail para enviar o link de redefinição.</>
+            )}
           </p>
 
-          <form onSubmit={handleSendReset} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <form
+            onSubmit={handleSendReset}
+            className="grid grid-cols-1 md:grid-cols-3 gap-4"
+          >
             <div className="md:col-span-2">
               <label className="block text-sm text-slate-600">
                 {emailReset ? "Confirmar e-mail" : "E-mail do usuário"}
               </label>
-              <input type="email" className="w-full border rounded-lg px-3 py-2"
-                     value={emailReset} onChange={(e) => setEmailReset(e.target.value)}
-                     placeholder="usuario@exemplo.com" required />
+              <input
+                type="email"
+                className="w-full border rounded-lg px-3 py-2"
+                value={emailReset}
+                onChange={(e) => setEmailReset(e.target.value)}
+                placeholder="usuario@exemplo.com"
+                required
+              />
             </div>
             <div className="md:col-span-1 flex items-end">
-              <button type="submit" disabled={loadingReset}
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 disabled:opacity-60">
+              <button
+                type="submit"
+                disabled={loadingReset}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 disabled:opacity-60"
+              >
                 {loadingReset ? "Enviando..." : "Enviar link"}
               </button>
             </div>

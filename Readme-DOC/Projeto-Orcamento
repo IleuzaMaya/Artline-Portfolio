@@ -635,3 +635,8 @@ git status
 
 git commit -m "chore(secrets): remover .env do índice e manter ignorado"
 git push origin main
+
+
+git add src/pages/Admin.jsx
+git commit -m "chore(admin): esconder reset do admin principal e padronizar cor do botão"
+git push origin main

@@ -497,6 +497,29 @@ git commit -m "fix(frontend): add react-helmet-async (HelmetProvider no main.jsx
 git push origin main
 
 
+# 1) ir para a raiz do projeto
+cd ~/Downloads/IleuzaMaya/art-emoldurados-webapp
+
+# 2) ver o que está modificado
+git status
+
+# 3) adicionar tudo que mudou (ou só os arquivos específicos)
+git add -A
+# ou, se preferir explícito:
+# git add frontend/src/pages/Admin.jsx supabase/functions/admin-create-client/index.ts Readme-DOC/Comandos.md
+
+# 4) commitar
+git commit -m "feat(admin): grid clientes/admins + soft-delete/reativar; adjust admin-create-client"
+
+# 5) enviar
+git push origin main
+
+
+git status
+git add -A
+git commit -m "feat(admin): grid clientes/admins + soft-delete/reativar; adjust admin-create-client"
+git push origin main
+
 
 Continuar o projeto “Art Emoldurados”.
 Front: Vite/React (frontend/), Tailwind, páginas Login/Admin/Orcamento/Reset.
