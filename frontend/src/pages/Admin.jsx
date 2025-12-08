@@ -283,7 +283,7 @@ export default function Admin() {
                   onClick={() => handleSendResetRow(row.email)}
                   title={`Enviar link para ${row.nome || row.email} redefinir a senha`}
                 >
-                  Enviar reset
+                  Trocar senha
                 </button>
               )}
             </div>

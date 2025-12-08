@@ -625,3 +625,13 @@ curl -i https://nwtfynwrmhggbeudwpus.functions.supabase.co/ping
 
 npx vercel@latest link --yes      
 npx vercel@latest --prod --yes    npx vercel@latest pull
+
+
+git status
+
+git rm --cached -r frontend/.env frontend/.env.* .env .env.* || true
+
+git status
+
+git commit -m "chore(secrets): remover .env do índice e manter ignorado"
+git push origin main

@@ -438,3 +438,51 @@ git status
 git diff --staged --name-only
 git commit -m "feat(admin/reset): textos e ações por linha; favicons claro/escuro; ajustes ResetPassword; add edge func ping"
 git push origin chore/brand-favicon
+
+
+# na raiz do repo
+git status
+
+# Adiciona só o que está trackeado (os .env ficam de fora por estarem ignorados)
+git add -A
+
+# Opcional: confira o que vai subir
+git diff --staged
+
+git commit -m "feat(admin): reset por linha, textos, favicons; ajustes reset-password"
+git push origin main
+
+
+git status
+git add -A
+f --staged
+git commit -m "feat(admin): reset por linha, textos, favicons; ajustes reset-password"
+git push origin main
+
+=========
+
+
+No diretório frontend:
+# 1) Instalar (se já instalou recentemente pode pular)
+npm i
+
+# 2) Rodar em dev
+npm run dev
+# abra http://localhost:5173
+
+# 3) Build de produção local (opcional para checar)
+npm run build
+npx serve -s dist
+
+
+npm i
+npm run dev
+npm run build
+npx serve -s dist
+
+=====
+
+# na raiz do repo
+git add -A
+git commit -m "fix(frontend): main.jsx com rotas e montagem do app"
+git push origin main
