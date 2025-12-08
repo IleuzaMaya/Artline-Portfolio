@@ -6,7 +6,6 @@ import { adminApi } from "../lib/adminApi";
 import { useToast } from "../ui/toast.jsx";
 
 /* ===================== Helpers ===================== */
-// Telefone BR
 const onlyDigits = (s) => String(s || "").replace(/\D/g, "");
 function formatPhoneBR(v) {
   const d = onlyDigits(v).slice(0, 11);
@@ -17,20 +16,20 @@ function formatPhoneBR(v) {
 }
 const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || "").trim());
 
-// Chamada às Edge Functions (usa adminApi se existir)
 async function callFunction(path, payload) {
-  // 1) tenta via adminApi
+  // 1) tenta via adminApi (proxy opcional)
   if (adminApi && typeof adminApi === "function") {
-    return adminApi(path, {
+    const r = await adminApi(path, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-admin-token": import.meta.env.VITE_ADMIN_API_TOKEN,
       },
       body: JSON.stringify(payload),
-    }).then((r) => (r.json ? r.json() : r));
+    });
+    return r.json ? r.json() : r;
   }
-  // 2) fallback direto
+  // 2) fallback direto para Functions URL
   const base = (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL || "").replace(/\/$/, "");
   const url = `${base}/${path.replace(/^\//, "")}`;
   const resp = await fetch(url, {
@@ -49,16 +48,130 @@ async function callFunction(path, payload) {
   return data;
 }
 
-/* ===================== Componente ===================== */
-function Admin() {
+/* ===================== Hook: carregar acessos por role ===================== */
+function useAcessos(role) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  async function fetchRows() {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("acessos_permitidos")
+      .select("email, role, ativo, is_deleted, is_primary_admin, deleted_at")
+      .eq("role", role)
+      .order("email", { ascending: true });
+    if (!error) setRows(data || []);
+    setLoading(false);
+  }
+
+  useEffect(() => { fetchRows(); }, [role]);
+
+  return { rows, loading, refresh: fetchRows };
+}
+
+/* ===================== Ações por linha ===================== */
+function RowActions({ row, meEmail, onRefresh, show }) {
+  const isMe = row.email?.toLowerCase() === meEmail?.toLowerCase();
+
+  async function softDelete() {
+    if (row.is_primary_admin) {
+      show({ type: "error", message: "Não é permitido remover o administrador principal." });
+      return;
+    }
+    const ok = confirm(`Desativar ${row.email}? (pode ser reativado depois)`);
+    if (!ok) return;
+    const { error } = await supabase
+      .from("acessos_permitidos")
+      .update({ is_deleted: true, ativo: false, deleted_at: new Date().toISOString() })
+      .eq("email", row.email);
+    if (error) show({ type: "error", message: error.message });
+    else { show({ type: "success", message: "Desativado." }); onRefresh(); }
+  }
+
+  async function reactivate() {
+    const { error } = await supabase
+      .from("acessos_permitidos")
+      .update({ is_deleted: false, ativo: true, deleted_at: null })
+      .eq("email", row.email);
+    if (error) show({ type: "error", message: error.message });
+    else { show({ type: "success", message: "Reativado." }); onRefresh(); }
+  }
+
+  async function resetPassword() {
+    try {
+      const r = await adminApi("admin-reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-token": import.meta.env.VITE_ADMIN_API_TOKEN },
+        body: JSON.stringify({ email: row.email }),
+      });
+      const res = r.json ? await r.json() : r;
+      if (res?.error) throw new Error(res.error);
+      show({ type: "success", message: "Link de redefinição enviado." });
+    } catch (e) {
+      show({ type: "error", message: e.message });
+    }
+  }
+
+  return (
+    <div className="flex gap-2">
+      {!row.is_deleted && !row.is_primary_admin && !isMe && (
+        <button className="btn btn-outline" onClick={softDelete}>Desativar</button>
+      )}
+      {row.is_deleted && (
+        <button className="btn btn-secondary" onClick={reactivate}>Reativar</button>
+      )}
+      {!row.is_deleted && !isMe && (
+        <button className="btn" onClick={resetPassword} title="Enviar link de redefinição">
+          Reset senha
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ===================== Grid ===================== */
+function Grid({ rows, meEmail, refresh, show }) {
+  if (!rows?.length) return <div className="text-sm text-slate-500">Sem registros.</div>;
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full text-sm">
+        <thead>
+          <tr className="text-left text-slate-500">
+            <th className="px-3 py-2">E-mail</th>
+            <th className="px-3 py-2">Status</th>
+            <th className="px-3 py-2">Perfil</th>
+            <th className="px-3 py-2">Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.email} className="border-t">
+              <td className="px-3 py-2 font-medium">{r.email}</td>
+              <td className="px-3 py-2">
+                {r.is_deleted ? "Desativado" : r.ativo ? "Ativo" : "Inativo"}
+                {r.is_primary_admin && " · Admin principal"}
+                {r.email?.toLowerCase() === meEmail?.toLowerCase() && " · Você"}
+              </td>
+              <td className="px-3 py-2">{r.role}</td>
+              <td className="px-3 py-2">
+                <RowActions row={r} meEmail={meEmail} onRefresh={refresh} show={show} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ===================== Página ===================== */
+export default function Admin() {
   const { show } = useToast();
 
-  // título da página
   useEffect(() => {
     document.title = "Artemoldurados — Administração";
   }, []);
 
-  // usuário logado (para ocultar ação na própria linha)
   const [meEmail, setMeEmail] = useState("");
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -66,12 +179,12 @@ function Admin() {
     });
   }, []);
 
-  /* ---------- Criar/Convidar cliente ---------- */
+  // form criar/convite
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
   const [telefone, setTelefone] = useState("");
   const [empresa, setEmpresa] = useState("");
-  const [senha, setSenha] = useState(""); // opcional
+  const [senha, setSenha] = useState("");
   const [loadingCreate, setLoadingCreate] = useState(false);
 
   async function handleCreateClient(e) {
@@ -84,20 +197,32 @@ function Admin() {
     try {
       const payload = {
         email: email.trim(),
-        nome: (nome || "").trim(),
+        name: (nome || "").trim(),      // ← nossa função espera "name"
         telefone: onlyDigits(telefone),
         empresa: (empresa || "").trim(),
-        senha: (senha || "").trim(), // se vazio, a Edge Function envia convite
+        password: (senha || "").trim(), // se vazio, gera link de convite
+        role: "cliente",
       };
+
       const res = await callFunction("admin-create-client", payload);
-      if (res?.created) {
+      // outcome: "created" | "invited" | "recovery"
+      if (res?.outcome === "created") {
         show({ type: "success", message: "Cliente criado com senha definida." });
-      } else if (res?.invited) {
-        show({ type: "success", message: "Convite enviado por e-mail (definir senha)." });
+      } else if (res?.outcome === "invited") {
+        show({ type: "success", message: "Convite gerado (link retornado pela API)." });
+      } else if (res?.outcome === "recovery") {
+        show({ type: "info", message: "Usuário já existia — link de recuperação gerado." });
       } else {
         show({ type: "success", message: "Operação concluída." });
       }
+
+      if (res?.reactivated) {
+        show({ type: "success", message: "Usuário/cliente estava desativado e foi reativado." });
+      }
+
       setSenha("");
+      // opcional: recarregar grids
+      await Promise.all([refClientes(), refAdmins()]);
     } catch (err) {
       show({ type: "error", message: `Erro ao criar/convidar: ${err.message}` });
     } finally {
@@ -105,7 +230,7 @@ function Admin() {
     }
   }
 
-  /* ---------- Enviar link de redefinição (card) ---------- */
+  // reset por card
   const [emailReset, setEmailReset] = useState("");
   const [loadingReset, setLoadingReset] = useState(false);
 
@@ -127,19 +252,12 @@ function Admin() {
     }
   }
 
-  /* ---------- Enviar link de redefinição (por linha da tabela) ---------- */
-  async function handleSendResetRow(email) {
-    try {
-      const target = String(email || "").trim();
-      if (!target) throw new Error("E-mail inválido");
-      await callFunction("admin-reset-password", { email: target });
-      show({ type: "success", message: "Link de redefinição enviado." });
-    } catch (err) {
-      show({ type: "error", message: `Erro ao enviar link: ${err.message}` });
-    }
-  }
-
   const telefoneMask = useMemo(() => formatPhoneBR(telefone), [telefone]);
+
+  // tabs + dados
+  const [tab, setTab] = useState("clientes");
+  const { rows: clientes, refresh: refClientes } = useAcessos("cliente");
+  const { rows: admins,   refresh: refAdmins   } = useAcessos("admin");
 
   return (
     <>
@@ -154,91 +272,81 @@ function Admin() {
           </div>
         </div>
 
-        {/* ========== Card: Criar/Convidar Cliente ========== */}
+        {/* Card: Criar/Convidar */}
         <div className="bg-white rounded-2xl shadow p-5">
           <h2 className="text-lg font-medium text-slate-800">Criar/Convidar cliente</h2>
           <p className="text-sm text-slate-500 mb-4">
-            Preencha os dados. Se <strong>senha</strong> ficar em branco, será enviado um convite para o cliente
-            definir a própria senha.
+            Se <strong>senha</strong> ficar em branco, será gerado um <em>link de convite</em>.
           </p>
 
           <form onSubmit={handleCreateClient} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-slate-600">Nome</label>
-              <input
-                className="w-full border rounded-lg px-3 py-2"
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                placeholder="Nome do cliente"
-              />
+              <input className="w-full border rounded-lg px-3 py-2"
+                     value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome do cliente" />
             </div>
 
             <div>
               <label className="block text-sm text-slate-600">Empresa (opcional)</label>
-              <input
-                className="w-full border rounded-lg px-3 py-2"
-                value={empresa}
-                onChange={(e) => setEmpresa(e.target.value)}
-                placeholder="Empresa do cliente"
-              />
+              <input className="w-full border rounded-lg px-3 py-2"
+                     value={empresa} onChange={(e) => setEmpresa(e.target.value)} placeholder="Empresa do cliente" />
             </div>
 
             <div>
               <label className="block text-sm text-slate-600">E-mail</label>
-              <input
-                type="email"
-                className="w-full border rounded-lg px-3 py-2"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="cliente@exemplo.com"
-                required
-              />
+              <input type="email" className="w-full border rounded-lg px-3 py-2"
+                     value={email} onChange={(e) => setEmail(e.target.value)} placeholder="cliente@exemplo.com" required />
             </div>
 
             <div>
               <label className="block text-sm text-slate-600">Telefone (opcional)</label>
-              <input
-                className="w-full border rounded-lg px-3 py-2"
-                value={telefoneMask}
-                onChange={(e) => setTelefone(e.target.value)}
-                placeholder="(11) 91234-5678"
-              />
+              <input className="w-full border rounded-lg px-3 py-2"
+                     value={telefoneMask} onChange={(e) => setTelefone(e.target.value)} placeholder="(11) 91234-5678" />
             </div>
 
             <div>
               <label className="block text-sm text-slate-600">Senha (opcional)</label>
-              <input
-                type="password"
-                className="w-full border rounded-lg px-3 py-2"
-                value={senha}
-                onChange={(e) => setSenha(e.target.value)}
-                placeholder="Deixe vazio para enviar convite"
-              />
+              <input type="password" className="w-full border rounded-lg px-3 py-2"
+                     value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="Deixe vazio para enviar convite" />
             </div>
 
             <div className="md:col-span-2">
-              <button
-                type="submit"
-                disabled={loadingCreate}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 disabled:opacity-60"
-              >
+              <button type="submit" disabled={loadingCreate}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 disabled:opacity-60">
                 {loadingCreate ? "Processando..." : "Criar / Enviar convite"}
               </button>
             </div>
           </form>
         </div>
 
-        {/* ========== Card: Enviar link de redefinição (isolado) ========== */}
+        {/* Tabs + Grids */}
+        <div className="bg-white rounded-2xl shadow p-5 mt-6">
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              className={`px-3 py-1.5 rounded ${tab==='clientes'?'bg-emerald-600 text-white':'bg-slate-100'}`}
+              onClick={()=>setTab('clientes')}
+            >
+              Clientes
+            </button>
+            <button
+              className={`px-3 py-1.5 rounded ${tab==='admins'?'bg-emerald-600 text-white':'bg-slate-100'}`}
+              onClick={()=>setTab('admins')}
+            >
+              Administradores
+            </button>
+          </div>
+
+          {tab === 'clientes' && <Grid rows={clientes} meEmail={meEmail} refresh={refClientes} show={useToast().show} />}
+          {tab === 'admins'   && <Grid rows={admins}   meEmail={meEmail} refresh={refAdmins}   show={useToast().show} />}
+        </div>
+
+        {/* Card: Reset isolado */}
         <div className="bg-white rounded-2xl shadow p-5 mt-6">
           <h2 className="text-lg font-medium text-slate-800">Enviar link de redefinição</h2>
           <p className="text-sm text-slate-500 mb-4">
-            {emailReset ? (
-              <>
-                Enviar link para <span className="font-medium">{emailReset.trim().toLowerCase()}</span> redefinir a senha.
-              </>
-            ) : (
-              <>Informe o e-mail para enviar o link de redefinição.</>
-            )}
+            {emailReset
+              ? <>Enviar link para <span className="font-medium">{emailReset.trim().toLowerCase()}</span> redefinir a senha.</>
+              : <>Informe o e-mail para enviar o link de redefinição.</>}
           </p>
 
           <form onSubmit={handleSendReset} className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -246,46 +354,19 @@ function Admin() {
               <label className="block text-sm text-slate-600">
                 {emailReset ? "Confirmar e-mail" : "E-mail do usuário"}
               </label>
-              <input
-                type="email"
-                className="w-full border rounded-lg px-3 py-2"
-                value={emailReset}
-                onChange={(e) => setEmailReset(e.target.value)}
-                placeholder="usuario@exemplo.com"
-                required
-              />
+              <input type="email" className="w-full border rounded-lg px-3 py-2"
+                     value={emailReset} onChange={(e) => setEmailReset(e.target.value)}
+                     placeholder="usuario@exemplo.com" required />
             </div>
             <div className="md:col-span-1 flex items-end">
-              <button
-                type="submit"
-                disabled={loadingReset}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 disabled:opacity-60"
-              >
+              <button type="submit" disabled={loadingReset}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-4 py-2 disabled:opacity-60">
                 {loadingReset ? "Enviando..." : "Enviar link"}
               </button>
             </div>
           </form>
         </div>
 
-        {/* ====== Gestão de contas (exemplo de AÇÕES por linha) ====== */}
-        {false && (
-          <td className="px-3 py-2">
-            <div className="flex items-center gap-2">
-              <button className="btn btn-secondary" onClick={() => saveRow(row)}>Salvar</button>
-              {row.email?.toLowerCase() !== meEmail && (
-                <button
-                  className="btn btn-outline"
-                  onClick={() => handleSendResetRow(row.email)}
-                  title={`Enviar link para ${row.nome || row.email} redefinir a senha`}
-                >
-                  Trocar senha
-                </button>
-              )}
-            </div>
-          </td>
-        )}
-
-        {/* Rodapé simples */}
         <div className="text-xs text-slate-500 mt-6">
           Logado como: <span className="font-medium">{meEmail || "—"}</span>
         </div>
@@ -293,5 +374,3 @@ function Admin() {
     </>
   );
 }
-
-export default Admin;
