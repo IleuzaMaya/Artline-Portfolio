@@ -1,11 +1,29 @@
 // supabase/functions/admin-create-client/index.ts
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const ADMIN_API_TOKEN = Deno.env.get("ADMIN_API_TOKEN")!;
-const SITE_URL = Deno.env.get("SITE_URL") || "https://app.artemoldurados.com.br";
+const ORIGINS = ["https://app.artemoldurados.com.br", "http://localhost:5173"];
+
+const cors = (origin: string | null) => ({
+  "Access-Control-Allow-Origin":
+    origin && ORIGINS.includes(origin) ? origin : ORIGINS[0],
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers":
+    "authorization, apikey, x-client-info, x-admin-token, content-type",
+  "Access-Control-Max-Age": "86400",
+  Vary: "Origin",
+});
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const ADMIN_API_TOKEN = Deno.env.get("ADMIN_API_TOKEN") ?? "";
+const PROFILE_TABLE = Deno.env.get("PROFILE_TABLE") ?? "profiles";
+const PROJECT_URL =
+  Deno.env.get("PROJECT_URL") ?? "https://app.artemoldurados.com.br";
+
+if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+  console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+}
 
 const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false },
@@ -19,54 +37,50 @@ interface BodyPayload {
   telefone?: string;
   empresa?: string;
   password?: string;
-  role?: Role;
+  role?: Role; // "admin" | "cliente"
 }
-
-/* ============ CORS helpers ============ */
-
-const DEFAULT_ORIGIN = SITE_URL;
-
-function corsHeaders(origin?: string | null) {
-  const o = origin || DEFAULT_ORIGIN;
-  return {
-    "Access-Control-Allow-Origin": o,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, x-admin-token",
-  };
-}
-
-/* ============ Handler principal ============ */
 
 serve(async (req) => {
-  const origin = req.headers.get("origin") || DEFAULT_ORIGIN;
+  const origin = req.headers.get("origin");
+  const baseHeaders = cors(origin);
 
-  // Preflight CORS
+  // Pré-flight
   if (req.method === "OPTIONS") {
-    return new Response("ok", {
-      status: 200,
-      headers: {
-        ...corsHeaders(origin),
-      },
+    return new Response("ok", { headers: baseHeaders });
+  }
+
+  if (req.method !== "POST") {
+    return new Response("Method not allowed", {
+      status: 405,
+      headers: baseHeaders,
     });
   }
 
   try {
-    /* 1) Autorização por token */
+    // 1) Autorização por token
     const token = req.headers.get("x-admin-token") ?? "";
+    if (!ADMIN_API_TOKEN) {
+      console.error("ADMIN_API_TOKEN ausente nas secrets");
+      return new Response(
+        JSON.stringify({ error: "Configuração de token ausente" }),
+        {
+          status: 500,
+          headers: { ...baseHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     if (!token || token !== ADMIN_API_TOKEN) {
       return new Response(
         JSON.stringify({ error: "Não autorizado (token inválido)." }),
         {
           status: 401,
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders(origin),
-          },
-        },
+          headers: { ...baseHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
-    /* 2) Body */
+    // 2) Body
     const body = (await req.json()) as BodyPayload;
     const emailRaw = (body.email ?? "").trim().toLowerCase();
     const name = (body.name ?? "").trim();
@@ -80,126 +94,93 @@ serve(async (req) => {
         JSON.stringify({ error: "E-mail é obrigatório." }),
         {
           status: 400,
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders(origin),
-          },
-        },
+          headers: { ...baseHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
-    /* 3) Verificar se já existe usuário no auth */
-    const { data: existingUser, error: getUserError } =
-      await supabaseAdmin.auth.admin.getUserByEmail(emailRaw);
+    // 3) Verifica se já existe usuário com esse e-mail
+    const existing = await supabaseAdmin.auth.admin.getUserByEmail(emailRaw);
+    if (existing.error && existing.error.message !== "User not found") {
+      console.error("getUserByEmail error:", existing.error);
+      throw existing.error;
+    }
 
-    let userId: string | null = null;
-    let outcome: "created" | "invited" | "recovery" = "created";
+    let userId: string | null = existing.data?.user?.id ?? null;
 
-    if (getUserError && getUserError.message?.includes("User not found")) {
-      // não existe usuário
+    // 4) Cria / convida usuário
+    if (!userId) {
       if (password) {
-        // cria usuário com senha já definida
-        const { data, error } = await supabaseAdmin.auth.admin.createUser({
+        // cria usuário com senha
+        const created = await supabaseAdmin.auth.admin.createUser({
           email: emailRaw,
           password,
           email_confirm: true,
+          user_metadata: { name },
         });
-        if (error || !data?.user) {
-          return new Response(
-            JSON.stringify({ error: `Erro ao criar usuário: ${error?.message ?? "desconhecido"}` }),
-            {
-              status: 500,
-              headers: {
-                "Content-Type": "application/json",
-                ...corsHeaders(origin),
-              },
-            },
-          );
+        if (created.error) {
+          console.error("createUser error:", created.error);
+          throw created.error;
         }
-        userId = data.user.id;
-        outcome = "created";
+        userId = created.data.user?.id ?? null;
       } else {
-        // convida usuário por e-mail
-        const { data, error } =
-          await supabaseAdmin.auth.admin.inviteUserByEmail(emailRaw, {
-            redirectTo: `${SITE_URL}/reset`,
-          });
-        if (error || !data?.user) {
-          return new Response(
-            JSON.stringify({ error: `Erro ao convidar usuário: ${error?.message ?? "desconhecido"}` }),
-            {
-              status: 500,
-              headers: {
-                "Content-Type": "application/json",
-                ...corsHeaders(origin),
-              },
-            },
-          );
-        }
-        userId = data.user.id;
-        outcome = "invited";
-      }
-    } else if (existingUser?.user) {
-      // já existe usuário → gera link de recuperação
-      userId = existingUser.user.id;
-      const { error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-        type: "recovery",
-        email: emailRaw,
-        options: { redirectTo: `${SITE_URL}/reset` },
-      });
-      if (linkError) {
-        return new Response(
-          JSON.stringify({
-            error: `Usuário já existe, mas falhou gerar link de recuperação: ${linkError.message}`,
-          }),
+        // envia convite (link de cadastro)
+        const invited = await supabaseAdmin.auth.admin.inviteUserByEmail(
+          emailRaw,
           {
-            status: 500,
-            headers: {
-              "Content-Type": "application/json",
-              ...corsHeaders(origin),
-            },
-          },
+            data: { name },
+            redirectTo: `${PROJECT_URL}/reset`,
+          }
         );
+        if (invited.error) {
+          console.error("inviteUserByEmail error:", invited.error);
+          throw invited.error;
+        }
+        userId = invited.data.user?.id ?? null;
       }
-      outcome = "recovery";
-    } else if (getUserError) {
-      // outro erro qualquer
-      return new Response(
-        JSON.stringify({ error: `Erro ao buscar usuário: ${getUserError.message}` }),
-        {
-          status: 500,
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders(origin),
-          },
-        },
-      );
     }
 
     if (!userId) {
-      return new Response(
-        JSON.stringify({ error: "Não foi possível determinar o ID do usuário." }),
-        {
-          status: 500,
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders(origin),
-          },
-        },
-      );
+      throw new Error("Não foi possível obter o id do usuário.");
     }
 
-    /* 4) Acessos_permitidos (reativar se estava deletado) */
-    const { data: acessoAntes } = await supabaseAdmin
-      .from("acessos_permitidos")
-      .select("is_deleted, ativo")
-      .eq("email", emailRaw)
-      .maybeSingle();
+    // 5) Upsert em profiles
+    const { error: profError } = await supabaseAdmin
+      .from(PROFILE_TABLE)
+      .upsert(
+        {
+          id: userId,
+          nome: name || emailRaw,
+          telefone: telefone || null,
+          tipo: role,
+        },
+        { onConflict: "id" }
+      );
+    if (profError) {
+      console.error("profiles upsert error:", profError);
+      throw profError;
+    }
 
-    const wasDeleted =
-      acessoAntes?.is_deleted === true || acessoAntes?.ativo === false;
+    // 6) Upsert em clientes
+    const { error: cliError } = await supabaseAdmin
+      .from("clientes")
+      .upsert(
+        {
+          id: userId,
+          email: emailRaw,
+          nome: name || emailRaw,
+          telefone: telefone || null,
+          empresa: empresa || null,
+        },
+        { onConflict: "id" }
+      );
+    if (cliError) {
+      console.error("clientes upsert error:", cliError);
+      throw cliError;
+    }
 
-    const { error: upsertAcessoError } = await supabaseAdmin
+    // 7) Upsert em acessos_permitidos
+    const { error: accError } = await supabaseAdmin
       .from("acessos_permitidos")
       .upsert(
         {
@@ -207,110 +188,31 @@ serve(async (req) => {
           role,
           ativo: true,
           is_deleted: false,
-          deleted_at: null,
         },
-        { onConflict: "email" },
+        { onConflict: "email" }
       );
-
-    if (upsertAcessoError) {
-      return new Response(
-        JSON.stringify({
-          error: `Erro ao salvar acessos_permitidos: ${upsertAcessoError.message}`,
-        }),
-        {
-          status: 500,
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders(origin),
-          },
-        },
-      );
+    if (accError) {
+      console.error("acessos_permitidos upsert error:", accError);
+      throw accError;
     }
 
-    /* 5) Profiles */
-    const { error: upsertProfileError } = await supabaseAdmin
-      .from("profiles")
-      .upsert(
-        {
-          id: userId,
-          nome: name || null,
-          telefone: telefone || null,
-          tipo: role,
-        },
-        { onConflict: "id" },
-      );
-
-    if (upsertProfileError) {
-      return new Response(
-        JSON.stringify({
-          error: `Erro ao salvar profile: ${upsertProfileError.message}`,
-        }),
-        {
-          status: 500,
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders(origin),
-          },
-        },
-      );
-    }
-
-    /* 6) Clientes (todo mundo entra aqui, admin também) */
-    const { error: upsertClienteError } = await supabaseAdmin
-      .from("clientes")
-      .upsert(
-        {
-          id: userId,
-          email: emailRaw,
-          nome: name || null,
-          telefone: telefone || null,
-          empresa: empresa || null,
-        },
-        { onConflict: "id" },
-      );
-
-    if (upsertClienteError) {
-      return new Response(
-        JSON.stringify({
-          error: `Erro ao salvar cliente: ${upsertClienteError.message}`,
-        }),
-        {
-          status: 500,
-          headers: {
-            "Content-Type": "application/json",
-            ...corsHeaders(origin),
-          },
-        },
-      );
-    }
-
-    /* 7) Resposta final */
-    const respBody: Record<string, unknown> = {
-      outcome,
-      email: emailRaw,
-      role,
-      userId,
-    };
-    if (wasDeleted) respBody.reactivated = true;
-
-    return new Response(JSON.stringify(respBody), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        ...corsHeaders(origin),
-      },
-    });
-  } catch (err) {
-    console.error("admin-create-client error", err);
     return new Response(
-      JSON.stringify({ error: String(err?.message ?? err) }),
+      JSON.stringify({
+        ok: true,
+        user_id: userId,
+        email: emailRaw,
+        role,
+      }),
+      { headers: { ...baseHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (e) {
+    console.error("admin-create-client:", e);
+    return new Response(
+      JSON.stringify({ error: String((e as any)?.message ?? e) }),
       {
         status: 500,
-        headers: {
-          "Content-Type": "application/json",
-          ...corsHeaders(req.headers.get("origin")),
-        },
-      },
+        headers: { ...cors(req.headers.get("origin")), "Content-Type": "application/json" },
+      }
     );
   }
 });

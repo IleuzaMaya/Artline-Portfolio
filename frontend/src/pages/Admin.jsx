@@ -3,588 +3,514 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { adminApi } from "../lib/adminApi";
-import { useToast } from "../ui/toast.jsx";
 
-/* ===================== Helpers ===================== */
-const onlyDigits = (s) => String(s || "").replace(/\D/g, "");
-
-function formatPhoneBR(v) {
-  const d = onlyDigits(v).slice(0, 11);
-  if (d.length <= 2) return d;
-  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
-  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+function classNames(...classes) {
+  return classes.filter(Boolean).join(" ");
 }
 
-const isEmail = (s) =>
-  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(s || "").trim());
+export default function Admin() {
+  const [loadingPage, setLoadingPage] = useState(true);
+  const [loadingSubmit, setLoadingSubmit] = useState(false);
+  const [loadingReset, setLoadingReset] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [globalError, setGlobalError] = useState("");
 
-/**
- * Chama Edge Functions com x-admin-token.
- * Usa adminApi como proxy se existir, senão chama direto a URL de Functions.
- */
-async function callFunction(path, payload) {
-  // 1) via proxy (se existir)
-  if (adminApi && typeof adminApi === "function") {
-    const r = await adminApi(path, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-admin-token": import.meta.env.VITE_ADMIN_API_TOKEN,
-      },
-      body: JSON.stringify(payload),
-    });
-    return r.json ? r.json() : r;
-  }
+  const [accounts, setAccounts] = useState([]);
+  const [activeTab, setActiveTab] = useState("clients"); // "clients" | "admins"
 
-  // 2) direto na URL das Functions
-  const base = (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL || "").replace(
-    /\/$/,
-    "",
-  );
-  const url = `${base}/${path.replace(/^\//, "")}`;
+  const [currentEmail, setCurrentEmail] = useState(null);
+  const [primaryAdminEmail, setPrimaryAdminEmail] = useState("artemoldurados@gmail.com");
 
-  const resp = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-admin-token": import.meta.env.VITE_ADMIN_API_TOKEN || "",
-    },
-    body: JSON.stringify(payload || {}),
-  });
+  // Form "Criar/Convidar cliente"
+  const [formName, setFormName] = useState("");
+  const [formEmpresa, setFormEmpresa] = useState("Artemoldurados");
+  const [formRole, setFormRole] = useState("cliente"); // "cliente" | "admin"
+  const [formEmail, setFormEmail] = useState("");
+  const [formTelefone, setFormTelefone] = useState("");
+  const [formSenha, setFormSenha] = useState("");
 
-  const data = await resp.json().catch(() => ({}));
-  if (!resp.ok) {
-    const msg = data?.error || data?.message || `Erro HTTP ${resp.status}`;
-    throw new Error(msg);
-  }
-  return data;
-}
+  // Form "Enviar link de redefinição"
+  const [resetEmail, setResetEmail] = useState("");
 
-/* ===================== Hook: carregar acessos por role ===================== */
-function useAcessos(role) {
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  async function fetchRows() {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("acessos_permitidos")
-      .select(
-        "email, role, ativo, is_deleted, is_primary_admin, deleted_at",
-      )
-      .eq("role", role)
-      .order("email", { ascending: true });
-
-    if (!error) setRows(data || []);
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    fetchRows();
-  }, [role]);
-
-  return { rows, loading, refresh: fetchRows };
-}
-
-/* ===================== AÇÕES POR LINHA ===================== */
-function RowActions({ row, meEmail, onRefresh, show }) {
-  const me = (meEmail || "").toLowerCase();
-  const email = (row.email || "").toLowerCase();
-  const isMe = me && email === me;
-  const isPrimary = row.is_primary_admin === true;
-
-  // Regras pedidas:
-  // - Desativar: não aparece pro próprio usuário nem pro admin principal
-  // - Reset senha: só aparece pro próprio usuário (isMe)
-
-  async function softDelete() {
-    if (isPrimary) {
-      show({
-        type: "error",
-        message: "Não é permitido remover o administrador principal.",
-      });
+  async function loadSession() {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      console.error(error);
+      setGlobalError("Não foi possível carregar a sessão.");
       return;
     }
-    if (isMe) return;
-
-    const ok = confirm(`Desativar ${row.email}? (pode ser reativado depois)`);
-    if (!ok) return;
-
-    const { error } = await supabase
-      .from("acessos_permitidos")
-      .update({
-        is_deleted: true,
-        ativo: false,
-        deleted_at: new Date().toISOString(),
-      })
-      .eq("email", row.email);
-
-    if (error) {
-      show({ type: "error", message: error.message });
-    } else {
-      show({ type: "success", message: "Desativado." });
-      onRefresh();
-    }
+    const email = data?.session?.user?.email ?? null;
+    setCurrentEmail(email);
   }
 
-  async function reactivate() {
-    const { error } = await supabase
-      .from("acessos_permitidos")
-      .update({ is_deleted: false, ativo: true, deleted_at: null })
-      .eq("email", row.email);
-
-    if (error) {
-      show({ type: "error", message: error.message });
-    } else {
-      show({ type: "success", message: "Reativado." });
-      onRefresh();
-    }
-  }
-
-  async function resetPassword() {
-    // Só envia link para o próprio usuário (isMe true)
-    if (!isMe) return;
+  async function loadAccounts() {
     try {
-      const res = await callFunction("admin-reset-password", {
-        email: row.email,
-      });
-      if (res?.error) throw new Error(res.error);
-      show({ type: "success", message: "Link de redefinição enviado." });
-    } catch (e) {
-      show({ type: "error", message: e.message });
+      setGlobalError("");
+      const data = await adminApi.listAccounts({});
+      const list = Array.isArray(data?.accounts) ? data.accounts : [];
+      setAccounts(list);
+
+      // tenta descobrir o admin principal pela flag, se vier do backend
+      const primary = list.find((acc) => acc.is_primary_admin);
+      if (primary?.email) {
+        setPrimaryAdminEmail(primary.email);
+      }
+    } catch (err) {
+      console.error(err);
+      setGlobalError(err.message || "Erro ao carregar lista de acessos.");
     }
   }
 
-  const canDeactivate = !row.is_deleted && !isPrimary && !isMe;
-  const canReactivate = row.is_deleted;
-  const canReset = !row.is_deleted && isMe;
+  useEffect(() => {
+    (async () => {
+      setLoadingPage(true);
+      await loadSession();
+      await loadAccounts();
+      setLoadingPage(false);
+    })();
+  }, []);
 
-  return (
-    <div className="flex gap-3">
-      {canDeactivate && (
-        <button
-          type="button"
-          className="text-xs text-slate-600 hover:text-red-600 hover:underline"
-          onClick={softDelete}
-        >
-          Desativar
-        </button>
-      )}
-
-      {canReactivate && (
-        <button
-          type="button"
-          className="text-xs text-slate-600 hover:text-emerald-600 hover:underline"
-          onClick={reactivate}
-        >
-          Reativar
-        </button>
-      )}
-
-      {canReset && (
-        <button
-          type="button"
-          className="text-xs text-slate-600 hover:text-emerald-600 hover:underline"
-          onClick={resetPassword}
-          title="Enviar link de redefinição para seu e-mail"
-        >
-          Reset senha
-        </button>
-      )}
-    </div>
+  const admins = useMemo(
+    () => accounts.filter((acc) => acc.role === "admin"),
+    [accounts]
   );
-}
 
-/* ===================== GRID ===================== */
-function Grid({ rows, meEmail, refresh, show }) {
-  if (!rows?.length) {
-    return <div className="text-sm text-slate-500">Sem registros.</div>;
+  const clients = useMemo(
+    () => accounts.filter((acc) => acc.role === "cliente"),
+    [accounts]
+  );
+
+  function resetCreateForm() {
+    setFormName("");
+    setFormEmpresa("Artemoldurados");
+    setFormRole("cliente");
+    setFormEmail("");
+    setFormTelefone("");
+    setFormSenha("");
+    setSubmitError("");
   }
-
-  const me = (meEmail || "").toLowerCase();
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full text-sm">
-        <thead>
-          <tr className="text-left text-slate-500">
-            <th className="px-3 py-2">E-mail</th>
-            <th className="px-3 py-2">Status</th>
-            <th className="px-3 py-2">Perfil</th>
-            <th className="px-3 py-2">Ações</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => {
-            const email = (r.email || "").toLowerCase();
-            const isMe = me && email === me;
-            return (
-              <tr key={r.email} className="border-t">
-                <td className="px-3 py-2 font-medium">{r.email}</td>
-                <td className="px-3 py-2">
-                  {r.is_deleted ? "Desativado" : r.ativo ? "Ativo" : "Inativo"}
-                  {r.is_primary_admin && " · Admin principal"}
-                  {isMe && " · Você"}
-                </td>
-                <td className="px-3 py-2">{r.role}</td>
-                <td className="px-3 py-2">
-                  <RowActions
-                    row={r}
-                    meEmail={meEmail}
-                    onRefresh={refresh}
-                    show={show}
-                  />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-/* ===================== PÁGINA ===================== */
-export default function Admin() {
-  const { show } = useToast();
-
-  useEffect(() => {
-    document.title = "Artemoldurados — Administração";
-  }, []);
-
-  const [meEmail, setMeEmail] = useState("");
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setMeEmail(data?.user?.email?.toLowerCase() || "");
-    });
-  }, []);
-
-  // form criar/convite
-  const [nome, setNome] = useState("");
-  const [email, setEmail] = useState("");
-  const [telefone, setTelefone] = useState("");
-  const [empresa, setEmpresa] = useState("");
-  const [senha, setSenha] = useState("");
-  const [tipoAcesso, setTipoAcesso] = useState("cliente"); // cliente | admin
-  const [loadingCreate, setLoadingCreate] = useState(false);
-
-  const telefoneMask = useMemo(() => formatPhoneBR(telefone), [telefone]);
 
   async function handleCreateClient(e) {
     e.preventDefault();
-    if (!isEmail(email)) {
-      show({ type: "error", message: "Informe um e-mail válido." });
-      return;
-    }
+    setSubmitError("");
+    setLoadingSubmit(true);
 
-    setLoadingCreate(true);
     try {
-      const role =
-        tipoAcesso === "admin" ? "admin" : "cliente";
-
       const payload = {
-        email: email.trim().toLowerCase(),
-        name: (nome || "").trim(),
-        telefone: onlyDigits(telefone),
-        empresa: (empresa || "").trim(),
-        password: (senha || "").trim(), // se vazio, gera link de convite
-        role,
+        name: (formName || "").trim(),
+        email: (formEmail || "").trim().toLowerCase(),
+        empresa: (formEmpresa || "").trim(),
+        telefone: (formTelefone || "").trim(),
+        // ⭐ AQUI ESTÁ A CORREÇÃO IMPORTANTE:
+        // sempre mandar apenas "admin" ou "cliente"
+        role: formRole === "admin" ? "admin" : "cliente",
+        password: (formSenha || "").trim(),
       };
 
-      const res = await callFunction("admin-create-client", payload);
-
-      if (res?.outcome === "created") {
-        show({
-          type: "success",
-          message: "Usuário criado com senha definida.",
-        });
-      } else if (res?.outcome === "invited") {
-        show({
-          type: "success",
-          message: "Convite gerado (link retornado pela API).",
-        });
-      } else if (res?.outcome === "recovery") {
-        show({
-          type: "info",
-          message: "Usuário já existia — link de recuperação gerado.",
-        });
-      } else {
-        show({ type: "success", message: "Operação concluída." });
+      if (!payload.email) {
+        throw new Error("E-mail é obrigatório.");
       }
 
-      if (res?.reactivated) {
-        show({
-          type: "success",
-          message: "Usuário/cliente estava desativado e foi reativado.",
-        });
-      }
-
-      // Limpa formulário depois do sucesso
-      setNome("");
-      setEmail("");
-      setTelefone("");
-      setEmpresa("");
-      setSenha("");
-      setTipoAcesso("cliente");
-
-      // Atualiza grids
-      await Promise.all([refClientes(), refAdmins()]);
+      await adminApi.createClient(payload);
+      await loadAccounts();
+      resetCreateForm();
+      alert("Usuário criado/enviado com sucesso!");
     } catch (err) {
-      show({
-        type: "error",
-        message: `Erro ao criar/convidar: ${err.message}`,
-      });
+      console.error(err);
+      setSubmitError(err.message || "Erro ao criar/enviar convite.");
     } finally {
-      setLoadingCreate(false);
+      setLoadingSubmit(false);
     }
   }
 
-  // reset via card inferior (link para qualquer e-mail)
-  const [emailReset, setEmailReset] = useState("");
-  const [loadingReset, setLoadingReset] = useState(false);
+  async function handleToggleActive(acc) {
+    if (!acc?.email) return;
+    const isMe = currentEmail && acc.email === currentEmail;
+    const isPrimary = acc.email === primaryAdminEmail || acc.is_primary_admin;
 
-  async function handleSendReset(e) {
-    e.preventDefault();
-    if (!isEmail(emailReset)) {
-      show({ type: "error", message: "Informe um e-mail válido para reset." });
+    // segurança extra no frontend
+    if (isMe || isPrimary) {
+      alert("Você não pode desativar este usuário.");
       return;
     }
-    setLoadingReset(true);
+
+    const confirmMsg = acc.ativo
+      ? `Desativar o acesso de ${acc.email}?`
+      : `Reativar o acesso de ${acc.email}?`;
+    if (!window.confirm(confirmMsg)) return;
+
     try {
-      await callFunction("admin-reset-password", {
-        email: emailReset.trim().toLowerCase(),
+      await adminApi.setAccess({
+        email: acc.email,
+        ativo: !acc.ativo, // se quiser sempre desativar, troque para: false
       });
-      show({
-        type: "success",
-        message: "Link de redefinição enviado por e-mail.",
-      });
-      setEmailReset("");
+      await loadAccounts();
     } catch (err) {
-      show({
-        type: "error",
-        message: `Erro ao enviar link: ${err.message}`,
-      });
+      console.error(err);
+      alert(err.message || "Erro ao atualizar acesso.");
+    }
+  }
+
+  async function handleRowResetPassword(acc) {
+    if (!acc?.email) return;
+    if (!currentEmail || acc.email !== currentEmail) {
+      alert("Você só pode resetar a sua própria senha.");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        "Um link de redefinição de senha será enviado para o seu e-mail. Deseja continuar?"
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setLoadingReset(true);
+      await adminApi.resetPassword({ email: acc.email });
+      alert("Link de redefinição enviado para o seu e-mail.");
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Erro ao enviar link de redefinição.");
     } finally {
       setLoadingReset(false);
     }
   }
 
-  // tabs + dados
-  const [tab, setTab] = useState("clientes");
-  const { rows: clientes, refresh: refClientes } = useAcessos("cliente");
-  const { rows: admins, refresh: refAdmins } = useAcessos("admin");
+  async function handleSendResetLink(e) {
+    e.preventDefault();
+    if (!resetEmail.trim()) {
+      alert("Informe o e-mail do usuário.");
+      return;
+    }
+
+    try {
+      setLoadingReset(true);
+      await adminApi.resetPassword({ email: resetEmail.trim().toLowerCase() });
+      alert("Link de redefinição enviado (se o usuário existir e tiver acesso).");
+      setResetEmail("");
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Erro ao enviar link de redefinição.");
+    } finally {
+      setLoadingReset(false);
+    }
+  }
+
+  function renderStatus(acc) {
+    const parts = [];
+    parts.push(acc.ativo ? "Ativo" : "Inativo");
+
+    const isPrimary = acc.email === primaryAdminEmail || acc.is_primary_admin;
+    if (isPrimary && acc.role === "admin") {
+      parts.push("Admin principal");
+    }
+
+    if (currentEmail && acc.email === currentEmail) {
+      parts.push("Você");
+    }
+
+    return parts.join(" · ");
+  }
+
+  function renderActions(acc) {
+    const isMe = currentEmail && acc.email === currentEmail;
+    const isPrimary = acc.email === primaryAdminEmail || acc.is_primary_admin;
+
+    const canShowDeactivate = !isMe && !isPrimary;
+    const canShowReset = isMe; // ⭐ só o usuário logado vê "Reset senha" na sua linha
+
+    if (!canShowDeactivate && !canShowReset) return null;
+
+    return (
+      <div className="flex items-center gap-3 text-sm">
+        {canShowDeactivate && (
+          <button
+            type="button"
+            onClick={() => handleToggleActive(acc)}
+            className="text-gray-600 hover:text-red-600 hover:underline"
+          >
+            {acc.ativo ? "Desativar" : "Reativar"}
+          </button>
+        )}
+
+        {canShowReset && (
+          <button
+            type="button"
+            onClick={() => handleRowResetPassword(acc)}
+            className="text-gray-600 hover:text-emerald-600 hover:underline"
+            disabled={loadingReset}
+          >
+            {loadingReset ? "Enviando..." : "Reset senha"}
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  const showingList = activeTab === "admins" ? admins : clients;
 
   return (
-    <div className="max-w-4xl mx-auto p-4">
-      {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-emerald-800">
-          Administração
-        </h1>
-        <div className="text-sm text-slate-600">
+    <div className="min-h-screen bg-slate-50">
+      <div className="mx-auto max-w-6xl px-4 py-8">
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <h1 className="text-2xl font-semibold text-emerald-800">
+            Administração
+          </h1>
+
           <Link
             to="/orcamento"
-            className="underline hover:text-emerald-700"
+            className="text-sm font-medium text-emerald-700 hover:text-emerald-900 hover:underline"
           >
             Ir para o Orçamento
           </Link>
         </div>
-      </div>
 
-      {/* Card: Criar/Convidar */}
-      <div className="bg-white rounded-2xl shadow p-5">
-        <h2 className="text-lg font-medium text-slate-800">
-          Criar/Convidar cliente
-        </h2>
-        <p className="text-sm text-slate-500 mb-4">
-          Se <strong>senha</strong> ficar em branco, será gerado um{" "}
-          <em>link de convite</em>.
-        </p>
-
-        <form
-          onSubmit={handleCreateClient}
-          className="grid grid-cols-1 md:grid-cols-3 gap-4"
-        >
-          <div className="md:col-span-1">
-            <label className="block text-sm text-slate-600">Nome</label>
-            <input
-              className="w-full border rounded-lg px-3 py-2"
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              placeholder="Nome do cliente"
-            />
+        {globalError && (
+          <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {globalError}
           </div>
+        )}
 
-          <div className="md:col-span-1">
-            <label className="block text-sm text-slate-600">
-              Empresa (opcional)
-            </label>
-            <input
-              className="w-full border rounded-lg px-3 py-2"
-              value={empresa}
-              onChange={(e) => setEmpresa(e.target.value)}
-              placeholder="Empresa do cliente"
-            />
-          </div>
+        {/* Card superior - Criar/Convidar cliente */}
+        <div className="mb-6 rounded-2xl bg-white shadow p-5 md:p-6">
+          <h2 className="text-base font-semibold text-slate-800">
+            Criar/Convidar cliente
+          </h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Se <span className="font-semibold">senha</span> ficar em branco, será
+            gerado um <span className="font-semibold">link de convite</span>.
+          </p>
 
-          <div className="md:col-span-1">
-            <label className="block text-sm text-slate-600">
-              Tipo de acesso
-            </label>
-            <select
-              className="w-full border rounded-lg px-3 py-2 bg-white"
-              value={tipoAcesso}
-              onChange={(e) => setTipoAcesso(e.target.value)}
-            >
-              <option value="cliente">Cliente</option>
-              <option value="admin">Administrador</option>
-            </select>
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="block text-sm text-slate-600">E-mail</label>
-            <input
-              type="email"
-              className="w-full border rounded-lg px-3 py-2"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="cliente@exemplo.com"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm text-slate-600">
-              Telefone (opcional)
-            </label>
-            <input
-              className="w-full border rounded-lg px-3 py-2"
-              value={telefoneMask}
-              onChange={(e) => setTelefone(e.target.value)}
-              placeholder="(11) 91234-5678"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm text-slate-600">
-              Senha (opcional)
-            </label>
-            <input
-              type="password"
-              className="w-full border rounded-lg px-3 py-2"
-              value={senha}
-              onChange={(e) => setSenha(e.target.value)}
-              placeholder="Deixe vazio para enviar convite"
-            />
-          </div>
-
-          <div className="md:col-span-3">
-            <button
-              type="submit"
-              disabled={loadingCreate}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 disabled:opacity-60"
-            >
-              {loadingCreate ? "Processando..." : "Criar / Enviar convite"}
-            </button>
-          </div>
-        </form>
-      </div>
-
-      {/* Tabs + Grids */}
-      <div className="bg-white rounded-2xl shadow p-5 mt-6">
-        <div className="flex items-center gap-3 mb-4">
-          <button
-            className={`px-3 py-1.5 rounded ${
-              tab === "clientes"
-                ? "bg-emerald-600 text-white"
-                : "bg-slate-100"
-            }`}
-            onClick={() => setTab("clientes")}
+          <form
+            onSubmit={handleCreateClient}
+            className="mt-4 grid gap-4 md:grid-cols-3"
           >
-            Clientes
-          </button>
-          <button
-            className={`px-3 py-1.5 rounded ${
-              tab === "admins"
-                ? "bg-emerald-600 text-white"
-                : "bg-slate-100"
-            }`}
-            onClick={() => setTab("admins")}
-          >
-            Administradores
-          </button>
+            {/* Nome */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600">Nome</label>
+              <input
+                type="text"
+                className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                placeholder="Nome do cliente"
+                value={formName}
+                onChange={(e) => setFormName(e.target.value)}
+              />
+            </div>
+
+            {/* Empresa */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600">
+                Empresa (opcional)
+              </label>
+              <input
+                type="text"
+                className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                placeholder="Empresa do cliente"
+                value={formEmpresa}
+                onChange={(e) => setFormEmpresa(e.target.value)}
+              />
+            </div>
+
+            {/* Tipo de acesso */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600">
+                Tipo de acesso
+              </label>
+              <select
+                className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                value={formRole}
+                onChange={(e) => setFormRole(e.target.value)}
+              >
+                <option value="cliente">Cliente</option>
+                <option value="admin">Administrador</option>
+              </select>
+            </div>
+
+            {/* E-mail */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600">
+                E-mail
+              </label>
+              <input
+                type="email"
+                className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                placeholder="cliente@exemplo.com"
+                value={formEmail}
+                onChange={(e) => setFormEmail(e.target.value)}
+              />
+            </div>
+
+            {/* Telefone */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600">
+                Telefone (opcional)
+              </label>
+              <input
+                type="tel"
+                className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                placeholder="(11) 91234-5678"
+                value={formTelefone}
+                onChange={(e) => setFormTelefone(e.target.value)}
+              />
+            </div>
+
+            {/* Senha */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-medium text-slate-600">
+                Senha (opcional)
+              </label>
+              <input
+                type="password"
+                className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                placeholder="Deixe vazio para enviar convite"
+                value={formSenha}
+                onChange={(e) => setFormSenha(e.target.value)}
+              />
+            </div>
+
+            {/* Botão */}
+            <div className="md:col-span-3 flex items-end">
+              <button
+                type="submit"
+                disabled={loadingSubmit}
+                className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {loadingSubmit ? "Enviando..." : "Criar / Enviar convite"}
+              </button>
+            </div>
+          </form>
+
+          {submitError && (
+            <p className="mt-2 text-sm text-red-600">{submitError}</p>
+          )}
         </div>
 
-        {tab === "clientes" && (
-          <Grid
-            rows={clientes}
-            meEmail={meEmail}
-            refresh={refClientes}
-            show={show}
-          />
-        )}
-        {tab === "admins" && (
-          <Grid
-            rows={admins}
-            meEmail={meEmail}
-            refresh={refAdmins}
-            show={show}
-          />
-        )}
-      </div>
-
-      {/* Card: Reset isolado (link para qualquer e-mail) */}
-      <div className="bg-white rounded-2xl shadow p-5 mt-6">
-        <h2 className="text-lg font-medium text-slate-800">
-          Enviar link de redefinição
-        </h2>
-        <p className="text-sm text-slate-500 mb-4">
-          {emailReset ? (
-            <>
-              Enviar link para{" "}
-              <span className="font-medium">
-                {emailReset.trim().toLowerCase()}
-              </span>{" "}
-              redefinir a senha.
-            </>
-          ) : (
-            <>Informe o e-mail para enviar o link de redefinição.</>
-          )}
-        </p>
-
-        <form
-          onSubmit={handleSendReset}
-          className="grid grid-cols-1 md:grid-cols-3 gap-4"
-        >
-          <div className="md:col-span-2">
-            <label className="block text-sm text-slate-600">
-              {emailReset ? "Confirmar e-mail" : "E-mail do usuário"}
-            </label>
-            <input
-              type="email"
-              className="w-full border rounded-lg px-3 py-2"
-              value={emailReset}
-              onChange={(e) => setEmailReset(e.target.value)}
-              placeholder="usuario@exemplo.com"
-              required
-            />
+        {/* Card lista de acessos */}
+        <div className="mb-6 rounded-2xl bg-white shadow p-5 md:p-6">
+          {/* Tabs */}
+          <div className="mb-4 inline-flex rounded-md border border-slate-200 bg-slate-50 p-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab("clients")}
+              className={classNames(
+                "rounded px-3 py-1.5 text-xs font-medium",
+                activeTab === "clients"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-800"
+              )}
+            >
+              Clientes
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("admins")}
+              className={classNames(
+                "rounded px-3 py-1.5 text-xs font-medium",
+                activeTab === "admins"
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              )}
+            >
+              Administradores
+            </button>
           </div>
-          <div className="md:col-span-1 flex items-end">
+
+          {/* Tabela */}
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-xs text-slate-500">
+                  <th className="px-3 py-2 font-medium">E-mail</th>
+                  <th className="px-3 py-2 font-medium">Status</th>
+                  <th className="px-3 py-2 font-medium">Perfil</th>
+                  <th className="px-3 py-2 font-medium">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loadingPage ? (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="px-3 py-4 text-sm text-slate-500"
+                    >
+                      Carregando...
+                    </td>
+                  </tr>
+                ) : showingList.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="px-3 py-4 text-sm text-slate-500"
+                    >
+                      Nenhum registro encontrado.
+                    </td>
+                  </tr>
+                ) : (
+                  showingList.map((acc) => (
+                    <tr
+                      key={acc.email}
+                      className="border-t border-slate-100 text-sm text-slate-800"
+                    >
+                      <td className="px-3 py-2 align-middle">
+                        <span className="font-medium">{acc.email}</span>
+                      </td>
+                      <td className="px-3 py-2 align-middle text-slate-600">
+                        {renderStatus(acc)}
+                      </td>
+                      <td className="px-3 py-2 align-middle text-slate-600">
+                        {acc.role}
+                      </td>
+                      <td className="px-3 py-2 align-middle">
+                        {renderActions(acc)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Card reset de senha por e-mail */}
+        <div className="mb-4 rounded-2xl bg-white shadow p-5 md:p-6">
+          <h2 className="text-sm font-semibold text-slate-800">
+            Enviar link de redefinição
+          </h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Informe o e-mail para enviar o link de redefinição.
+          </p>
+
+          <form
+            onSubmit={handleSendResetLink}
+            className="mt-3 flex flex-col gap-3 md:flex-row"
+          >
+            <div className="flex-1">
+              <input
+                type="email"
+                className="h-10 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                placeholder="usuario@exemplo.com"
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+              />
+            </div>
             <button
               type="submit"
               disabled={loadingReset}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-4 py-2 disabled:opacity-60"
+              className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {loadingReset ? "Enviando..." : "Enviar link"}
             </button>
-          </div>
-        </form>
-      </div>
+          </form>
+        </div>
 
-      <div className="text-xs text-slate-500 mt-6">
-        Logado como:{" "}
-        <span className="font-medium">{meEmail || "—"}</span>
+        <p className="mt-4 text-xs text-slate-500">
+          Logado como:{" "}
+          <span className="font-medium text-slate-700">
+            {currentEmail || "—"}
+          </span>
+        </p>
       </div>
     </div>
   );
