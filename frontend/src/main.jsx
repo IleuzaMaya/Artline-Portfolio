@@ -2,8 +2,10 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-// importa seus estilos globais (Tailwind e customizações)
-import "./App.css";
+
+// ✨ IMPORTAR CSSs globais (ordem importa)
+import "./index.css"; // contém @tailwind base/components/utilities
+import "./App.css";   // seu CSS custom
 
 import Admin from "./pages/Admin.jsx";
 import Orcamento from "./pages/Orcamento.jsx";
