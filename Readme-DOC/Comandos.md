@@ -530,6 +530,8 @@ git push origin main
 cd supabase/functions/admin-create-client
 supabase functions deploy admin-create-client --project-ref nwtfynwrmhggbeudwpus
 
+ADMIN_API_TOKEN
+art-admin-prod-01-ileuza
 
 
 ateliemarbagiotto@gmail.com
