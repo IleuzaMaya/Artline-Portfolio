@@ -29,6 +29,19 @@ export default function Admin() {
   const [formTelefone, setFormTelefone] = useState("");
   const [formSenha, setFormSenha] = useState("");
 
+  // Form de edição
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({
+    id: "",
+    nome: "",
+    email: "",
+    telefone: "",
+    empresa: "",
+    role: "cliente",
+    ativo: true,
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+
   // Form "Enviar link de redefinição"
   const [resetEmail, setResetEmail] = useState("");
 
@@ -49,6 +62,9 @@ export default function Admin() {
       const data = await adminApi.listAccounts({});
       const list = Array.isArray(data?.accounts) ? data.accounts : [];
       setAccounts(list);
+
+      console.log("ACCOUNTS DO BACKEND:", list);
+
 
       // tenta descobrir o admin principal pela flag, se vier do backend
       const primary = list.find((acc) => acc.is_primary_admin);
@@ -249,6 +265,62 @@ export default function Admin() {
     );
   }
 
+  function startEdit(acc) {
+    setEditingId(acc.id);
+    setEditForm({
+      id: acc.id,
+      nome: acc.nome || "",
+      email: acc.email || "",
+      telefone: acc.telefone || "",
+      empresa: acc.empresa || "",
+      role: acc.role || "cliente",
+      ativo: acc.ativo ?? true,
+    });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditForm({
+      id: "",
+      nome: "",
+      email: "",
+      telefone: "",
+      empresa: "",
+      role: "cliente",
+      ativo: true,
+    });
+  }
+
+  function handleEditChange(field, value) {
+    setEditForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  async function saveEdit() {
+    try {
+      setSavingEdit(true);
+
+      await adminApi.updateClient({
+        id: editForm.id,
+        nome: editForm.nome.trim(),
+        email: editForm.email.trim().toLowerCase(),
+        telefone: editForm.telefone.trim() || null,
+        empresa: editForm.empresa.trim() || null,
+        role: editForm.role,
+        ativo: !!editForm.ativo,
+      });
+
+      // recarrega lista
+      await loadAccounts();
+      cancelEdit();
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Erro ao salvar alterações");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+
   const showingList = activeTab === "admins" ? admins : clients;
 
   return (
@@ -428,46 +500,162 @@ export default function Admin() {
                   <th className="px-3 py-2 font-medium">Ações</th>
                 </tr>
               </thead>
-              <tbody>
-                {loadingPage ? (
+
+             <tbody className="divide-y divide-slate-100">
+                {showingList.length === 0 && (
                   <tr>
                     <td
                       colSpan={4}
-                      className="px-3 py-4 text-sm text-slate-500"
-                    >
-                      Carregando...
-                    </td>
-                  </tr>
-                ) : showingList.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={4}
-                      className="px-3 py-4 text-sm text-slate-500"
+                      className="px-4 py-6 text-sm text-slate-500 text-center"
                     >
                       Nenhum registro encontrado.
                     </td>
                   </tr>
-                ) : (
-                  showingList.map((acc) => (
-                    <tr
-                      key={acc.email}
-                      className="border-t border-slate-100 text-sm text-slate-800"
-                    >
-                      <td className="px-3 py-2 align-middle">
-                        <span className="font-medium">{acc.email}</span>
-                      </td>
-                      <td className="px-3 py-2 align-middle text-slate-600">
-                        {renderStatus(acc)}
-                      </td>
-                      <td className="px-3 py-2 align-middle text-slate-600">
-                        {acc.role}
-                      </td>
-                      <td className="px-3 py-2 align-middle">
-                        {renderActions(acc)}
-                      </td>
-                    </tr>
-                  ))
                 )}
+
+                {showingList.map((acc) => {
+                  const isEditing = editingId === acc.id;
+              
+                  return (
+                    <React.Fragment key={acc.id || acc.email}>
+                      {/* Linha principal */}
+                      <tr className="hover:bg-slate-50 transition">
+                        <td className="px-4 py-3 text-sm text-slate-800">
+                          {isEditing ? (
+                            <input
+                              type="email"
+                              className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              value={editForm.email}
+                              onChange={(e) => handleEditChange("email", e.target.value)}
+                            />
+                          ) : (
+                            acc.email
+                          )}
+                        </td>
+
+                        <td className="px-4 py-3 text-sm">
+                          <span
+                            className={
+                              (acc.ativo ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700") +
+                              " inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                            }
+                          >
+                            {acc.ativo ? "Ativo" : "Inativo"}
+                          </span>
+                        </td>
+
+                        <td className="px-4 py-3 text-sm text-slate-800">
+                          {isEditing ? (
+                            <select
+                              className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              value={editForm.role}
+                              onChange={(e) => handleEditChange("role", e.target.value)}
+                            >
+                              <option value="cliente">Cliente</option>
+                              <option value="admin">Administrador</option>
+                            </select>
+                          ) : acc.role === "admin" ? (
+                            "Administrador"
+                          ) : (
+                            "Cliente"
+                          )}
+                        </td>
+
+                        <td className="px-4 py-3 text-sm text-right space-x-2">
+                          {isEditing ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={cancelEdit}
+                                className="inline-flex items-center rounded-md border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                disabled={savingEdit}
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={saveEdit}
+                                className="inline-flex items-center rounded-md bg-emerald-600 px-3 py-1 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-60"
+                                disabled={savingEdit}
+                              >
+                                {savingEdit ? "Salvando..." : "Salvar"}
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => startEdit(acc)}
+                              className="inline-flex items-center rounded-md border border-emerald-600 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                            >
+                              Editar
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+
+                      {/* Linha extra com Nome / Empresa / Telefone quando estiver editando */}
+                      {isEditing && (
+                        <tr className="bg-slate-50">
+                          <td colSpan={4} className="px-4 pb-4 pt-2">
+                            <div className="grid gap-3 md:grid-cols-3">
+                              <div>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">
+                                  Nome
+                                </label>
+                                <input
+                                  type="text"
+                                  className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                  value={editForm.nome}
+                                  onChange={(e) => handleEditChange("nome", e.target.value)}
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">
+                                  Empresa (opcional)
+                                </label>
+                                <input
+                                  type="text"
+                                  className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                  value={editForm.empresa}
+                                  onChange={(e) =>
+                                    handleEditChange("empresa", e.target.value)
+                                  }
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-slate-500 mb-1">
+                                  Telefone (opcional)
+                                </label>
+                                <input
+                                  type="tel"
+                                  className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                                  value={editForm.telefone}
+                                  onChange={(e) =>
+                                    handleEditChange("telefone", e.target.value)
+                                  }
+                                />
+                              </div>
+                            </div>
+
+                            <div className="mt-3 flex items-center gap-3">
+                              <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+                                <input
+                                  type="checkbox"
+                                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                  checked={!!editForm.ativo}
+                                  onChange={(e) =>
+                                    handleEditChange("ativo", e.target.checked)
+                                  }
+                                />
+                                Ativo
+                              </label>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

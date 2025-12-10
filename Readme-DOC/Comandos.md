@@ -530,10 +530,39 @@ git push origin main
 cd supabase/functions/admin-create-client
 supabase functions deploy admin-create-client --project-ref nwtfynwrmhggbeudwpus
 
-ADMIN_API_TOKEN
-art-admin-prod-01-ileuza
+cd ~/caminho/para/art-emoldurados-webapp   # ajuste se estiver em outra pasta
+git status
 
+git add supabase/functions/admin-create-client/index.ts
+git add frontend/src/pages/Admin.jsx
+
+git add
+
+git commit -m "fix(admin): usar Supabase v2 nas Edge Functions e ajustar painel"
+
+git push origin main
+
+cd supabase/functions/admin-create-client
+supabase functions deploy admin-create-client --project-ref nwtfynwrmhggbeudwpus
+
+
+git add
+git commit -m "feat(admin): edição inline no grid de clientes/admins"
+git push 
 
 ateliemarbagiotto@gmail.com
 Hg415406@
 13981477999
+
+Ver o que mudou:
+cd /caminho/para/art-emoldurados-webapp
+git status
+
+git commit -m "feat(admin): listar contas via acessos_permitidos e habilitar edição no grid"
+
+ou:
+
+git commit -m "feat(admin): ajustar admin-list-accounts e grid de acessos"
+
+git push origin main
+
