@@ -17,9 +17,9 @@ function cors(origin: string | null): Record<string, string> {
 }
 
 type Body = {
-  id?: string;            // UUID do user (opcional)
-  email?: string;         // email (opcional, obrigatório se não tiver id)
-  nome?: string;          // campos opcionais a atualizar
+  id?: string;       
+  email?: string;     
+  nome?: string;     
   empresa?: string;
   segmento?: string;
   telefone?: string;
@@ -43,7 +43,10 @@ serve(async (req) => {
     if (!ADMIN_API_TOKEN || !SUPABASE_URL || !SERVICE_ROLE) {
       return new Response(
         JSON.stringify({ error: "Missing secrets" }),
-        { status: 500, headers: { ...headers, "Content-Type": "application/json" } },
+        {
+          status: 500,
+          headers: { ...headers, "Content-Type": "application/json" },
+        },
       );
     }
 
@@ -51,7 +54,10 @@ serve(async (req) => {
     if ((req.headers.get("x-admin-token") ?? "") !== ADMIN_API_TOKEN) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...headers, "Content-Type": "application/json" } },
+        {
+          status: 401,
+          headers: { ...headers, "Content-Type": "application/json" },
+        },
       );
     }
 
@@ -61,7 +67,10 @@ serve(async (req) => {
     if (!id && !email) {
       return new Response(
         JSON.stringify({ error: "Informe id ou email" }),
-        { status: 400, headers: { ...headers, "Content-Type": "application/json" } },
+        {
+          status: 400,
+          headers: { ...headers, "Content-Type": "application/json" },
+        },
       );
     }
 
@@ -92,7 +101,8 @@ serve(async (req) => {
 
     // Mantém profiles.nome em sincronia quando houver id + nome
     if (id && typeof nome === "string") {
-      const { error: perr } = await sb.from("profiles")
+      const { error: perr } = await sb
+        .from("profiles")
         .upsert({ id, nome }, { onConflict: "id" });
       if (perr) {
         // apenas loga; não quebra a resposta principal
@@ -109,7 +119,10 @@ serve(async (req) => {
     console.error("admin-update-client error:", msg);
     return new Response(
       JSON.stringify({ error: msg }),
-      { status: 500, headers: { ...headers, "Content-Type": "application/json" } },
+      {
+        status: 500,
+        headers: { ...headers, "Content-Type": "application/json" },
+      },
     );
   }
 });
