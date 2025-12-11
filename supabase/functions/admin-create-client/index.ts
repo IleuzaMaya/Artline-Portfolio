@@ -131,8 +131,9 @@ serve(async (req) => {
         {
           id: userId,
           nome: name,
-          telefone,
-          updated_at: new Date().toISOString(),
+          telefone: telefone || null,
+          tipo: role,            // <- se a coluna existir em "profiles"
+          // ❌ sem updated_at, essa coluna não existe
         },
         { onConflict: "id" }
       )
@@ -140,6 +141,7 @@ serve(async (req) => {
       .single();
 
     if (upsertProfile.error) throw upsertProfile.error;
+
 
     // 6) Upsert em clientes
     const upsertCliente = await supabaseAdmin
