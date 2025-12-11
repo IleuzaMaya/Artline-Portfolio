@@ -1,209 +1,167 @@
-// supabase/functions/admin-create-client/index.ts
+// supabase/functions/admin-update-client/index.ts
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const ORIGINS = ["https://app.artemoldurados.com.br", "http://localhost:5173"];
 
-const cors = (origin: string | null) => ({
-  "Access-Control-Allow-Origin":
-    origin && ORIGINS.includes(origin) ? origin : ORIGINS[0],
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers":
-    "authorization, apikey, x-client-info, x-admin-token, content-type",
-  "Access-Control-Max-Age": "86400",
-  Vary: "Origin",
-});
+function cors(origin: string | null): Record<string, string> {
+  const allow = origin && ORIGINS.includes(origin) ? origin : ORIGINS[0];
+  return {
+    "Access-Control-Allow-Origin": allow,
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers":
+      "authorization, apikey, x-client-info, x-admin-token, content-type",
+    "Access-Control-Max-Age": "86400",
+    Vary: "Origin",
+  };
+}
 
 type Role = "admin" | "cliente";
 
-interface BodyPayload {
-  email: string;
-  name?: string;
-  telefone?: string;
-  empresa?: string;
-  password?: string;
-  role?: Role;
-}
+type Body = {
+  id?: string;            // UUID do user (opcional)
+  email?: string;         // email (opcional, obrigatório se não tiver id)
+  nome?: string;
+  empresa?: string | null;
+  segmento?: string | null;
+  telefone?: string | null;
+  role?: Role;            // "admin" | "cliente"
+  ativo?: boolean;        // se o acesso está ativo ou não
+};
 
 serve(async (req) => {
-  const headersBase = cors(req.headers.get("origin"));
+  const headers = cors(req.headers.get("origin"));
 
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: headersBase });
+    return new Response("ok", { headers });
   }
-
   if (req.method !== "POST") {
-    return new Response("Method not allowed", {
-      status: 405,
-      headers: headersBase,
-    });
+    return new Response("Method not allowed", { status: 405, headers });
   }
 
   try {
-    // 1) Carregar secrets
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
-    const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const ADMIN_API_TOKEN = Deno.env.get("ADMIN_API_TOKEN") ?? "";
-    const PROFILE_TABLE = Deno.env.get("PROFILE_TABLE") ?? "profiles";
-    const PROJECT_URL =
-      Deno.env.get("PROJECT_URL") ?? "https://app.artemoldurados.com.br";
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+    const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-    if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !ADMIN_API_TOKEN) {
+    if (!ADMIN_API_TOKEN || !SUPABASE_URL || !SERVICE_ROLE) {
       return new Response(
-        JSON.stringify({ error: "Missing SUPABASE_URL / SERVICE_ROLE / ADMIN_API_TOKEN" }),
-        { status: 500, headers: { ...headersBase, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Missing secrets" }),
+        {
+          status: 500,
+          headers: { ...headers, "Content-Type": "application/json" },
+        },
       );
     }
 
-    // 2) Autorizar pelo token
-    const tokenHeader = req.headers.get("x-admin-token") ?? "";
-    if (tokenHeader !== ADMIN_API_TOKEN) {
+    // Auth via cabeçalho
+    if ((req.headers.get("x-admin-token") ?? "") !== ADMIN_API_TOKEN) {
       return new Response(
-        JSON.stringify({ error: "Não autorizado (token inválido)." }),
-        { status: 401, headers: { ...headersBase, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Unauthorized" }),
+        {
+          status: 401,
+          headers: { ...headers, "Content-Type": "application/json" },
+        },
       );
     }
 
-    // 3) Body
-    const body = (await req.json()) as BodyPayload;
-    const emailRaw = String(body.email ?? "").trim().toLowerCase();
-    const name = String(body.name ?? "").trim();
-    const telefone = body.telefone ? String(body.telefone).trim() : null;
-    const empresa = body.empresa ? String(body.empresa).trim() : null;
-    const password = String(body.password ?? "").trim();
-    const role: Role = body.role === "admin" ? "admin" : "cliente";
+    const body: Body = await req.json().catch(() => ({} as Body));
+    const { id, email, nome, empresa, segmento, telefone, role, ativo } = body;
 
-    if (!emailRaw) {
+    if (!id && !email) {
       return new Response(
-        JSON.stringify({ error: "E-mail é obrigatório." }),
-        { status: 400, headers: { ...headersBase, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Informe id ou email" }),
+        {
+          status: 400,
+          headers: { ...headers, "Content-Type": "application/json" },
+        },
       );
     }
 
-    if (!name) {
-      return new Response(
-        JSON.stringify({ error: "Nome é obrigatório." }),
-        { status: 400, headers: { ...headersBase, "Content-Type": "application/json" } }
-      );
-    }
+    const normalizedEmail =
+      email && String(email).trim().toLowerCase() ? String(email).trim().toLowerCase() : undefined;
 
-    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+    const sb = createClient(SUPABASE_URL, SERVICE_ROLE, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // 4) Procurar usuário por e-mail no Auth (reaproveitar se já existir)
-    let userId: string | null = null;
-    let alreadyExisted = false;
+    // -----------------------------
+    // 1) Atualiza tabela "clientes"
+    // -----------------------------
+    const updateCliente: Record<string, any> = {};
+    if (typeof nome === "string") updateCliente.nome = nome;
+    if (typeof empresa === "string" || empresa === null) updateCliente.empresa = empresa;
+    if (typeof segmento === "string" || segmento === null) updateCliente.segmento = segmento;
+    if (typeof telefone === "string" || telefone === null) updateCliente.telefone = telefone;
+    if (normalizedEmail) updateCliente.email = normalizedEmail;
 
-    const listRes = await supabaseAdmin.auth.admin.listUsers({
-      page: 1,
-      perPage: 1000,
-    });
-    if (listRes.error) throw listRes.error;
+    if (Object.keys(updateCliente).length > 0) {
+      let q = sb.from("clientes").update(updateCliente);
+      if (id) q = q.eq("id", id);
+      else if (normalizedEmail) q = q.eq("email", normalizedEmail);
 
-    const existingUser = listRes.data.users.find(
-      (u) => (u.email ?? "").toLowerCase() === emailRaw
-    );
-
-    if (existingUser) {
-      userId = existingUser.id;
-      alreadyExisted = true;
-    } else {
-      // 4b) Não existe → criar usuário
-      const createRes = await supabaseAdmin.auth.admin.createUser({
-        email: emailRaw,
-        password: password || undefined,
-        email_confirm: true,
-      });
-      if (createRes.error) throw createRes.error;
-      userId = createRes.data.user?.id ?? null;
-      alreadyExisted = false;
+      const { error } = await q;
+      if (error) throw error;
     }
 
-    if (!userId) {
-      throw new Error("Não foi possível obter o ID do usuário.");
+    // -----------------------------
+    // 2) Mantém "profiles" em sincronia
+    // -----------------------------
+    if (id && (nome || telefone || role)) {
+      const profileUpdate: Record<string, any> = { id };
+      if (typeof nome === "string") profileUpdate.nome = nome;
+      if (typeof telefone === "string" || telefone === null) {
+        profileUpdate.telefone = telefone;
+      }
+      if (role === "admin" || role === "cliente") {
+        // na sua tabela está como "tipo"
+        profileUpdate.tipo = role;
+      }
+
+      const { error: perr } = await sb
+        .from("profiles")
+        .upsert(profileUpdate, { onConflict: "id" });
+
+      if (perr) {
+        console.warn("profiles sync warn:", perr.message);
+        // não quebra a resposta principal
+      }
     }
 
-    // 5) Upsert em profiles
-    const upsertProfile = await supabaseAdmin
-      .from(PROFILE_TABLE)
-      .upsert(
-        {
-          id: userId,
-          nome: name,
-          telefone: telefone || null,
-          tipo: role,  
-        },
-        { onConflict: "id" }
-      )
-      .select("id")
-      .single();
+    // -----------------------------
+    // 3) Atualiza "acessos_permitidos"
+    // -----------------------------
+    if (normalizedEmail && (role || typeof ativo === "boolean")) {
+      const accessUpdate: Record<string, any> = {
+        email: normalizedEmail,
+      };
 
-    if (upsertProfile.error) throw upsertProfile.error;
+      if (role === "admin" || role === "cliente") {
+        accessUpdate.role = role;
+      }
+      if (typeof ativo === "boolean") {
+        accessUpdate.ativo = ativo;
+        // se desativar, podemos marcar is_deleted; se preferir não mexer, remova.
+        accessUpdate.is_deleted = !ativo;
+      }
 
+      const { error: aerr } = await sb
+        .from("acessos_permitidos")
+        .upsert(accessUpdate, { onConflict: "email" });
 
-    // 6) Upsert em clientes
-    const upsertCliente = await supabaseAdmin
-      .from("clientes")
-      .upsert(
-        {
-          id: userId,
-          email: emailRaw,
-          nome: name,
-          telefone,
-          empresa,
-        },
-        { onConflict: "id" }
-      )
-      .select("id")
-      .single();
-
-    if (upsertCliente.error) throw upsertCliente.error;
-
-    // 7) Upsert em acessos_permitidos (reaproveita se já existir esse e-mail)
-    const upsertAcesso = await supabaseAdmin
-      .from("acessos_permitidos")
-      .upsert(
-        {
-          email: emailRaw,
-          role,
-          ativo: true,
-          is_deleted: false,
-        },
-        { onConflict: "email" }
-      )
-      .select("email, role, ativo")
-      .single();
-
-    if (upsertAcesso.error) throw upsertAcesso.error;
-
-    // 8) Se não recebeu senha → gerar link de convite (signup)
-    let invite_link: string | null = null;
-    if (!password) {
-      const gen = await supabaseAdmin.auth.admin.generateLink({
-        type: "signup",
-        email: emailRaw,
-        options: { redirectTo: PROJECT_URL },
-      });
-      if (gen.error) throw gen.error;
-      invite_link = gen.data?.properties?.action_link ?? null;
+      if (aerr) throw aerr;
     }
 
     return new Response(
-      JSON.stringify({
-        ok: true,
-        email: emailRaw,
-        role,
-        alreadyExisted,
-        invite_link,
-      }),
-      { status: 200, headers: { ...headersBase, "Content-Type": "application/json" } }
+      JSON.stringify({ ok: true }),
+      { headers: { ...headers, "Content-Type": "application/json" } },
     );
-  } catch (e: any) {
-    console.error("admin-create-client error:", e);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("admin-update-client error:", msg);
     return new Response(
-      JSON.stringify({ error: String(e?.message ?? e) }),
-      { status: 500, headers: { ...cors(req.headers.get("origin")), "Content-Type": "application/json" } }
+      JSON.stringify({ error: msg }),
+      { status: 500, headers: { ...headers, "Content-Type": "application/json" } },
     );
   }
 });
