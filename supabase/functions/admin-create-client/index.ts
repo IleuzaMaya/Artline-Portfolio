@@ -132,8 +132,7 @@ serve(async (req) => {
           id: userId,
           nome: name,
           telefone: telefone || null,
-          tipo: role,            // <- se a coluna existir em "profiles"
-          // ❌ sem updated_at, essa coluna não existe
+          tipo: role,  
         },
         { onConflict: "id" }
       )
