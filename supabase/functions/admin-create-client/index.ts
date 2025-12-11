@@ -1,6 +1,6 @@
 // supabase/functions/admin-update-client/index.ts
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.0";
 
 const ORIGINS = ["https://app.artemoldurados.com.br", "http://localhost:5173"];
 
@@ -19,14 +19,13 @@ function cors(origin: string | null): Record<string, string> {
 type Role = "admin" | "cliente";
 
 type Body = {
-  id?: string;            // UUID do user (opcional)
-  email?: string;         // email (opcional, obrigatório se não tiver id)
+  id?: string;            // UUID do usuário (auth / profiles / clientes)
+  email?: string;         // email (opcional, mas a função tenta descobrir)
   nome?: string;
   empresa?: string | null;
-  segmento?: string | null;
   telefone?: string | null;
-  role?: Role;            // "admin" | "cliente"
-  ativo?: boolean;        // se o acesso está ativo ou não
+  role?: Role;
+  ativo?: boolean;
 };
 
 serve(async (req) => {
@@ -35,6 +34,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers });
   }
+
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405, headers });
   }
@@ -46,115 +46,118 @@ serve(async (req) => {
 
     if (!ADMIN_API_TOKEN || !SUPABASE_URL || !SERVICE_ROLE) {
       return new Response(
-        JSON.stringify({ error: "Missing secrets" }),
-        {
-          status: 500,
-          headers: { ...headers, "Content-Type": "application/json" },
-        },
+        JSON.stringify({ error: "Missing SUPABASE_URL / SERVICE_ROLE / ADMIN_API_TOKEN" }),
+        { status: 500, headers: { ...headers, "Content-Type": "application/json" } },
       );
     }
 
-    // Auth via cabeçalho
+    // Auth simples via cabeçalho
     if ((req.headers.get("x-admin-token") ?? "") !== ADMIN_API_TOKEN) {
       return new Response(
         JSON.stringify({ error: "Unauthorized" }),
-        {
-          status: 401,
-          headers: { ...headers, "Content-Type": "application/json" },
-        },
+        { status: 401, headers: { ...headers, "Content-Type": "application/json" } },
       );
     }
 
-    const body: Body = await req.json().catch(() => ({} as Body));
-    const { id, email, nome, empresa, segmento, telefone, role, ativo } = body;
+    const body = (await req.json().catch(() => ({}))) as Body;
+    let { id, email, nome, empresa, telefone, role, ativo } = body;
 
     if (!id && !email) {
       return new Response(
         JSON.stringify({ error: "Informe id ou email" }),
-        {
-          status: 400,
-          headers: { ...headers, "Content-Type": "application/json" },
-        },
+        { status: 400, headers: { ...headers, "Content-Type": "application/json" } },
       );
     }
 
-    const normalizedEmail =
-      email && String(email).trim().toLowerCase() ? String(email).trim().toLowerCase() : undefined;
+    // Normaliza email (se vier)
+    email = email ? String(email).trim().toLowerCase() : undefined;
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    // -----------------------------
-    // 1) Atualiza tabela "clientes"
-    // -----------------------------
-    const updateCliente: Record<string, any> = {};
-    if (typeof nome === "string") updateCliente.nome = nome;
-    if (typeof empresa === "string" || empresa === null) updateCliente.empresa = empresa;
-    if (typeof segmento === "string" || segmento === null) updateCliente.segmento = segmento;
-    if (typeof telefone === "string" || telefone === null) updateCliente.telefone = telefone;
-    if (normalizedEmail) updateCliente.email = normalizedEmail;
+    // Se não veio email, tenta descobrir pelos clientes
+    let targetEmail = email ?? null;
+    if (!targetEmail && id) {
+      const { data: row, error: findErr } = await sb
+        .from("clientes")
+        .select("email")
+        .eq("id", id)
+        .maybeSingle();
 
-    if (Object.keys(updateCliente).length > 0) {
-      let q = sb.from("clientes").update(updateCliente);
+      if (findErr) {
+        console.error("find clientes by id error:", findErr.message);
+        return new Response(
+          JSON.stringify({ error: "Erro ao localizar cliente pelo id." }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } },
+        );
+      }
+      targetEmail = row?.email ? String(row.email).toLowerCase() : null;
+    }
+
+    if (!targetEmail) {
+      return new Response(
+        JSON.stringify({ error: "Não foi possível determinar o e-mail do usuário." }),
+        { status: 400, headers: { ...headers, "Content-Type": "application/json" } },
+      );
+    }
+
+    // --- Atualiza tabela CLIENTES ---
+    const updateClientes: Record<string, unknown> = {};
+    if (typeof nome === "string") updateClientes.nome = nome;
+    if (typeof empresa === "string" || empresa === null) updateClientes.empresa = empresa;
+    if (typeof telefone === "string" || telefone === null) updateClientes.telefone = telefone;
+
+    if (Object.keys(updateClientes).length > 0) {
+      let q = sb.from("clientes").update(updateClientes);
       if (id) q = q.eq("id", id);
-      else if (normalizedEmail) q = q.eq("email", normalizedEmail);
+      else q = q.eq("email", targetEmail);
 
-      const { error } = await q;
-      if (error) throw error;
-    }
-
-    // -----------------------------
-    // 2) Mantém "profiles" em sincronia
-    // -----------------------------
-    if (id && (nome || telefone || role)) {
-      const profileUpdate: Record<string, any> = { id };
-      if (typeof nome === "string") profileUpdate.nome = nome;
-      if (typeof telefone === "string" || telefone === null) {
-        profileUpdate.telefone = telefone;
-      }
-      if (role === "admin" || role === "cliente") {
-        // na sua tabela está como "tipo"
-        profileUpdate.tipo = role;
-      }
-
-      const { error: perr } = await sb
-        .from("profiles")
-        .upsert(profileUpdate, { onConflict: "id" });
-
-      if (perr) {
-        console.warn("profiles sync warn:", perr.message);
-        // não quebra a resposta principal
+      const { error: upErr } = await q;
+      if (upErr) {
+        console.error("update clientes error:", upErr.message);
+        return new Response(
+          JSON.stringify({ error: "Erro ao atualizar dados do cliente." }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } },
+        );
       }
     }
 
-    // -----------------------------
-    // 3) Atualiza "acessos_permitidos"
-    // -----------------------------
-    if (normalizedEmail && (role || typeof ativo === "boolean")) {
-      const accessUpdate: Record<string, any> = {
-        email: normalizedEmail,
-      };
+    // --- Atualiza tabela ACESSOS_PERMITIDOS (role / ativo) ---
+    const updateAcessos: Record<string, unknown> = {};
+    if (role === "admin" || role === "cliente") updateAcessos.role = role;
+    if (typeof ativo === "boolean") updateAcessos.ativo = ativo;
 
-      if (role === "admin" || role === "cliente") {
-        accessUpdate.role = role;
-      }
-      if (typeof ativo === "boolean") {
-        accessUpdate.ativo = ativo;
-        // se desativar, podemos marcar is_deleted; se preferir não mexer, remova.
-        accessUpdate.is_deleted = !ativo;
-      }
-
-      const { error: aerr } = await sb
+    if (Object.keys(updateAcessos).length > 0) {
+      const { error: accErr } = await sb
         .from("acessos_permitidos")
-        .upsert(accessUpdate, { onConflict: "email" });
+        .update(updateAcessos)
+        .eq("email", targetEmail);
 
-      if (aerr) throw aerr;
+      if (accErr) {
+        console.error("update acessos_permitidos error:", accErr.message);
+        return new Response(
+          JSON.stringify({ error: "Erro ao atualizar permissões de acesso." }),
+          { status: 500, headers: { ...headers, "Content-Type": "application/json" } },
+        );
+      }
+    }
+
+    // --- Mantém profiles.nome em sincronia (se tiver id + nome) ---
+    if (id && typeof nome === "string") {
+      const { error: profErr } = await sb
+        .from("profiles")
+        .upsert({ id, nome }, { onConflict: "id" });
+
+      if (profErr) {
+        console.warn("profiles sync warn:", profErr.message);
+        // Não quebra a resposta principal
+      }
     }
 
     return new Response(
       JSON.stringify({ ok: true }),
-      { headers: { ...headers, "Content-Type": "application/json" } },
+      { status: 200, headers: { ...headers, "Content-Type": "application/json" } },
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
