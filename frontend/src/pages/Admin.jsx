@@ -4,6 +4,26 @@ import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { adminApi } from "../lib/adminApi";
 
+function formatPhone(value) {
+  const digits = (value || "").replace(/\D/g, "");
+
+  if (digits.length <= 2) {
+    return digits;
+  }
+
+  if (digits.length <= 6) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  }
+
+  if (digits.length <= 10) {
+    // até 10 dígitos -> (11) 1234-5678
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  }
+
+  // 11 dígitos -> (11) 91234-5678
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+}
+
 function classNames(...classes) {
   return classes.filter(Boolean).join(" ");
 }
@@ -431,7 +451,7 @@ export default function Admin() {
                 className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 placeholder="(11) 91234-5678"
                 value={formTelefone}
-                onChange={(e) => setFormTelefone(maskPhone(e.target.value))}
+                onChange={(e) => setFormTelefone(formatPhone(e.target.value))}
               />
             </div>
 
@@ -606,9 +626,9 @@ export default function Admin() {
                         </td>
 
                         {/* Ações */}
-                        <td className="px-4 py-3 text-sm text-right space-x-2">
+                        <td className="px-4 py-3 text-sm">
                           {isEditing ? (
-                            <>
+                            <div className="flex items-center justify-end gap-2">
                               <button
                                 type="button"
                                 onClick={cancelEdit}
@@ -625,17 +645,20 @@ export default function Admin() {
                               >
                                 {savingEdit ? "Salvando..." : "Salvar"}
                               </button>
-                            </>
+                            </div>
                           ) : (
-                            <button
-                              type="button"
-                              onClick={() => startEdit(acc)}
-                              className="inline-flex items-center rounded-md border border-emerald-600 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
-                            >
-                              Editar
-                            </button>
+                            <div className="flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => startEdit(acc)}
+                                className="inline-flex items-center rounded-md border border-emerald-600 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                              >
+                                Editar
+                              </button>
+                            </div>
                           )}
                         </td>
+
                       </tr>
 
                       {/* Linha extra com Empresa / Telefone / Ativo quando estiver editando */}
@@ -665,10 +688,7 @@ export default function Admin() {
                                   className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                                   value={editForm.telefone}
                                   onChange={(e) =>
-                                    handleEditChange(
-                                      "telefone",
-                                      maskPhone(e.target.value)
-                                    )
+                                    handleEditChange("telefone", formatPhone(e.target.value))
                                   }
                                 />
                               </div>
