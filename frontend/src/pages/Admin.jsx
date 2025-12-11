@@ -28,6 +28,12 @@ export default function Admin() {
   const [formEmail, setFormEmail] = useState("");
   const [formTelefone, setFormTelefone] = useState("");
   const [formSenha, setFormSenha] = useState("");
+  
+  // Troca de senha do usuário logado
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [changePassError, setChangePassError] = useState("");
 
   // Form de edição
   const [editingId, setEditingId] = useState(null);
@@ -211,6 +217,41 @@ export default function Admin() {
       alert(err.message || "Erro ao enviar link de redefinição.");
     } finally {
       setLoadingReset(false);
+    }
+  }
+
+    async function handleChangePassword(e) {
+    e.preventDefault();
+    setChangePassError("");
+
+    if (!newPassword.trim()) {
+      setChangePassError("Informe a nova senha.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setChangePassError("A nova senha deve ter pelo menos 6 caracteres.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setChangePassError("A confirmação de senha não confere.");
+      return;
+    }
+
+    try {
+      setChangingPassword(true);
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword,
+      });
+      if (error) throw error;
+
+      alert("Senha alterada com sucesso!");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      console.error(err);
+      setChangePassError(err.message || "Erro ao alterar senha.");
+    } finally {
+      setChangingPassword(false);
     }
   }
 
@@ -660,6 +701,69 @@ export default function Admin() {
             </table>
           </div>
         </div>
+
+        {/* Card alterar senha do usuário logado */}
+        {currentEmail && (
+          <div className="mb-4 rounded-2xl bg-white shadow p-5 md:p-6">
+            <h2 className="text-sm font-semibold text-slate-800">
+              Alterar minha senha
+            </h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Você está logada como{" "}
+              <span className="font-medium text-slate-700">
+                {currentEmail}
+              </span>
+              . Use este formulário para trocar a sua senha de acesso.
+            </p>
+
+            <form
+              onSubmit={handleChangePassword}
+              className="mt-3 grid gap-3 md:grid-cols-2"
+            >
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-slate-600">
+                  Nova senha
+                </label>
+                <input
+                  type="password"
+                  className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Digite a nova senha"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-slate-600">
+                  Confirmar nova senha
+                </label>
+                <input
+                  type="password"
+                  className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Repita a nova senha"
+                />
+              </div>
+
+              <div className="md:col-span-2 mt-1">
+                <button
+                  type="submit"
+                  disabled={changingPassword}
+                  className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
+                >
+                  {changingPassword ? "Salvando..." : "Alterar senha"}
+                </button>
+
+                {changePassError && (
+                  <p className="mt-2 text-xs text-red-600">
+                    {changePassError}
+                  </p>
+                )}
+              </div>
+            </form>
+          </div>
+        )}
 
         {/* Card reset de senha por e-mail */}
         <div className="mb-4 rounded-2xl bg-white shadow p-5 md:p-6">
