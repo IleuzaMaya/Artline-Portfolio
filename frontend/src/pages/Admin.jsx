@@ -8,6 +8,21 @@ function classNames(...classes) {
   return classes.filter(Boolean).join(" ");
 }
 
+// máscara simples para telefone: (11) 91234-5678
+function maskPhone(value) {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 11);
+
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 6) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  }
+  if (digits.length <= 10) {
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6, 10)}`;
+  }
+  // 11 dígitos (celular)
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+}
+
 export default function Admin() {
   const [loadingPage, setLoadingPage] = useState(true);
   const [loadingSubmit, setLoadingSubmit] = useState(false);
@@ -19,7 +34,8 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState("clients"); // "clients" | "admins"
 
   const [currentEmail, setCurrentEmail] = useState(null);
-  const [primaryAdminEmail, setPrimaryAdminEmail] = useState("artemoldurados@gmail.com");
+  const [primaryAdminEmail, setPrimaryAdminEmail] =
+    useState("artemoldurados@gmail.com");
 
   // Form "Criar/Convidar cliente"
   const [formName, setFormName] = useState("");
@@ -28,12 +44,17 @@ export default function Admin() {
   const [formEmail, setFormEmail] = useState("");
   const [formTelefone, setFormTelefone] = useState("");
   const [formSenha, setFormSenha] = useState("");
-  
+
   // Troca de senha do usuário logado
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
   const [changePassError, setChangePassError] = useState("");
+
+  // Visualiza senha:
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Form de edição
   const [editingId, setEditingId] = useState(null);
@@ -70,7 +91,6 @@ export default function Admin() {
       setAccounts(list);
 
       console.log("ACCOUNTS DO BACKEND:", list);
-
 
       // tenta descobrir o admin principal pela flag, se vier do backend
       const primary = list.find((acc) => acc.is_primary_admin);
@@ -123,7 +143,6 @@ export default function Admin() {
         email: (formEmail || "").trim().toLowerCase(),
         empresa: (formEmpresa || "").trim(),
         telefone: (formTelefone || "").trim(),
-        // ⭐ AQUI ESTÁ A CORREÇÃO IMPORTANTE:
         // sempre mandar apenas "admin" ou "cliente"
         role: formRole === "admin" ? "admin" : "cliente",
         password: (formSenha || "").trim(),
@@ -164,7 +183,7 @@ export default function Admin() {
     try {
       await adminApi.setAccess({
         email: acc.email,
-        ativo: !acc.ativo, // se quiser sempre desativar, troque para: false
+        ativo: !acc.ativo,
       });
       await loadAccounts();
     } catch (err) {
@@ -220,7 +239,7 @@ export default function Admin() {
     }
   }
 
-    async function handleChangePassword(e) {
+  async function handleChangePassword(e) {
     e.preventDefault();
     setChangePassError("");
 
@@ -253,57 +272,6 @@ export default function Admin() {
     } finally {
       setChangingPassword(false);
     }
-  }
-
-  function renderStatus(acc) {
-    const parts = [];
-    parts.push(acc.ativo ? "Ativo" : "Inativo");
-
-    const isPrimary = acc.email === primaryAdminEmail || acc.is_primary_admin;
-    if (isPrimary && acc.role === "admin") {
-      parts.push("Admin principal");
-    }
-
-    if (currentEmail && acc.email === currentEmail) {
-      parts.push("Você");
-    }
-
-    return parts.join(" · ");
-  }
-
-  function renderActions(acc) {
-    const isMe = currentEmail && acc.email === currentEmail;
-    const isPrimary = acc.email === primaryAdminEmail || acc.is_primary_admin;
-
-    const canShowDeactivate = !isMe && !isPrimary;
-    const canShowReset = isMe; // ⭐ só o usuário logado vê "Reset senha" na sua linha
-
-    if (!canShowDeactivate && !canShowReset) return null;
-
-    return (
-      <div className="flex items-center gap-3 text-sm">
-        {canShowDeactivate && (
-          <button
-            type="button"
-            onClick={() => handleToggleActive(acc)}
-            className="text-gray-600 hover:text-red-600 hover:underline"
-          >
-            {acc.ativo ? "Desativar" : "Reativar"}
-          </button>
-        )}
-
-        {canShowReset && (
-          <button
-            type="button"
-            onClick={() => handleRowResetPassword(acc)}
-            className="text-gray-600 hover:text-emerald-600 hover:underline"
-            disabled={loadingReset}
-          >
-            {loadingReset ? "Enviando..." : "Reset senha"}
-          </button>
-        )}
-      </div>
-    );
   }
 
   function startEdit(acc) {
@@ -350,7 +318,6 @@ export default function Admin() {
         ativo: !!editForm.ativo,
       });
 
-      // recarrega lista
       await loadAccounts();
       cancelEdit();
     } catch (err) {
@@ -360,7 +327,6 @@ export default function Admin() {
       setSavingEdit(false);
     }
   }
-
 
   const showingList = activeTab === "admins" ? admins : clients;
 
@@ -465,7 +431,7 @@ export default function Admin() {
                 className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 placeholder="(11) 91234-5678"
                 value={formTelefone}
-                onChange={(e) => setFormTelefone(e.target.value)}
+                onChange={(e) => setFormTelefone(maskPhone(e.target.value))}
               />
             </div>
 
@@ -474,13 +440,22 @@ export default function Admin() {
               <label className="text-xs font-medium text-slate-600">
                 Senha (opcional)
               </label>
-              <input
-                type="password"
-                className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                placeholder="Deixe vazio para enviar convite"
-                value={formSenha}
-                onChange={(e) => setFormSenha(e.target.value)}
-              />
+              <div className="relative">
+                <input
+                  type={showCreatePassword ? "text" : "password"}
+                  className="h-10 w-full rounded-md border border-slate-200 px-3 pr-16 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                  placeholder="Deixe vazio para enviar convite"
+                  value={formSenha}
+                  onChange={(e) => setFormSenha(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCreatePassword((v) => !v)}
+                  className="absolute inset-y-0 right-2 flex items-center text-xs text-slate-500 hover:text-slate-800"
+                >
+                  {showCreatePassword ? "Ocultar" : "Mostrar"}
+                </button>
+              </div>
             </div>
 
             {/* Botão */}
@@ -535,18 +510,21 @@ export default function Admin() {
             <table className="min-w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-xs text-slate-500">
-                  <th className="px-3 py-2 font-medium">E-mail</th>
-                  <th className="px-3 py-2 font-medium">Status</th>
-                  <th className="px-3 py-2 font-medium">Perfil</th>
-                  <th className="px-3 py-2 font-medium">Ações</th>
+                  <th className="px-3 py-2 font-medium w-56">Nome</th>
+                  <th className="px-3 py-2 font-medium w-64">E-mail</th>
+                  <th className="px-3 py-2 font-medium w-28">Status</th>
+                  <th className="px-3 py-2 font-medium w-32">Perfil</th>
+                  <th className="px-3 py-2 font-medium w-32 text-right">
+                    Ações
+                  </th>
                 </tr>
               </thead>
 
-             <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100">
                 {showingList.length === 0 && (
                   <tr>
                     <td
-                      colSpan={4}
+                      colSpan={5}
                       className="px-4 py-6 text-sm text-slate-500 text-center"
                     >
                       Nenhum registro encontrado.
@@ -556,28 +534,50 @@ export default function Admin() {
 
                 {showingList.map((acc) => {
                   const isEditing = editingId === acc.id;
-              
+
                   return (
                     <React.Fragment key={acc.id || acc.email}>
                       {/* Linha principal */}
                       <tr className="hover:bg-slate-50 transition">
+                        {/* Nome */}
+                        <td className="px-4 py-3 text-sm text-slate-800">
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              value={editForm.nome}
+                              onChange={(e) =>
+                                handleEditChange("nome", e.target.value)
+                              }
+                            />
+                          ) : (
+                            acc.nome || "—"
+                          )}
+                        </td>
+
+                        {/* E-mail */}
                         <td className="px-4 py-3 text-sm text-slate-800">
                           {isEditing ? (
                             <input
                               type="email"
                               className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                               value={editForm.email}
-                              onChange={(e) => handleEditChange("email", e.target.value)}
+                              onChange={(e) =>
+                                handleEditChange("email", e.target.value)
+                              }
                             />
                           ) : (
                             acc.email
                           )}
                         </td>
 
+                        {/* Status */}
                         <td className="px-4 py-3 text-sm">
                           <span
                             className={
-                              (acc.ativo ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-700") +
+                              (acc.ativo
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-slate-200 text-slate-700") +
                               " inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
                             }
                           >
@@ -585,12 +585,15 @@ export default function Admin() {
                           </span>
                         </td>
 
+                        {/* Perfil */}
                         <td className="px-4 py-3 text-sm text-slate-800">
                           {isEditing ? (
                             <select
                               className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                               value={editForm.role}
-                              onChange={(e) => handleEditChange("role", e.target.value)}
+                              onChange={(e) =>
+                                handleEditChange("role", e.target.value)
+                              }
                             >
                               <option value="cliente">Cliente</option>
                               <option value="admin">Administrador</option>
@@ -602,6 +605,7 @@ export default function Admin() {
                           )}
                         </td>
 
+                        {/* Ações */}
                         <td className="px-4 py-3 text-sm text-right space-x-2">
                           {isEditing ? (
                             <>
@@ -634,22 +638,11 @@ export default function Admin() {
                         </td>
                       </tr>
 
-                      {/* Linha extra com Nome / Empresa / Telefone quando estiver editando */}
+                      {/* Linha extra com Empresa / Telefone / Ativo quando estiver editando */}
                       {isEditing && (
                         <tr className="bg-slate-50">
-                          <td colSpan={4} className="px-4 pb-4 pt-2">
+                          <td colSpan={5} className="px-4 pb-4 pt-2">
                             <div className="grid gap-3 md:grid-cols-3">
-                              <div>
-                                <label className="block text-xs font-medium text-slate-500 mb-1">
-                                  Nome
-                                </label>
-                                <input
-                                  type="text"
-                                  className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                                  value={editForm.nome}
-                                  onChange={(e) => handleEditChange("nome", e.target.value)}
-                                />
-                              </div>
                               <div>
                                 <label className="block text-xs font-medium text-slate-500 mb-1">
                                   Empresa (opcional)
@@ -672,24 +665,26 @@ export default function Admin() {
                                   className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
                                   value={editForm.telefone}
                                   onChange={(e) =>
-                                    handleEditChange("telefone", e.target.value)
+                                    handleEditChange(
+                                      "telefone",
+                                      maskPhone(e.target.value)
+                                    )
                                   }
                                 />
                               </div>
-                            </div>
-
-                            <div className="mt-3 flex items-center gap-3">
-                              <label className="inline-flex items-center gap-2 text-xs text-slate-600">
-                                <input
-                                  type="checkbox"
-                                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                                  checked={!!editForm.ativo}
-                                  onChange={(e) =>
-                                    handleEditChange("ativo", e.target.checked)
-                                  }
-                                />
-                                Ativo
-                              </label>
+                              <div className="flex items-end">
+                                <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+                                  <input
+                                    type="checkbox"
+                                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                    checked={!!editForm.ativo}
+                                    onChange={(e) =>
+                                      handleEditChange("ativo", e.target.checked)
+                                    }
+                                  />
+                                  Ativo
+                                </label>
+                              </div>
                             </div>
                           </td>
                         </tr>
@@ -724,26 +719,44 @@ export default function Admin() {
                 <label className="text-xs font-medium text-slate-600">
                   Nova senha
                 </label>
-                <input
-                  type="password"
-                  className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Digite a nova senha"
-                />
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? "text" : "password"}
+                    className="h-10 w-full rounded-md border border-slate-200 px-3 pr-16 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Digite a nova senha"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword((v) => !v)}
+                    className="absolute inset-y-0 right-2 flex items-center text-xs text-slate-500 hover:text-slate-800"
+                  >
+                    {showNewPassword ? "Ocultar" : "Mostrar"}
+                  </button>
+                </div>
               </div>
 
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-medium text-slate-600">
                   Confirmar nova senha
                 </label>
-                <input
-                  type="password"
-                  className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Repita a nova senha"
-                />
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? "text" : "password"}
+                    className="h-10 w-full rounded-md border border-slate-200 px-3 pr-16 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Repita a nova senha"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    className="absolute inset-y-0 right-2 flex items-center text-xs text-slate-500 hover:text-slate-800"
+                  >
+                    {showConfirmPassword ? "Ocultar" : "Mostrar"}
+                  </button>
+                </div>
               </div>
 
               <div className="md:col-span-2 mt-1">
@@ -771,7 +784,8 @@ export default function Admin() {
             Enviar link de redefinição
           </h2>
           <p className="mt-1 text-xs text-slate-500">
-            Informe o e-mail para enviar o link de redefinição.
+            Informe o e-mail para enviar ao cliente ou administrador o link de
+            redefinição.
           </p>
 
           <form
