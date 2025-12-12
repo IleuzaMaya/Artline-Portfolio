@@ -44,6 +44,15 @@ function maskPhone(value) {
   return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
 }
 
+function InfoRow({ label, value }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 10 }}>
+      <div style={{ color: "#667085", fontWeight: 600 }}>{label}</div>
+      <div style={{ color: "#101828" }}>{value}</div>
+    </div>
+  );
+}
+
 export default function Admin() {
   const [loadingPage, setLoadingPage] = useState(true);
   const [loadingSubmit, setLoadingSubmit] = useState(false);
@@ -133,6 +142,69 @@ export default function Admin() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (!detailsOpen) return;
+
+    // trava scroll do fundo
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    // foca no botão Fechar quando abrir
+    setTimeout(() => {
+      detailsCloseBtnRef.current?.focus?.();
+    }, 0);
+
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeDetails();
+        return;
+      }
+
+      // "focus trap" simples (Tab / Shift+Tab)
+      if (e.key === "Tab") {
+        const root = document.getElementById("details-modal-root");
+        if (!root) return;
+
+        const focusables = root.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+
+        const list = Array.from(focusables).filter(
+          (el) => !el.hasAttribute("disabled") && el.getAttribute("aria-hidden") !== "true"
+        );
+
+        if (list.length === 0) return;
+
+        const first = list[0];
+        const last = list[list.length - 1];
+        const active = document.activeElement;
+
+        if (e.shiftKey) {
+          // Shift+Tab
+          if (active === first || !root.contains(active)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          // Tab
+          if (active === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prevOverflow; // destrava scroll
+    };
+  }, [detailsOpen]); // ok assim
+
+
   const admins = useMemo(
     () => accounts.filter((acc) => acc.role === "admin"),
     [accounts]
@@ -152,6 +224,56 @@ export default function Admin() {
     setFormSenha("");
     setSubmitError("");
   }
+
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsAcc, setDetailsAcc] = useState(null);
+  const [detailsVisible, setDetailsVisible] = useState(false);
+
+  const detailsCloseBtnRef = React.useRef(null);
+  const lastFocusRef = React.useRef(null);
+
+  function openDetails(acc) {
+    lastFocusRef.current = document.activeElement; // guarda quem estava com foco
+    setDetailsAcc(acc);
+    setDetailsOpen(true);
+
+    requestAnimationFrame(() => setDetailsVisible(true)); // anima abrir
+  }
+
+  function closeDetails() {
+    setDetailsVisible(false);
+    setTimeout(() => {
+      setDetailsOpen(false);
+      setDetailsAcc(null);
+
+      // devolve foco pra onde estava (ex: botão Detalhes)
+      if (lastFocusRef.current && typeof lastFocusRef.current.focus === "function") {
+        lastFocusRef.current.focus();
+      }
+    }, 180);
+  }
+
+  useEffect(() => {
+    if (!detailsOpen) return;
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [detailsOpen]);
+
+  useEffect(() => {
+    if (!detailsOpen) return;
+
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") closeDetails();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [detailsOpen]);
 
   async function handleCreateClient(e) {
     e.preventDefault();
@@ -575,10 +697,12 @@ export default function Admin() {
                 )}
 
                 {showingList.map((acc) => {
-                  const isEditing = editingId === acc.id;
+                  const rowKey = acc.id || acc.email;        // ✅ aqui
+                  const isEditing = editingId === rowKey;    // ✅ aqui
 
                   return (
-                    <React.Fragment key={acc.id || acc.email}>
+                    <React.Fragment key={rowKey}>
+
                       {/* Linha principal */}
                       <tr className="hover:bg-slate-50 transition">
                         {/* Nome */}
@@ -669,7 +793,15 @@ export default function Admin() {
                               </button>
                             </div>
                           ) : (
-                            <div className="flex justify-end">
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => openDetails(acc)}
+                                className="inline-flex items-center rounded-md border border-emerald-600 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                              >
+                                Detalhes
+                              </button>
+
                               <button
                                 type="button"
                                 onClick={() => startEdit(acc)}
@@ -736,6 +868,70 @@ export default function Admin() {
                 })}
               </tbody>
             </table>
+
+            {detailsOpen && detailsAcc && (
+              <div
+                onClick={closeDetails}
+                className={[
+                  "fixed inset-0 z-[9999] flex items-center justify-center p-4",
+                  "transition-opacity duration-200 ease-out",
+                  detailsVisible ? "opacity-100" : "opacity-0",
+                ].join(" ")}
+                style={{ background: "rgba(0,0,0,.35)" }}
+                aria-hidden="false"
+              >
+                <div
+                  id="details-modal-root"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="details-modal-title"
+                  aria-describedby="details-modal-desc"
+                  onClick={(e) => e.stopPropagation()}
+                  className={[
+                    "w-full max-w-[560px] rounded-2xl bg-white",
+                    "shadow-[0_12px_40px_rgba(0,0,0,.18)]",
+                    "transition-all duration-200 ease-out",
+                    detailsVisible
+                      ? "opacity-100 scale-100 translate-y-0"
+                      : "opacity-0 scale-95 translate-y-1",
+                  ].join(" ")}
+                  style={{ padding: 18 }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                    <div>
+                      <div id="details-modal-title" style={{ fontSize: 18, fontWeight: 700 }}>
+                        {detailsAcc.nome || "—"}
+                      </div>
+                      <div id="details-modal-desc" style={{ color: "#667085", marginTop: 2 }}>
+                        {detailsAcc.email}
+                      </div>
+                    </div>
+
+                    <button
+                      ref={detailsCloseBtnRef}
+                      type="button"
+                      onClick={closeDetails}
+                      className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    >
+                      Fechar
+                    </button>
+                  </div>
+
+                  <div style={{ marginTop: 14, display: "grid", gap: 10 }}>
+                    <InfoRow label="Empresa" value={detailsAcc.empresa || "—"} />
+                    <InfoRow
+                      label="Telefone"
+                      value={detailsAcc.telefone ? formatPhone(detailsAcc.telefone) : "—"}
+                    />
+                    <InfoRow
+                      label="Perfil"
+                      value={detailsAcc.role === "admin" ? "Administrador" : "Cliente"}
+                    />
+                    <InfoRow label="Status" value={detailsAcc.ativo ? "Ativo" : "Inativo"} />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
