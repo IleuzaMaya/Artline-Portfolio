@@ -124,7 +124,7 @@ serve(async (req) => {
       throw new Error("Não foi possível obter o ID do usuário.");
     }
 
-    // 5) Upsert em profiles
+    // 5) Upsert em profiles (SEM updated_at)
     const upsertProfile = await supabaseAdmin
       .from(PROFILE_TABLE)
       .upsert(
@@ -132,7 +132,6 @@ serve(async (req) => {
           id: userId,
           nome: name,
           telefone,
-          updated_at: new Date().toISOString(),
         },
         { onConflict: "id" }
       )
@@ -141,23 +140,46 @@ serve(async (req) => {
 
     if (upsertProfile.error) throw upsertProfile.error;
 
-    // 6) Upsert em clientes
-    const upsertCliente = await supabaseAdmin
-      .from("clientes")
-      .upsert(
-        {
-          id: userId,
-          email: emailRaw,
-          nome: name,
-          telefone,
-          empresa,
-        },
-        { onConflict: "id" }
-      )
-      .select("id")
-      .single();
 
-    if (upsertCliente.error) throw upsertCliente.error;
+    // 6) Upsert em clientes (seguro)
+    if (alreadyExisted) {
+      // já existia no Auth -> garante por email (SEM mexer em id)
+      const upsertCliente = await supabaseAdmin
+        .from("clientes")
+        .upsert(
+          {
+            email: emailRaw,
+            nome: name,
+            telefone,
+            empresa,
+          },
+          { onConflict: "email" }
+        )
+        .select("id,email")
+        .single();
+
+      if (upsertCliente.error) throw upsertCliente.error;
+    } else {
+      // acabou de criar no Auth -> garante por id (com id)
+      const upsertCliente = await supabaseAdmin
+        .from("clientes")
+        .upsert(
+          {
+            id: userId,
+            email: emailRaw,
+            nome: name,
+            telefone,
+            empresa,
+          },
+          { onConflict: "id" }
+        )
+        .select("id,email")
+        .single();
+
+      if (upsertCliente.error) throw upsertCliente.error;
+    }
+
+
 
     // 7) Upsert em acessos_permitidos (reaproveita se já existir esse e-mail)
     const upsertAcesso = await supabaseAdmin
