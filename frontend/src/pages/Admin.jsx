@@ -324,17 +324,25 @@ export default function Admin() {
     setEditForm((prev) => ({ ...prev, [field]: value }));
   }
 
-  async function saveEdit() {
+    async function saveEdit() {
     try {
       setSavingEdit(true);
 
+      const emailNormalized = editForm.email.trim().toLowerCase();
+
+      // 1) Atualiza dados de cliente (nome / empresa / telefone)
       await adminApi.updateClient({
         id: editForm.id,
+        email: emailNormalized,
         nome: editForm.nome.trim(),
-        email: editForm.email.trim().toLowerCase(),
-        telefone: editForm.telefone.trim() || null,
         empresa: editForm.empresa.trim() || null,
-        role: editForm.role,
+        telefone: editForm.telefone.trim() || null,
+      });
+
+      // 2) Atualiza role + ativo em acessos_permitidos
+      await adminApi.setAccess({
+        email: emailNormalized,
+        role: editForm.role === "admin" ? "admin" : "cliente",
         ativo: !!editForm.ativo,
       });
 

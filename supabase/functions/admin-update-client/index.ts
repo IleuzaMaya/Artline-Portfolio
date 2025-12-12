@@ -1,6 +1,6 @@
 // supabase/functions/admin-update-client/index.ts
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.0";
 
 const ORIGINS = ["https://app.artemoldurados.com.br", "http://localhost:5173"];
 
@@ -17,9 +17,9 @@ function cors(origin: string | null): Record<string, string> {
 }
 
 type Body = {
-  id?: string;       
-  email?: string;     
-  nome?: string;     
+  id?: string;        // UUID do user (opcional)
+  email?: string;     // email (opcional, obrigatório se não tiver id)
+  nome?: string;      // campos opcionais a atualizar
   empresa?: string;
   segmento?: string;
   telefone?: string;
@@ -42,7 +42,7 @@ serve(async (req) => {
 
     if (!ADMIN_API_TOKEN || !SUPABASE_URL || !SERVICE_ROLE) {
       return new Response(
-        JSON.stringify({ error: "Missing secrets" }),
+        JSON.stringify({ error: "Missing secrets (ADMIN_API_TOKEN / SUPABASE_URL / SERVICE_ROLE)" }),
         {
           status: 500,
           headers: { ...headers, "Content-Type": "application/json" },
@@ -50,10 +50,11 @@ serve(async (req) => {
       );
     }
 
-    // Auth simples via cabeçalho
-    if ((req.headers.get("x-admin-token") ?? "") !== ADMIN_API_TOKEN) {
+    // Auth via x-admin-token
+    const tokenHeader = req.headers.get("x-admin-token") ?? "";
+    if (tokenHeader !== ADMIN_API_TOKEN) {
       return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
+        JSON.stringify({ error: "Unauthorized (invalid x-admin-token)" }),
         {
           status: 401,
           headers: { ...headers, "Content-Type": "application/json" },
@@ -61,8 +62,22 @@ serve(async (req) => {
       );
     }
 
-    const body: Body = await req.json().catch(() => ({} as Body));
+    const rawBody = await req.text();
+    let body: Body;
+    try {
+      body = JSON.parse(rawBody || "{}") as Body;
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "Invalid JSON body", rawBody }),
+        {
+          status: 400,
+          headers: { ...headers, "Content-Type": "application/json" },
+        },
+      );
+    }
+
     const { id, email, nome, empresa, segmento, telefone } = body;
+    console.log("admin-update-client BODY:", body);
 
     if (!id && !email) {
       return new Response(
@@ -74,7 +89,9 @@ serve(async (req) => {
       );
     }
 
-    const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const sb = createClient(SUPABASE_URL, SERVICE_ROLE, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
 
     // Monta apenas os campos enviados
     const update: Record<string, string> = {};
@@ -83,10 +100,12 @@ serve(async (req) => {
     if (typeof segmento === "string") update.segmento = segmento;
     if (typeof telefone === "string") update.telefone = telefone;
 
+    console.log("admin-update-client UPDATE:", update, "id:", id, "email:", email);
+
     // Nada a atualizar? retorna ok
     if (Object.keys(update).length === 0) {
       return new Response(
-        JSON.stringify({ ok: true }),
+        JSON.stringify({ ok: true, skipped: true }),
         { headers: { ...headers, "Content-Type": "application/json" } },
       );
     }
@@ -97,16 +116,26 @@ serve(async (req) => {
     else q = q.eq("email", String(email).trim().toLowerCase());
 
     const { error } = await q;
-    if (error) throw error;
+    if (error) {
+      console.error("admin-update-client clientes error:", error.message);
+      return new Response(
+        JSON.stringify({ error: error.message }),
+        {
+          status: 500,
+          headers: { ...headers, "Content-Type": "application/json" },
+        },
+      );
+    }
 
     // Mantém profiles.nome em sincronia quando houver id + nome
     if (id && typeof nome === "string") {
       const { error: perr } = await sb
         .from("profiles")
         .upsert({ id, nome }, { onConflict: "id" });
+
       if (perr) {
-        // apenas loga; não quebra a resposta principal
-        console.warn("profiles sync warn:", perr.message);
+        console.warn("admin-update-client profiles sync warn:", perr.message);
+        // não quebra a resposta principal
       }
     }
 
@@ -116,7 +145,7 @@ serve(async (req) => {
     );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.error("admin-update-client error:", msg);
+    console.error("admin-update-client FATAL error:", msg);
     return new Response(
       JSON.stringify({ error: msg }),
       {
