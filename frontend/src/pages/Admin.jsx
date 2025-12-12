@@ -4,6 +4,10 @@ import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { adminApi } from "../lib/adminApi";
 
+function isUuid(v) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || ""));
+}
+
 function formatPhone(value) {
   const digits = (value || "").replace(/\D/g, "");
 
@@ -295,9 +299,12 @@ export default function Admin() {
   }
 
   function startEdit(acc) {
-    setEditingId(acc.id);
+    setEditingId(acc.id || acc.email); // pode continuar assim
+
+    const safeId = isUuid(acc.id) ? acc.id : ""; // <-- ESSENCIAL
+
     setEditForm({
-      id: acc.id,
+      id: safeId,
       nome: acc.nome || "",
       email: acc.email || "",
       telefone: acc.telefone || "",
@@ -332,12 +339,13 @@ export default function Admin() {
 
       // 1) Atualiza dados de cliente (nome / empresa / telefone)
       await adminApi.updateClient({
-        id: editForm.id,
+        ...(isUuid(editForm.id) ? { id: editForm.id } : {}), // <-- ESSENCIAL
         email: emailNormalized,
         nome: editForm.nome.trim(),
         empresa: editForm.empresa.trim() || null,
         telefone: editForm.telefone.trim() || null,
       });
+
 
       // 2) Atualiza role + ativo em acessos_permitidos
       await adminApi.setAccess({
