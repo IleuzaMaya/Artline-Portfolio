@@ -418,9 +418,9 @@ export default function Admin() {
   }
 
   function startEdit(acc) {
-    setEditingId(acc.id || acc.email); // pode continuar assim
+    setEditingId(acc.id || acc.email); 
 
-    const safeId = isUuid(acc.id) ? acc.id : ""; // <-- ESSENCIAL
+    const safeId = isUuid(acc.id) ? acc.id : ""; 
 
     setEditForm({
       id: safeId,
@@ -697,8 +697,8 @@ export default function Admin() {
                 )}
 
                 {showingList.map((acc) => {
-                  const rowKey = acc.id || acc.email;        // ✅ aqui
-                  const isEditing = editingId === rowKey;    // ✅ aqui
+                  const rowKey = acc.id || acc.email;       
+                  const isEditing = editingId === rowKey;    
 
                   return (
                     <React.Fragment key={rowKey}>
