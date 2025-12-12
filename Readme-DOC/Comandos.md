@@ -566,3 +566,70 @@ git commit -m "feat(admin): ajustar admin-list-accounts e grid de acessos"
 
 git push origin main
 
+
+git commit -m "feat(admin): listar contas via acessos_permitidos e habilitar edição no grid"
+
+
+Enviar pro GitHub:
+git push origin main
+
+
+"""""""
+Comitar tudo:
+
+git push origin main
+"""""""
+
+git status 
+git add frontend/src/pages/Admin.jsx
+git commit -m "fix(admin): importar React para usar React.Fragment"
+git push origin main
+
+
+cd art-emoldurados-webapp
+git status
+supabase functions deploy admin-create-client --project-ref nwtfynwrmhggbeudwpus  # (o mesmo ref do seu projeto)
+git add supabase/functions/admin-create-client/index.ts
+git commit -m "fix(admin-create-client): remover uso de updated_at em profiles"
+git push origin main
+
+git status
+supabase functions deploy admin-update-client --project-ref nwtfynwrmhggbeudwpus 
+git add supabase/functions/admin-update-client/index.ts
+git commit -m "fix(admin-update-client): remover uso de updated_at em profiles"
+git push origin main
+
+supabase functions deploy admin-update-client --project-ref nwtfynwrmhggbeudwpus
+
+
+
+# 1) confira o que mudou
+git diff
+
+# 2) adicione os arquivos que você realmente quer subir
+git add supabase/functions/admin-update-client/index.ts frontend/src/lib/adminApi.js frontend/src/pages/Admin.jsx
+
+# (opcional) se o Readme não for essencial agora, deixa de fora.
+# se quiser incluir:
+# git add Readme-DOC/Comandos.md
+
+# 3) commit
+git commit -m "fix: logs e ajustes no admin-update-client e adminApi"
+
+# 4) push
+git push origin main
+
+
+
+git diff
+git add supabase/functions/admin-update-client/index.ts frontend/src/lib/adminApi.js frontend/src/pages/Admin.jsx
+git add Readme-DOC/Comandos.md
+git commit -m "fix: logs e ajustes no admin-update-client e adminApi"
+git push origin main
+
+
+git diff
+git add supabase/functions/admin-update-client/index.ts frontend/src/pages/Admin.jsx
+git add Readme-DOC/Comandos.md
+git commit -m "fix: logs e ajustes no admin-update-client 
+git push origin main

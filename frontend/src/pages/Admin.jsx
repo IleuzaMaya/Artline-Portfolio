@@ -4,9 +4,6 @@ import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { adminApi } from "../lib/adminApi";
 
-function isUuid(v) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || ""));
-}
 
 function formatPhone(value) {
   const digits = (value || "").replace(/\D/g, "");
@@ -331,38 +328,47 @@ export default function Admin() {
     setEditForm((prev) => ({ ...prev, [field]: value }));
   }
 
-    async function saveEdit() {
-    try {
-      setSavingEdit(true);
-
-      const emailNormalized = editForm.email.trim().toLowerCase();
-
-      // 1) Atualiza dados de cliente (nome / empresa / telefone)
-      await adminApi.updateClient({
-        ...(isUuid(editForm.id) ? { id: editForm.id } : {}), // <-- ESSENCIAL
-        email: emailNormalized,
-        nome: editForm.nome.trim(),
-        empresa: editForm.empresa.trim() || null,
-        telefone: editForm.telefone.trim() || null,
-      });
-
-
-      // 2) Atualiza role + ativo em acessos_permitidos
-      await adminApi.setAccess({
-        email: emailNormalized,
-        role: editForm.role === "admin" ? "admin" : "cliente",
-        ativo: !!editForm.ativo,
-      });
-
-      await loadAccounts();
-      cancelEdit();
-    } catch (err) {
-      console.error(err);
-      alert(err.message || "Erro ao salvar alterações");
-    } finally {
-      setSavingEdit(false);
+    function isUuid(v) {
+      return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || ""));
     }
-  }
+
+    async function saveEdit() {
+      try {
+        setSavingEdit(true);
+
+        const emailNormalized = editForm.email.trim().toLowerCase();
+        const idSafe = isUuid(editForm.id) ? editForm.id : undefined;
+
+        console.log("updateClient payload:", {
+          id: idSafe,
+          email: emailNormalized,
+          nome: editForm.nome,
+        });
+
+        await adminApi.updateClient({
+          ...(idSafe ? { id: idSafe } : {}),   // só manda id se for UUID
+          email: emailNormalized,              // sempre manda email
+          nome: editForm.nome.trim(),
+          empresa: editForm.empresa.trim() || null,
+          telefone: editForm.telefone.trim() || null,
+        });
+
+        await adminApi.setAccess({
+          email: emailNormalized,
+          role: editForm.role === "admin" ? "admin" : "cliente",
+          ativo: !!editForm.ativo,
+        });
+
+        await loadAccounts();
+        cancelEdit();
+      } catch (err) {
+        console.error(err);
+        alert(err.message || "Erro ao salvar alterações");
+      } finally {
+        setSavingEdit(false);
+      }
+    }
+
 
   const showingList = activeTab === "admins" ? admins : clients;
 
