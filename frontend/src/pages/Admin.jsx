@@ -29,21 +29,6 @@ function classNames(...classes) {
   return classes.filter(Boolean).join(" ");
 }
 
-// máscara simples para telefone: (11) 91234-5678
-function maskPhone(value) {
-  const digits = String(value || "").replace(/\D/g, "").slice(0, 11);
-
-  if (digits.length <= 2) return digits;
-  if (digits.length <= 6) {
-    return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-  }
-  if (digits.length <= 10) {
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6, 10)}`;
-  }
-  // 11 dígitos (celular)
-  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
-}
-
 function InfoRow({ label, value }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: 10 }}>
@@ -132,6 +117,42 @@ export default function Admin() {
       setGlobalError(err.message || "Erro ao carregar lista de acessos.");
     }
   }
+
+    // =========================
+  // Regras de permissão (FRONT)
+  // =========================
+  const PRIMARY_SYSTEM_EMAIL = "artemoldurados@gmail.com";
+
+  const SUPER_ADMINS = useMemo(
+    () => new Set(["ileuza.maya@gmail.com", "michelle.mayaa@gmail.com"]),
+    []
+  );
+
+  const currentEmailNorm = (currentEmail || "").trim().toLowerCase();
+  const isSuperAdmin = SUPER_ADMINS.has(currentEmailNorm);
+
+  function canEditAccount(acc) {
+    const targetEmail = (acc?.email || "").trim().toLowerCase();
+    if (!targetEmail) return false;
+
+    // Super-admin edita todos; usuários comuns só editam a si mesmos
+    return isSuperAdmin || targetEmail === currentEmailNorm;
+  }
+
+  function isPrimarySystemAccount(acc) {
+    const targetEmail = (acc?.email || "").trim().toLowerCase();
+    return targetEmail === PRIMARY_SYSTEM_EMAIL;
+  }
+
+  function canEditSensitiveFields(acc) {
+    // Campos sensíveis: role/ativo (e qualquer coisa além de nome/telefone/empresa)
+    // Para a conta principal do sistema: NUNCA (mesmo super-admin)
+    if (isPrimarySystemAccount(acc)) return false;
+
+    // Super-admin pode; usuário comum não (usuário comum só edita dados básicos próprios)
+    return isSuperAdmin;
+  }
+
 
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsAcc, setDetailsAcc] = useState(null);
@@ -395,34 +416,45 @@ export default function Admin() {
     }
   }
 
-  function startEdit(acc) {
-    setEditingId(acc.id || acc.email); 
+    function startEdit(acc) {
+      if (!canEditAccount(acc)) {
+        alert("Você não tem permissão para editar este usuário.");
+        return;
+      }
 
-    const safeId = isUuid(acc.id) ? acc.id : ""; 
+      setEditingId(acc.id || acc.email);
 
-    setEditForm({
-      id: safeId,
-      nome: acc.nome || "",
-      email: acc.email || "",
-      telefone: acc.telefone || "",
-      empresa: acc.empresa || "",
-      role: acc.role || "cliente",
-      ativo: acc.ativo ?? true,
-    });
-  }
+      const safeId = isUuid(acc.id) ? acc.id : "";
 
-  function cancelEdit() {
-    setEditingId(null);
-    setEditForm({
-      id: "",
-      nome: "",
-      email: "",
-      telefone: "",
-      empresa: "",
-      role: "cliente",
-      ativo: true,
-    });
-  }
+      setEditForm({
+        id: safeId,
+        nome: acc.nome || "",
+        email: (acc.email || "").trim().toLowerCase(), // normalizado
+        telefone: acc.telefone || "",
+        empresa: acc.empresa || "",
+        role: acc.role || "cliente",
+        ativo: acc.ativo ?? true,
+
+        // guarda meta pra UI/salvamento
+        __isPrimarySystem: isPrimarySystemAccount(acc),
+        __canSensitive: canEditSensitiveFields(acc),
+      });
+    }
+
+    function cancelEdit() {
+      setEditingId(null);
+      setEditForm({
+        id: "",
+        nome: "",
+        email: "",
+        telefone: "",
+        empresa: "",
+        role: "cliente",
+        ativo: true,
+        __isPrimarySystem: false,
+        __canSensitive: false,
+      });
+    }
 
   function handleEditChange(field, value) {
     setEditForm((prev) => ({ ...prev, [field]: value }));
@@ -432,32 +464,30 @@ export default function Admin() {
       return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || ""));
     }
 
-    async function saveEdit() {
+      async function saveEdit() {
       try {
         setSavingEdit(true);
 
-        const emailNormalized = editForm.email.trim().toLowerCase();
+        const emailNormalized = (editForm.email || "").trim().toLowerCase();
         const idSafe = isUuid(editForm.id) ? editForm.id : undefined;
 
-        console.log("updateClient payload:", {
-          id: idSafe,
-          email: emailNormalized,
-          nome: editForm.nome,
-        });
-
+        // 1) Sempre permite atualizar dados básicos (nome/empresa/telefone)
         await adminApi.updateClient({
-          ...(idSafe ? { id: idSafe } : {}),   // só manda id se for UUID
-          email: emailNormalized,              // sempre manda email
+          ...(idSafe ? { id: idSafe } : {}),
+          email: emailNormalized,
           nome: editForm.nome.trim(),
           empresa: editForm.empresa.trim() || null,
           telefone: editForm.telefone.trim() || null,
         });
 
-        await adminApi.setAccess({
-          email: emailNormalized,
-          role: editForm.role === "admin" ? "admin" : "cliente",
-          ativo: !!editForm.ativo,
-        });
+        // 2) Só mexe em role/ativo se tiver permissão (super-admin e não for a conta principal)
+        if (editForm.__canSensitive) {
+          await adminApi.setAccess({
+            email: emailNormalized,
+            role: editForm.role === "admin" ? "admin" : "cliente",
+            ativo: !!editForm.ativo,
+          });
+        }
 
         await loadAccounts();
         cancelEdit();
@@ -468,7 +498,6 @@ export default function Admin() {
         setSavingEdit(false);
       }
     }
-
 
   const showingList = activeTab === "admins" ? admins : clients;
 
@@ -704,11 +733,10 @@ export default function Admin() {
                           {isEditing ? (
                             <input
                               type="email"
-                              className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-400"
                               value={editForm.email}
-                              onChange={(e) =>
-                                handleEditChange("email", e.target.value)
-                              }
+                              disabled
+                              title="E-mail não pode ser alterado por segurança."
                             />
                           ) : (
                             acc.email
@@ -733,11 +761,10 @@ export default function Admin() {
                         <td className="px-4 py-3 text-sm text-slate-800">
                           {isEditing ? (
                             <select
-                              className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-slate-100 disabled:text-slate-400"
                               value={editForm.role}
-                              onChange={(e) =>
-                                handleEditChange("role", e.target.value)
-                              }
+                              disabled={!editForm.__canSensitive}
+                              onChange={(e) => handleEditChange("role", e.target.value)}
                             >
                               <option value="cliente">Cliente</option>
                               <option value="admin">Administrador</option>
@@ -780,17 +807,18 @@ export default function Admin() {
                                 Detalhes
                               </button>
 
-                              <button
-                                type="button"
-                                onClick={() => startEdit(acc)}
-                                className="inline-flex items-center rounded-md border border-emerald-600 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
-                              >
-                                Editar
-                              </button>
+                              {canEditAccount(acc) && (
+                                <button
+                                  type="button"
+                                  onClick={() => startEdit(acc)}
+                                  className="inline-flex items-center rounded-md border border-emerald-600 px-3 py-1 text-xs font-medium text-emerald-700 hover:bg-emerald-50"
+                                >
+                                  Editar
+                                </button>
+                              )}
                             </div>
                           )}
                         </td>
-
                       </tr>
 
                       {/* Linha extra com Empresa / Telefone / Ativo quando estiver editando */}
@@ -830,6 +858,7 @@ export default function Admin() {
                                     type="checkbox"
                                     className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                                     checked={!!editForm.ativo}
+                                    disabled={!editForm.__canSensitive}
                                     onChange={(e) =>
                                       handleEditChange("ativo", e.target.checked)
                                     }
