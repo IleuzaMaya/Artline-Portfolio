@@ -133,6 +133,13 @@ export default function Admin() {
     }
   }
 
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsAcc, setDetailsAcc] = useState(null);
+  const [detailsVisible, setDetailsVisible] = useState(false);
+
+  const detailsCloseBtnRef = React.useRef(null);
+  const lastFocusRef = React.useRef(null);
+
   useEffect(() => {
     (async () => {
       setLoadingPage(true);
@@ -225,13 +232,6 @@ export default function Admin() {
     setSubmitError("");
   }
 
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [detailsAcc, setDetailsAcc] = useState(null);
-  const [detailsVisible, setDetailsVisible] = useState(false);
-
-  const detailsCloseBtnRef = React.useRef(null);
-  const lastFocusRef = React.useRef(null);
-
   function openDetails(acc) {
     lastFocusRef.current = document.activeElement; // guarda quem estava com foco
     setDetailsAcc(acc);
@@ -252,28 +252,6 @@ export default function Admin() {
       }
     }, 180);
   }
-
-  useEffect(() => {
-    if (!detailsOpen) return;
-
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    return () => {
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [detailsOpen]);
-
-  useEffect(() => {
-    if (!detailsOpen) return;
-
-    const onKeyDown = (e) => {
-      if (e.key === "Escape") closeDetails();
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [detailsOpen]);
 
   async function handleCreateClient(e) {
     e.preventDefault();
