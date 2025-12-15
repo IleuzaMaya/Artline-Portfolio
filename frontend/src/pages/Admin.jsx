@@ -285,22 +285,22 @@ export default function Admin() {
         email: (formEmail || "").trim().toLowerCase(),
         empresa: (formEmpresa || "").trim(),
         telefone: (formTelefone || "").trim(),
-        // sempre mandar apenas "admin" ou "cliente"
         role: formRole === "admin" ? "admin" : "cliente",
         password: (formSenha || "").trim(),
       };
 
-      if (!payload.email) {
-        throw new Error("E-mail é obrigatório.");
-      }
+      if (!payload.email) throw new Error("E-mail é obrigatório.");
 
       await adminApi.createClient(payload);
       await loadAccounts();
       resetCreateForm();
       alert("Usuário criado/enviado com sucesso!");
     } catch (err) {
-      console.error(err);
-      setSubmitError(err.message || "Erro ao criar/enviar convite.");
+      if (err?.status === 409 && err?.payload?.code === "EMAIL_ALREADY_EXISTS") {
+        setSubmitError(`E-mail já cadastrado: ${err.payload.email}`);
+      } else {
+        setSubmitError(err?.message || "Erro ao criar/enviar convite.");
+      }
     } finally {
       setLoadingSubmit(false);
     }
@@ -622,9 +622,25 @@ export default function Admin() {
                 <button
                   type="button"
                   onClick={() => setShowCreatePassword((v) => !v)}
-                  className="absolute inset-y-0 right-2 flex items-center text-xs text-slate-500 hover:text-slate-800"
+                  className="absolute inset-y-0 right-2 flex items-center justify-center rounded-md px-2 text-slate-500 hover:text-slate-800"
+                  aria-label={showCreatePassword ? "Ocultar senha" : "Mostrar senha"}
+                  title={showCreatePassword ? "Ocultar senha" : "Mostrar senha"}
                 >
-                  {showCreatePassword ? "Ocultar" : "Mostrar"}
+                  {showCreatePassword ? (
+                    // eye-off
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M3 3l18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      <path d="M10.6 10.6A3 3 0 0013.4 13.4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      <path d="M9.9 5.3A10.7 10.7 0 0122 12c-.7 1.4-1.7 2.6-2.9 3.6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      <path d="M6.2 6.2A10.8 10.8 0 002 12c2.1 4.1 6 7 10 7 1.4 0 2.7-.3 3.9-.8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                  ) : (
+                    // eye
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M2 12c2.1-4.1 6-7 10-7s7.9 2.9 10 7c-2.1 4.1-6 7-10 7s-7.9-2.9-10-7z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
+                      <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="currentColor" strokeWidth="2"/>
+                    </svg>
+                  )}
                 </button>
               </div>
             </div>

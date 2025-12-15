@@ -1,25 +1,16 @@
 // frontend/src/lib/edgeApi.js
 import axios from "axios";
+import { FUNCTIONS_BASE, SUPABASE_ANON_KEY } from "./env";
 
-function buildBase() {
-  const fnUrl = (import.meta.env.VITE_SUPABASE_FUNCTIONS_URL || "").replace(/\/$/, "");
-  if (fnUrl) return fnUrl; // já veio pronto do env
-
-  const supa = (import.meta.env.VITE_SUPABASE_URL || "").replace(/\/$/, "");
-  if (!supa) return "";
-
-  // Usa o formato oficial ...supabase.co/functions/v1
-  return `${supa}/functions/v1`;
+if (!FUNCTIONS_BASE) {
+  console.warn("[edgeApi] FUNCTIONS_BASE vazio. Verifique VITE_SUPABASE_FUNCTIONS_URL.");
 }
 
-const base = buildBase();
-const anon = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
 export const edge = axios.create({
-  baseURL: `${base}/catalogo`,
+  baseURL: `${FUNCTIONS_BASE}/catalogo`,
   headers: {
-    Authorization: `Bearer ${anon}`,
-    apikey: anon,
+    Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    apikey: SUPABASE_ANON_KEY,
     "Content-Type": "application/json",
   },
 });
