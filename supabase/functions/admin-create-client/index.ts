@@ -1,236 +1,316 @@
 // supabase/functions/admin-create-client/index.ts
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.48.0";
-
-const ORIGINS = ["https://app.artemoldurados.com.br", "http://localhost:5173"];
-
-const cors = (origin: string | null) => ({
-  "Access-Control-Allow-Origin":
-    origin && ORIGINS.includes(origin) ? origin : ORIGINS[0],
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers":
-    "authorization, apikey, x-client-info, x-admin-token, content-type",
-  "Access-Control-Max-Age": "86400",
-  Vary: "Origin",
-});
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 type Role = "admin" | "cliente";
 
-interface BodyPayload {
-  email: string;
-  name?: string;
-  telefone?: string;
-  empresa?: string;
-  password?: string;
-  role?: Role;
+const headersBase = {
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-admin-token",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+function cors(origin: string | null) {
+  return {
+    ...headersBase,
+    "Access-Control-Allow-Origin": origin ?? "*",
+  };
+}
+
+function json(origin: string | null, status: number, payload: unknown) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...cors(origin), "Content-Type": "application/json" },
+  });
+}
+
+function normEmail(v: unknown) {
+  return String(v ?? "").trim().toLowerCase();
+}
+
+function normText(v: unknown) {
+  return String(v ?? "").trim();
+}
+
+function safeRole(v: unknown): Role {
+  const r = String(v ?? "").trim().toLowerCase();
+  return r === "admin" ? "admin" : "cliente";
 }
 
 serve(async (req) => {
-  const headersBase = cors(req.headers.get("origin"));
-
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: headersBase });
-  }
-
-  if (req.method !== "POST") {
-    return new Response("Method not allowed", {
-      status: 405,
-      headers: headersBase,
-    });
-  }
+  const origin = req.headers.get("origin");
 
   try {
-    // 1) Carregar secrets
-    const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
-    const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-    const ADMIN_API_TOKEN = Deno.env.get("ADMIN_API_TOKEN") ?? "";
-    const PROFILE_TABLE = Deno.env.get("PROFILE_TABLE") ?? "profiles";
-    const PROJECT_URL =
-      Deno.env.get("PROJECT_URL") ?? "https://app.artemoldurados.com.br";
+    // Preflight
+    if (req.method === "OPTIONS") return new Response("ok", { headers: cors(origin) });
 
-    if (!SUPABASE_URL || !SERVICE_ROLE_KEY || !ADMIN_API_TOKEN) {
-      return new Response(
-        JSON.stringify({ error: "Missing SUPABASE_URL / SERVICE_ROLE / ADMIN_API_TOKEN" }),
-        { status: 500, headers: { ...headersBase, "Content-Type": "application/json" } }
-      );
-    }
-
-    // 2) Autorizar pelo token
-    const tokenHeader = req.headers.get("x-admin-token") ?? "";
-    if (tokenHeader !== ADMIN_API_TOKEN) {
-      return new Response(
-        JSON.stringify({ error: "Não autorizado (token inválido)." }),
-        { status: 401, headers: { ...headersBase, "Content-Type": "application/json" } }
-      );
-    }
-
-    // 3) Body
-    const body = (await req.json()) as BodyPayload;
-    const emailRaw = String(body.email ?? "").trim().toLowerCase();
-    const name = String(body.name ?? "").trim();
-    const telefone = body.telefone ? String(body.telefone).trim() : null;
-    const empresa = body.empresa ? String(body.empresa).trim() : null;
-    const password = String(body.password ?? "").trim();
-    const role: Role = body.role === "admin" ? "admin" : "cliente";
-
-    if (!emailRaw) {
-      return new Response(
-        JSON.stringify({ error: "E-mail é obrigatório." }),
-        { status: 400, headers: { ...headersBase, "Content-Type": "application/json" } }
-      );
-    }
-
-    if (!name) {
-      return new Response(
-        JSON.stringify({ error: "Nome é obrigatório." }),
-        { status: 400, headers: { ...headersBase, "Content-Type": "application/json" } }
-      );
-    }
-
-    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-
-    // 4) Procurar usuário por e-mail no Auth (reaproveitar se já existir)
-    let userId: string | null = null;
-    let alreadyExisted = false;
-
-    const listRes = await supabaseAdmin.auth.admin.listUsers({
-      page: 1,
-      perPage: 1000,
-    });
-    if (listRes.error) throw listRes.error;
-
-    const existingUser = listRes.data.users.find(
-      (u) => (u.email ?? "").toLowerCase() === emailRaw
-    );
-
-    if (existingUser) {
-      userId = existingUser.id;
-      alreadyExisted = true;
-    } else {
-      // 4b) Não existe → criar usuário
-      const createRes = await supabaseAdmin.auth.admin.createUser({
-        email: emailRaw,
-        password: password || undefined,
-        email_confirm: true,
+    if (req.method !== "POST") {
+      return json(origin, 405, {
+        ok: false,
+        code: "METHOD_NOT_ALLOWED",
+        error: "Method not allowed",
       });
-      if (createRes.error) throw createRes.error;
-      userId = createRes.data.user?.id ?? null;
-      alreadyExisted = false;
+    }
+
+    // ====== Secrets ======
+    const ADMIN_API_TOKEN = Deno.env.get("ADMIN_API_TOKEN") ?? "";
+
+    const SERVICE_ROLE =
+      Deno.env.get("SERVICE_ROLE_KEY") ??
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
+      "";
+
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+
+    // URL para redirect dos links (invite/reset)
+    const PROJECT_URL =
+      Deno.env.get("PROJECT_URL") ??
+      Deno.env.get("SITE_URL") ??
+      Deno.env.get("VITE_SITE_URL") ?? // se alguém acabou colocando por engano
+      "";
+
+    if (!ADMIN_API_TOKEN || !SERVICE_ROLE || !SUPABASE_URL) {
+      return json(origin, 500, {
+        ok: false,
+        code: "MISSING_SECRETS",
+        error: "Missing secrets",
+        missing: {
+          ADMIN_API_TOKEN: !ADMIN_API_TOKEN,
+          SERVICE_ROLE: !SERVICE_ROLE,
+          SUPABASE_URL: !SUPABASE_URL,
+        },
+      });
+    }
+
+    const token = req.headers.get("x-admin-token") ?? "";
+    if (token !== ADMIN_API_TOKEN) {
+      return json(origin, 401, {
+        ok: false,
+        code: "UNAUTHORIZED",
+        error: "Unauthorized",
+      });
+    }
+
+    const sb = createClient(SUPABASE_URL, SERVICE_ROLE, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    // ====== Body ======
+    let body: any = {};
+    try {
+      body = await req.json();
+    } catch {
+      // se vier vazio, mantém {}
+      body = {};
+    }
+
+    const email = normEmail(body.email);
+    const name = normText(body.name || body.nome);
+    const empresa = normText(body.empresa);
+    const telefone = normText(body.telefone);
+    const role: Role = safeRole(body.role);
+    const password = normText(body.password);
+
+    if (!email) {
+      return json(origin, 400, {
+        ok: false,
+        code: "VALIDATION",
+        error: "E-mail é obrigatório.",
+      });
+    }
+
+    // ====== 1) Bloqueio de duplicidade (Auth) ======
+    // (é aqui que garante: NÃO sobrescrever nunca)
+    const { data: existing, error: getErr } = await sb.auth.admin.getUserByEmail(email);
+    if (getErr) {
+      // Se isso falhar, melhor devolver erro explícito
+      return json(origin, 500, {
+        ok: false,
+        code: "AUTH_GET_BY_EMAIL_FAILED",
+        error: getErr.message,
+      });
+    }
+    if (existing?.user) {
+      return json(origin, 409, {
+        ok: false,
+        code: "EMAIL_ALREADY_EXISTS",
+        error: "E-mail já cadastrado",
+        email,
+      });
+    }
+
+    // ====== 2) Bloqueio de duplicidade (acessos_permitidos) — extra segurança ======
+    const { data: accFound, error: accErr } = await sb
+      .from("acessos_permitidos")
+      .select("email, is_deleted")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (accErr) {
+      return json(origin, 500, {
+        ok: false,
+        code: "DB_ACCESS_LOOKUP_FAILED",
+        error: accErr.message,
+      });
+    }
+
+    if (accFound && accFound.is_deleted === false) {
+      return json(origin, 409, {
+        ok: false,
+        code: "EMAIL_ALREADY_EXISTS",
+        error: "E-mail já cadastrado",
+        email,
+      });
+    }
+
+    // ====== 3) Criar usuário OU gerar link de convite ======
+    let userId: string | null = null;
+    let invite_link: string | null = null;
+
+    if (password) {
+      // cria com senha (não envia convite)
+      const { data: created, error: createErr } = await sb.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true, // opcional (mantenho true pra evitar travar login)
+        user_metadata: {
+          nome: name || null,
+          empresa: empresa || null,
+          telefone: telefone || null,
+          role,
+        },
+      });
+
+      if (createErr) {
+        // se por algum motivo virou duplicado ao mesmo tempo (race), converte pra 409
+        const msg = createErr.message || "Erro ao criar usuário";
+        const isDup =
+          msg.toLowerCase().includes("already") ||
+          msg.toLowerCase().includes("exists") ||
+          msg.toLowerCase().includes("duplicate");
+        return json(origin, isDup ? 409 : 500, {
+          ok: false,
+          code: isDup ? "EMAIL_ALREADY_EXISTS" : "AUTH_CREATE_FAILED",
+          error: isDup ? "E-mail já cadastrado" : msg,
+          email,
+        });
+      }
+
+      userId = created?.user?.id ?? null;
+    } else {
+      // Sem senha: gera link de invite (para você mandar manualmente)
+      // Se PROJECT_URL estiver vazio, ainda gera, mas sem redirect.
+      const { data: gen, error: genErr } = await sb.auth.admin.generateLink({
+        type: "invite",
+        email,
+        options: PROJECT_URL ? { redirectTo: PROJECT_URL } : undefined,
+      });
+
+      if (genErr) {
+        return json(origin, 500, {
+          ok: false,
+          code: "AUTH_GENERATE_INVITE_FAILED",
+          error: genErr.message,
+          hint: PROJECT_URL ? undefined : "PROJECT_URL/SITE_URL não configurado (redirectTo vazio).",
+        });
+      }
+
+      invite_link = gen?.properties?.action_link ?? null;
+      userId = gen?.user?.id ?? null;
+
+      // Garante que veio algo útil
+      if (!invite_link) {
+        return json(origin, 500, {
+          ok: false,
+          code: "INVITE_LINK_EMPTY",
+          error: "Não foi possível gerar o link de convite.",
+        });
+      }
     }
 
     if (!userId) {
-      throw new Error("Não foi possível obter o ID do usuário.");
-    }
-
-    // 5) Upsert em profiles (SEM updated_at)
-    const upsertProfile = await supabaseAdmin
-      .from(PROFILE_TABLE)
-      .upsert(
-        {
-          id: userId,
-          nome: name,
-          telefone,
-        },
-        { onConflict: "id" }
-      )
-      .select("id")
-      .single();
-
-    if (upsertProfile.error) throw upsertProfile.error;
-
-
-    // 6) Upsert em clientes (seguro)
-    if (alreadyExisted) {
-      // já existia no Auth -> garante por email (SEM mexer em id)
-      const upsertCliente = await supabaseAdmin
-        .from("clientes")
-        .upsert(
-          {
-            email: emailRaw,
-            nome: name,
-            telefone,
-            empresa,
-          },
-          { onConflict: "email" }
-        )
-        .select("id,email")
-        .single();
-
-      if (upsertCliente.error) throw upsertCliente.error;
-    } else {
-      // acabou de criar no Auth -> garante por id (com id)
-      const upsertCliente = await supabaseAdmin
-        .from("clientes")
-        .upsert(
-          {
-            id: userId,
-            email: emailRaw,
-            nome: name,
-            telefone,
-            empresa,
-          },
-          { onConflict: "id" }
-        )
-        .select("id,email")
-        .single();
-
-      if (upsertCliente.error) throw upsertCliente.error;
-    }
-
-
-
-    // 7) Upsert em acessos_permitidos (reaproveita se já existir esse e-mail)
-    const upsertAcesso = await supabaseAdmin
-      .from("acessos_permitidos")
-      .upsert(
-        {
-          email: emailRaw,
-          role,
-          ativo: true,
-          is_deleted: false,
-        },
-        { onConflict: "email" }
-      )
-      .select("email, role, ativo")
-      .single();
-
-    if (upsertAcesso.error) throw upsertAcesso.error;
-
-    // 8) Se não recebeu senha → gerar link de convite (signup)
-    let invite_link: string | null = null;
-    if (!password) {
-      const gen = await supabaseAdmin.auth.admin.generateLink({
-        type: "signup",
-        email: emailRaw,
-        options: { redirectTo: PROJECT_URL },
+      return json(origin, 500, {
+        ok: false,
+        code: "USER_ID_MISSING",
+        error: "Não foi possível obter o ID do usuário criado.",
       });
-      if (gen.error) throw gen.error;
-      invite_link = gen.data?.properties?.action_link ?? null;
     }
 
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        email: emailRaw,
-        role,
-        alreadyExisted,
-        invite_link,
-      }),
-      { status: 200, headers: { ...headersBase, "Content-Type": "application/json" } }
-    );
-  } catch (e: any) {
-    console.error("admin-create-client error:", e);
-    return new Response(
-      JSON.stringify({ error: String(e?.message ?? e) }),
+    // ====== 4) Persistir no DB (profiles / clientes / acessos_permitidos) ======
+    // profiles
+    const { error: profErr } = await sb.from("profiles").upsert(
       {
-        status: 500,
-        headers: {
-          ...cors(req.headers.get("origin")),
-          "Content-Type": "application/json",
-        },
-      }
+        id: userId,
+        nome: name || null,
+        telefone: telefone || null,
+        tipo: role, // "admin" | "cliente"
+      },
+      { onConflict: "id" }
     );
+
+    if (profErr) {
+      return json(origin, 500, {
+        ok: false,
+        code: "DB_PROFILE_UPSERT_FAILED",
+        error: profErr.message,
+      });
+    }
+
+    // clientes (seu schema: id uuid PK -> auth.users, email unique)
+    const { error: cliErr } = await sb.from("clientes").upsert(
+      {
+        id: userId,
+        email,
+        nome: name || null,
+        telefone: telefone || null,
+        empresa: empresa || null,
+      },
+      { onConflict: "id" }
+    );
+
+    if (cliErr) {
+      return json(origin, 500, {
+        ok: false,
+        code: "DB_CLIENT_UPSERT_FAILED",
+        error: cliErr.message,
+      });
+    }
+
+    // acessos_permitidos (email PK)
+    // Se existia como deletado, "ressuscita" com ativo true.
+    const { error: accUpErr } = await sb.from("acessos_permitidos").upsert(
+      {
+        email,
+        role,
+        ativo: true,
+        is_primary_admin: false,
+        is_deleted: false,
+      },
+      { onConflict: "email" }
+    );
+
+    if (accUpErr) {
+      return json(origin, 500, {
+        ok: false,
+        code: "DB_ACCESS_UPSERT_FAILED",
+        error: accUpErr.message,
+      });
+    }
+
+    // ====== OK ======
+    return json(origin, 200, {
+      ok: true,
+      email,
+      role,
+      invite_link, // null se criou com senha
+      user_id: userId,
+    });
+  } catch (e: any) {
+    console.error("admin-create-client FATAL:", e);
+    return json(origin, 500, {
+      ok: false,
+      code: "INTERNAL",
+      error: String(e?.message ?? e),
+    });
   }
 });
