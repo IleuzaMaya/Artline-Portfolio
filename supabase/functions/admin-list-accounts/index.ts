@@ -1,124 +1,128 @@
 // supabase/functions/admin-list-accounts/index.ts
+/// <reference lib="deno.unstable" />
+
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
-const ORIGINS = ["https://app.artemoldurados.com.br", "http://localhost:5173"];
-
-const cors = (o: string | null) => ({
-  "Access-Control-Allow-Origin": o && ORIGINS.includes(o) ? o : ORIGINS[0],
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+const headersBase = {
+  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, apikey, x-client-info, x-admin-token, content-type",
-  "Access-Control-Max-Age": "86400",
-  Vary: "Origin",
-});
+    "authorization, x-client-info, apikey, content-type, x-admin-token",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+function json(status: number, body: unknown) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...headersBase, "Content-Type": "application/json" },
+  });
+}
+
+function normEmail(v: any) {
+  return String(v || "").trim().toLowerCase();
+}
 
 serve(async (req) => {
-  const headers = cors(req.headers.get("origin"));
-
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers });
-  }
-
-  if (req.method !== "POST") {
-    return new Response("Method not allowed", {
-      status: 405,
-      headers,
-    });
-  }
+  if (req.method === "OPTIONS") return new Response("ok", { headers: headersBase });
+  if (req.method !== "POST") return json(405, { error: "Method not allowed" });
 
   try {
+    // ✅ secrets
     const ADMIN_API_TOKEN = Deno.env.get("ADMIN_API_TOKEN") ?? "";
-    const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+    const SERVICE_ROLE =
+      Deno.env.get("SERVICE_ROLE_KEY") ??
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
+      "";
+
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 
     if (!ADMIN_API_TOKEN || !SERVICE_ROLE || !SUPABASE_URL) {
-      return new Response(
-        JSON.stringify({ error: "Missing secrets" }),
-        {
-          status: 500,
-          headers: { ...headers, "Content-Type": "application/json" },
-        },
-      );
+      return json(500, { error: "Missing secrets" });
     }
 
-    const token = req.headers.get("x-admin-token") ?? "";
-    if (token !== ADMIN_API_TOKEN) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        {
-          status: 401,
-          headers: { ...headers, "Content-Type": "application/json" },
-        },
-      );
+    // ✅ auth do admin (token do Vercel)
+    const adminToken = req.headers.get("x-admin-token") || "";
+    if (adminToken !== ADMIN_API_TOKEN) {
+      return json(401, { error: "Unauthorized" });
     }
 
-    const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // 1) pega lista de acessos
-    const { data: acessos, error: errAcessos } = await supabaseAdmin
+    // body opcional (no seu front você manda {})
+    const payload = await req.json().catch(() => ({} as any));
+    const includeDeleted = !!payload?.includeDeleted;
+
+    // 1) acessos_permitidos (enxuto)
+    const { data: acessos, error: errAcessos } = await sb
       .from("acessos_permitidos")
-      .select("*")
-      .eq("is_deleted", false);
+      .select("email, role, ativo, is_primary_admin, is_deleted, created_at")
+      .eq("is_deleted", includeDeleted ? (true as any) : false);
 
-    if (errAcessos) {
-      console.error("admin-list-accounts acessos_permitidos:", errAcessos);
-      throw errAcessos;
-    }
+    if (errAcessos) throw errAcessos;
 
-    // 2) pega todos os clientes (nome, telefone, empresa, email)
-    const { data: clientes, error: errClientes } = await supabaseAdmin
+    // 2) clientes (enxuto)
+    const { data: clientes, error: errClientes } = await sb
       .from("clientes")
-      .select("*");
+      .select("id, email, nome, telefone, empresa");
 
-    if (errClientes) {
-      console.error("admin-list-accounts clientes:", errClientes);
-      throw errClientes;
+    if (errClientes) throw errClientes;
+
+    // 3) Map por email (rápido)
+    const mapCli = new Map(
+      (clientes ?? []).map((c: any) => [normEmail(c.email), c])
+    );
+
+    // 4) (Opcional) tentar enriquecer com Auth: getUserByEmail (um a um, com limite seguro)
+    // Isso evita paginar users.list (que é mais pesado). Mantemos “best effort”.
+    const MAX_AUTH_LOOKUPS = 25; // segurança: não travar a função se tiver muitos
+    let authLookups = 0;
+
+    async function safeGetAuthUserIdByEmail(email: string): Promise<string | null> {
+      if (!email) return null;
+      if (authLookups >= MAX_AUTH_LOOKUPS) return null;
+      authLookups++;
+
+      try {
+        const { data } = await sb.auth.admin.getUserByEmail(email);
+        return data?.user?.id ?? null;
+      } catch {
+        return null;
+      }
     }
 
-    // 3) monta o array final "accounts"
-    const accounts =
-      acessos?.map((acc) => {
-        const emailAcc = String(acc.email || "").toLowerCase();
+    // 5) montar accounts
+    const accounts = await Promise.all(
+      (acessos ?? []).map(async (acc: any) => {
+        const email = normEmail(acc.email);
+        const cli = mapCli.get(email) ?? null;
 
-        const cli =
-          clientes?.find((c: any) =>
-            String(c.email || "").toLowerCase() === emailAcc
-          ) ?? null;
+        // prioridade: id do cliente; fallback: tentar buscar no Auth (limitado)
+        const idFromCliente = cli?.id ?? null;
+        const idFromAuth = idFromCliente ? null : await safeGetAuthUserIdByEmail(email);
 
         return {
-          id: cli?.id ?? emailAcc, // usa id do cliente se tiver, senão o próprio e-mail
-          email: emailAcc,
-          role: acc.role, // "admin" | "cliente"
-          ativo: acc.ativo,
-          is_primary_admin: acc.is_primary_admin ?? false,
-          created_at: acc.created_at,
-
-          // dados extras para edição
+          id: idFromCliente || idFromAuth || null,
+          email,
           nome: cli?.nome ?? null,
           telefone: cli?.telefone ?? null,
           empresa: cli?.empresa ?? null,
+
+          role: acc?.role === "admin" ? "admin" : "cliente",
+          ativo: acc?.ativo ?? true,
+          is_primary_admin: !!acc?.is_primary_admin,
+          is_deleted: !!acc?.is_deleted,
+          created_at: acc?.created_at ?? null,
         };
-      }) ?? [];
-
-    // só pra debug se precisar no futuro
-    console.log("admin-list-accounts ->", accounts.length, "accounts");
-
-    return new Response(
-      JSON.stringify({ accounts }),
-      {
-        status: 200,
-        headers: { ...headers, "Content-Type": "application/json" },
-      },
+      })
     );
-  } catch (e) {
+
+    // ordenar (opcional): admins primeiro? aqui só por email
+    accounts.sort((a: any, b: any) => String(a.email).localeCompare(String(b.email)));
+
+    return json(200, { ok: true, accounts });
+  } catch (e: any) {
     console.error("admin-list-accounts error:", e);
-    return new Response(
-      JSON.stringify({ error: String(e?.message ?? e) }),
-      {
-        status: 500,
-        headers: { ...headers, "Content-Type": "application/json" },
-      },
-    );
+    return json(500, { error: String(e?.message || e) });
   }
 });
