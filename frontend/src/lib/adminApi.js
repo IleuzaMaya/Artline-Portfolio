@@ -1,17 +1,16 @@
 // frontend/src/lib/adminApi.js
 import { supabase } from "./supabase";
-import { FUNCTIONS_BASE, ADMIN_API_TOKEN, assertEnv } from "./env";
+import { FUNCTIONS_BASE, ADMIN_API_TOKEN } from "./env";
 
 async function call(name, body = {}) {
-  assertEnv();
+  if (!FUNCTIONS_BASE || !ADMIN_API_TOKEN) {
+    throw new Error("Env VITE_SUPABASE_FUNCTIONS_URL / VITE_ADMIN_API_TOKEN ausentes");
+  }
 
-  const {
-    data: { session } = {},
-  } = await supabase.auth.getSession();
+  const { data: { session } = {} } = await supabase.auth.getSession();
   const jwt = session?.access_token;
 
   const url = `${FUNCTIONS_BASE}/${name}?_=${Date.now()}`;
-  console.log("adminApi.call →", name, "URL:", url, "BODY:", body);
 
   const res = await fetch(url, {
     method: "POST",
@@ -41,7 +40,6 @@ async function call(name, body = {}) {
     const err = new Error(msg);
     err.status = res.status;
     err.payload = data;
-    err.url = url;
     throw err;
   }
 
