@@ -1,71 +1,226 @@
-import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+//supabase/functions/admin-set-access/index.ts
+/// <reference lib="deno.unstable" />
 
-const ORIGINS = ["https://app.artemoldurados.com.br", "http://localhost:5173"];
-const cors = (o:string|null)=>({
-  "Access-Control-Allow-Origin": (o && ORIGINS.includes(o)) ? o : ORIGINS[0],
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const headersBase = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-admin-token",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, x-admin-token, content-type",
-  "Access-Control-Max-Age": "86400",
-  "Vary": "Origin",
-});
+};
+
+function json(status: number, body: unknown) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...headersBase, "Content-Type": "application/json" },
+  });
+}
+
+function normEmail(v: any) {
+  return String(v || "").trim().toLowerCase();
+}
 
 serve(async (req) => {
-  const headers = cors(req.headers.get("origin"));
-  if (req.method === "OPTIONS") return new Response("ok", { headers });
-  if (req.method !== "POST") return new Response("Method not allowed", { status: 405, headers });
+  if (req.method === "OPTIONS") return new Response("ok", { headers: headersBase });
+  if (req.method !== "POST") return json(405, { error: "Method not allowed" });
 
   try {
+    // ✅ secrets
     const ADMIN_API_TOKEN = Deno.env.get("ADMIN_API_TOKEN") ?? "";
-    const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+
+    const SERVICE_ROLE =
+      Deno.env.get("SERVICE_ROLE_KEY") ??
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
+      "";
+
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+
     if (!ADMIN_API_TOKEN || !SERVICE_ROLE || !SUPABASE_URL) {
-      return new Response(JSON.stringify({ error: "Missing secrets" }), { status: 500, headers: { ...headers, "Content-Type": "application/json" }});
-    }
-    const token = req.headers.get("x-admin-token") ?? "";
-    if (token !== ADMIN_API_TOKEN) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...headers, "Content-Type": "application/json" }});
+      return json(500, { error: "Missing secrets" });
     }
 
-    const body = await req.json().catch(()=>({}));
-    const emailRaw = String(body.email || "").trim().toLowerCase();
-    const newRole = body.role as string | undefined;
-    const newAtivo = typeof body.ativo === "boolean" ? body.ativo as boolean : undefined;
-
-    if (!emailRaw) {
-      return new Response(JSON.stringify({ error: "email é obrigatório" }), { status: 400, headers: { ...headers, "Content-Type": "application/json" }});
+    // ✅ auth do admin (token do Vercel)
+    const adminToken = req.headers.get("x-admin-token") || "";
+    if (adminToken !== ADMIN_API_TOKEN) {
+      return json(401, { error: "Unauthorized" });
     }
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    const curSel = await sb.from("acessos_permitidos").select("email, role, ativo").eq("email", emailRaw).maybeSingle();
-    if (curSel.error) throw curSel.error;
-    const cur = curSel.data ?? null;
+    // ✅ pega caller via JWT (Authorization: Bearer <jwt>)
+    const authHeader = req.headers.get("authorization") || "";
+    const jwt = authHeader.toLowerCase().startsWith("bearer ")
+      ? authHeader.slice(7)
+      : "";
 
-    const roleToUse = newRole ?? cur?.role ?? "cliente";
-    const ativoToUse = newAtivo ?? cur?.ativo ?? true;
-
-    const up = await sb.from("acessos_permitidos").upsert(
-      { email: emailRaw, role: roleToUse, ativo: ativoToUse },
-      { onConflict: "email" }
-    );
-    if (up.error) throw up.error;
-
-    let userId: string | null = null;
-    const list = await sb.auth.admin.listUsers({ page: 1, perPage: 200 });
-    if (list.data?.users) {
-      const u = list.data.users.find(u => (u.email || "").toLowerCase() === emailRaw);
-      userId = u?.id ?? null;
+    if (!jwt) {
+      return json(401, { error: "Missing Authorization bearer token" });
     }
 
-    if (userId && newRole && newRole !== cur?.role) {
-      const prof = await sb.from("profiles").upsert({ id: userId, tipo: newRole }, { onConflict: "id" });
-      if (prof.error) throw prof.error;
+    const { data: callerUser, error: callerErr } = await sb.auth.getUser(jwt);
+    if (callerErr || !callerUser?.user) {
+      return json(401, { error: "Invalid session" });
     }
 
-    return new Response(JSON.stringify({ ok: true }), { headers: { ...headers, "Content-Type": "application/json" }});
-  } catch (e) {
-    console.error("admin-set-access:", e);
-    return new Response(JSON.stringify({ error: String(e?.message ?? e) }), { status: 500, headers: { ...headers, "Content-Type": "application/json" }});
+    const callerEmail = normEmail(callerUser.user.email);
+
+    // =========================
+    // Regras de permissão (BACK)
+    // =========================
+    const PRIMARY_SYSTEM_EMAIL = "artemoldurados@gmail.com";
+
+    const SUPER_ADMINS = new Set([
+      "ileuza.maya@gmail.com",
+      "michelle.mayaa@gmail.com",
+    ]);
+
+    const isSuperAdmin = SUPER_ADMINS.has(callerEmail);
+    const isPrimarySystem = callerEmail === PRIMARY_SYSTEM_EMAIL;
+
+    // Body
+    const body = await req.json().catch(() => ({}));
+    const targetEmail = normEmail(body?.email);
+
+    const nextRoleRaw = body?.role; // "admin" | "cliente" | undefined
+    const nextAtivoRaw = body?.ativo; // boolean | undefined
+    const nextDeletedRaw = body?.is_deleted; // boolean | undefined
+
+    if (!targetEmail) {
+      return json(400, { error: "email is required" });
+    }
+
+    // ninguém mexe em si mesmo (role/ativo/delete)
+    if (targetEmail === callerEmail) {
+      return json(403, {
+        error: "Você não pode alterar seu próprio acesso.",
+        code: "CANNOT_EDIT_SELF_ACCESS",
+        email: targetEmail,
+      });
+    }
+
+    // conta principal é protegida: NINGUÉM muda role/ativo/is_deleted dela
+    if (targetEmail === PRIMARY_SYSTEM_EMAIL) {
+      return json(403, {
+        error: "Conta principal do sistema é protegida.",
+        code: "PRIMARY_SYSTEM_PROTECTED",
+        email: targetEmail,
+      });
+    }
+
+    // super-admins (ileuza/michelle) só podem ser alterados por super-admin
+    if (SUPER_ADMINS.has(targetEmail) && !isSuperAdmin) {
+      return json(403, {
+        error: "Somente super-admin pode alterar outro super-admin.",
+        code: "SUPER_ADMIN_PROTECTED",
+        email: targetEmail,
+      });
+    }
+
+    // regra: admin comum pode mexer em CLIENTES (ativo / is_deleted),
+    // mas NÃO pode mexer em admins nem em role.
+    // (a conta PRIMARY_SYSTEM_EMAIL pode mexer em todos, menos super-admins e ela mesma)
+    const canManageAdmins = isSuperAdmin || isPrimarySystem;
+
+    // carregar o registro alvo
+    const { data: currentAcc, error: curErr } = await sb
+      .from("acessos_permitidos")
+      .select("email, role, ativo, is_deleted, is_primary_admin")
+      .eq("email", targetEmail)
+      .maybeSingle();
+
+    if (curErr) throw curErr;
+
+    if (!currentAcc) {
+      return json(404, {
+        error: "Conta não encontrada em acessos_permitidos.",
+        code: "ACCOUNT_NOT_FOUND",
+        email: targetEmail,
+      });
+    }
+
+    const targetIsAdmin = String(currentAcc.role || "") === "admin";
+
+    if (targetIsAdmin && !canManageAdmins) {
+      return json(403, {
+        error: "Você não tem permissão para alterar administradores.",
+        code: "CANNOT_EDIT_ADMINS",
+        email: targetEmail,
+      });
+    }
+
+    // admin comum não pode trocar role nunca
+    if (typeof nextRoleRaw !== "undefined" && !canManageAdmins) {
+      return json(403, {
+        error: "Você não tem permissão para alterar o perfil (role).",
+        code: "CANNOT_CHANGE_ROLE",
+        email: targetEmail,
+      });
+    }
+
+    // admin comum só pode mexer em ativo/is_deleted de clientes
+    if (!canManageAdmins) {
+      // se tentou mexer em algo além de ativo/is_deleted (por ex role), já retornou acima
+      if (targetIsAdmin) {
+        return json(403, {
+          error: "Você não tem permissão para alterar administradores.",
+          code: "CANNOT_EDIT_ADMINS",
+          email: targetEmail,
+        });
+      }
+    }
+
+    // normaliza role
+    let nextRole: "admin" | "cliente" | undefined = undefined;
+    if (typeof nextRoleRaw !== "undefined") {
+      nextRole = nextRoleRaw === "admin" ? "admin" : "cliente";
+    }
+
+    // normaliza ativo/is_deleted
+    const nextAtivo =
+      typeof nextAtivoRaw === "boolean" ? nextAtivoRaw : undefined;
+    const nextDeleted =
+      typeof nextDeletedRaw === "boolean" ? nextDeletedRaw : undefined;
+
+    // build patch
+    const patch: Record<string, any> = {};
+
+    if (typeof nextRole !== "undefined") patch.role = nextRole;
+    if (typeof nextAtivo !== "undefined") patch.ativo = nextAtivo;
+    if (typeof nextDeleted !== "undefined") patch.is_deleted = nextDeleted;
+
+    if (Object.keys(patch).length === 0) {
+      return json(400, {
+        error: "Nada para atualizar (role/ativo/is_deleted).",
+        code: "NO_CHANGES",
+      });
+    }
+
+    // Se deletar, força ativo=false (pra “excluir” mesmo)
+    if (patch.is_deleted === true) {
+      patch.ativo = false;
+    }
+
+    // Se recuperar (is_deleted=false) e ativo não veio, reativa
+    if (patch.is_deleted === false && typeof patch.ativo === "undefined") {
+      patch.ativo = true;
+    }
+
+    const { error: updErr } = await sb
+      .from("acessos_permitidos")
+      .update(patch)
+      .eq("email", targetEmail);
+
+    if (updErr) throw updErr;
+
+    return json(200, {
+      ok: true,
+      email: targetEmail,
+      updated: patch,
+    });
+  } catch (e: any) {
+    console.error("admin-set-access error:", e);
+    return json(500, { error: String(e?.message || e) });
   }
 });
