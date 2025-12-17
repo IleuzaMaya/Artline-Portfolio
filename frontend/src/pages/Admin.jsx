@@ -280,17 +280,7 @@ export default function Admin() {
     setLoadingSubmit(true);
 
     try {
-      const payload = {
-        name: (formName || "").trim(),
-        email: (formEmail || "").trim().toLowerCase(),
-        empresa: (formEmpresa || "").trim(),
-        telefone: (formTelefone || "").trim(),
-        role: formRole === "admin" ? "admin" : "cliente",
-        password: (formSenha || "").trim(),
-      };
-
-      if (!payload.email) throw new Error("E-mail é obrigatório.");
-
+      // ...
       await adminApi.createClient(payload);
       await loadAccounts();
       resetCreateForm();
@@ -299,12 +289,13 @@ export default function Admin() {
       if (err?.status === 409 && err?.payload?.code === "EMAIL_ALREADY_EXISTS") {
         setSubmitError(`E-mail já cadastrado: ${err.payload.email}`);
       } else {
-        setSubmitError(err?.message || "Erro ao criar/enviar convite.");
+        setSubmitError(err.message || "Erro ao criar/enviar convite.");
       }
     } finally {
       setLoadingSubmit(false);
     }
   }
+
 
   async function handleToggleActive(acc) {
     if (!acc?.email) return;
