@@ -1,56 +1,49 @@
 // frontend/src/lib/adminApi.js
-import { supabase } from "./supabase";
-import { FUNCTIONS_BASE, ADMIN_API_TOKEN } from "./env";
+import { edgeApi } from "./edgeApi";
+import { ADMIN_API_TOKEN } from "./env";
 
-async function call(name, body = {}) {
-  if (!FUNCTIONS_BASE || !ADMIN_API_TOKEN) {
-    throw new Error("Env VITE_SUPABASE_FUNCTIONS_URL / VITE_ADMIN_API_TOKEN ausentes");
-  }
+function withAdminToken(headers = {}) {
+  return {
+    ...headers,
+    "x-admin-token": ADMIN_API_TOKEN,
+  };
+}
 
-  const { data: { session } = {} } = await supabase.auth.getSession();
-  const jwt = session?.access_token;
-
-  const url = `${FUNCTIONS_BASE}/${name}?_=${Date.now()}`;
-
-  const res = await fetch(url, {
-    method: "POST",
-    cache: "no-store",
-    headers: {
-      "Content-Type": "application/json",
-      "x-admin-token": ADMIN_API_TOKEN,
-      ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}),
-    },
-    body: JSON.stringify(body),
+async function createClient(payload) {
+  // ✅ IMPORTANTÍSSIMO: recebe payload por parâmetro
+  return edgeApi.invoke("admin-create-client", payload, {
+    headers: withAdminToken(),
   });
+}
 
-  const text = await res.text();
-  let data;
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    data = null;
-  }
+async function updateClient(payload) {
+  return edgeApi.invoke("admin-update-client", payload, {
+    headers: withAdminToken(),
+  });
+}
 
-  if (!res.ok) {
-    const msg =
-      (data && (data.error || data.message)) ||
-      text ||
-      "Edge Function returned a non-2xx status code";
+async function resetPassword(payload) {
+  return edgeApi.invoke("admin-reset-password", payload, {
+    headers: withAdminToken(),
+  });
+}
 
-    const err = new Error(msg);
-    err.status = res.status;
-    err.payload = data;
-    throw err;
-  }
+async function listAccounts(payload = {}) {
+  return edgeApi.invoke("admin-list-accounts", payload, {
+    headers: withAdminToken(),
+  });
+}
 
-  return data ?? {};
+async function setAccess(payload) {
+  return edgeApi.invoke("admin-set-access", payload, {
+    headers: withAdminToken(),
+  });
 }
 
 export const adminApi = {
-  updateClient: (p) => call("admin-update-client", p),
-  createClient: (p) => call("admin-create-client", p),
-  listAccounts: (p) => call("admin-list-accounts", p),
-  setAccess: (p) => call("admin-set-access", p),
-  resetPassword: (p) => call("admin-reset-password", p),
-  setPassword: (p) => call("admin-set-password", p),
+  createClient,
+  updateClient,
+  resetPassword,
+  listAccounts,
+  setAccess,
 };
