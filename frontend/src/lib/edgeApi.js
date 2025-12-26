@@ -1,57 +1,43 @@
 // frontend/src/lib/edgeApi.js
-import { FUNCTIONS_BASE, ENV } from "./env";
+import { supabase } from './supabase';
+import { env } from './env';
 
-async function readJsonSafe(res) {
-  const text = await res.text();
-  try {
-    return text ? JSON.parse(text) : null;
-  } catch {
-    return { raw: text };
+async function request(fn, options = {}) {
+  const { data } = await supabase.auth.getSession();
+  const accessToken = data?.session?.access_token;
+
+  if (!accessToken) {
+    throw new Error('Missing authorization header');
   }
-}
 
-function makeError(res, payload) {
-  const msg =
-    payload?.error ||
-    payload?.message ||
-    payload?.raw ||
-    `Edge Function returned a non-2xx status code (${res.status})`;
-  const err = new Error(msg);
-  err.status = res.status;
-  err.payload = payload;
-  return err;
-}
-
-async function post(fnName, body) {
-  const url = `${FUNCTIONS_BASE}/${fnName}`;
-  const res = await fetch(url, {
-    method: "POST",
+  const res = await fetch(`${env.FUNCTIONS_BASE}/${fn}`, {
+    method: options.method || 'POST',
     headers: {
-      "content-type": "application/json",
-      // aqui normalmente NÃO precisa x-admin-token, mas deixo opcional:
-      ...(ENV.ADMIN_API_TOKEN ? { "x-admin-token": ENV.ADMIN_API_TOKEN } : {}),
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'x-admin-token': env.ADMIN_API_TOKEN,
     },
-    body: JSON.stringify(body ?? {}),
+    body: options.body ? JSON.stringify(options.body) : undefined,
   });
 
-  const payload = await readJsonSafe(res);
-  if (!res.ok) throw makeError(res, payload);
+  const payload = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    const err = new Error(payload?.error || 'Request failed');
+    err.status = res.status;
+    err.payload = payload;
+    throw err;
+  }
+
   return payload;
 }
 
-/**
- * Compat: seu Orcamento.jsx estava importando:
- *   import { edge as api } from '../lib/edgeApi';
- * Então exportamos "edge" aqui.
- */
-export const edge = {
-  catalogo(payload) {
-    return post("catalogo", payload);
-  },
-  ping(payload) {
-    return post("ping", payload);
-  },
+export const edgeApi = {
+  listAccounts: () => request('admin-list-accounts', { method: 'GET' }),
+  createClient: (payload) =>
+    request('admin-create-client', { body: payload }),
+  updateClient: (payload) =>
+    request('admin-update-client', { body: payload }),
+  resetPassword: (email) =>
+    request('admin-reset-password', { body: { email } }),
 };
-
-// Também exporto um alias mais “claro”, se você quiser usar depois:
-export const edgeApi = edge;
