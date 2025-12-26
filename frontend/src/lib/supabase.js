@@ -1,8 +1,13 @@
 // frontend/src/lib/supabase.js
 import { createClient } from "@supabase/supabase-js";
-import { SUPABASE_URL, SUPABASE_ANON_KEY, FUNCTIONS_BASE } from "./env";
+import { ENV, assertEnv } from "./env";
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  functions: { url: FUNCTIONS_BASE },
-  global: { headers: { "x-client-info": "art-emoldurados-webapp" } },
+assertEnv();
+
+export const supabase = createClient(ENV.SUPABASE_URL, ENV.SUPABASE_ANON_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+  },
 });

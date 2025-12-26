@@ -1,9 +1,7 @@
 // frontend/src/lib/edgeApi.js
-import { FUNCTIONS_BASE } from "./env";
-import { supabase } from "./supabase";
+import { FUNCTIONS_BASE, ENV } from "./env";
 
-// helper: tenta ler JSON, mas não explode se vier vazio/HTML
-async function safeJson(res) {
+async function readJsonSafe(res) {
   const text = await res.text();
   try {
     return text ? JSON.parse(text) : null;
@@ -12,44 +10,48 @@ async function safeJson(res) {
   }
 }
 
-async function getAuthHeaders(extraHeaders = {}) {
-  const { data } = await supabase.auth.getSession();
-  const accessToken = data?.session?.access_token;
-
-  return {
-    "Content-Type": "application/json",
-    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-    ...extraHeaders,
-  };
+function makeError(res, payload) {
+  const msg =
+    payload?.error ||
+    payload?.message ||
+    payload?.raw ||
+    `Edge Function returned a non-2xx status code (${res.status})`;
+  const err = new Error(msg);
+  err.status = res.status;
+  err.payload = payload;
+  return err;
 }
 
-async function invoke(functionName, body, extraHeaders = {}) {
-  const url = `${FUNCTIONS_BASE}/${functionName}`;
-  const headers = await getAuthHeaders(extraHeaders);
-
+async function post(fnName, body) {
+  const url = `${FUNCTIONS_BASE}/${fnName}`;
   const res = await fetch(url, {
     method: "POST",
-    headers,
+    headers: {
+      "content-type": "application/json",
+      // aqui normalmente NÃO precisa x-admin-token, mas deixo opcional:
+      ...(ENV.ADMIN_API_TOKEN ? { "x-admin-token": ENV.ADMIN_API_TOKEN } : {}),
+    },
     body: JSON.stringify(body ?? {}),
   });
 
-  const payload = await safeJson(res);
-
-  if (!res.ok) {
-    // erro padronizado p/ o frontend
-    const err = new Error(payload?.error || `Edge Function returned ${res.status}`);
-    err.status = res.status;
-    err.payload = payload;
-    throw err;
-  }
-
+  const payload = await readJsonSafe(res);
+  if (!res.ok) throw makeError(res, payload);
   return payload;
 }
 
-// ✅ export que o Orcamento.jsx espera:
+/**
+ * Compat: seu Orcamento.jsx estava importando:
+ *   import { edge as api } from '../lib/edgeApi';
+ * Então exportamos "edge" aqui.
+ */
 export const edge = {
-  invoke,
+  catalogo(payload) {
+    return post("catalogo", payload);
+  },
+  ping(payload) {
+    return post("ping", payload);
+  },
 };
 
-// (opcional) default export também, se quiser usar "import api from ..."
-export default edge;
+// Também exporto um alias mais “claro”, se você quiser usar depois:
+export const edgeApi = edge;

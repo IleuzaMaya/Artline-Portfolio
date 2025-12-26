@@ -308,8 +308,6 @@ export default function Admin() {
     }
   }
 
-
-
   async function handleToggleActive(acc) {
     if (!acc?.email) return;
     const isMe = currentEmail && acc.email === currentEmail;

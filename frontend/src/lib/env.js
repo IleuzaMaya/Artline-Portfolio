@@ -1,21 +1,22 @@
 // frontend/src/lib/env.js
 
-function stripTrailingSlash(v) {
-  return String(v || "").replace(/\/$/, "");
+function cleanUrl(url) {
+  return String(url || "").trim().replace(/\/+$/, "");
 }
 
-export const SUPABASE_URL = stripTrailingSlash(import.meta.env.VITE_SUPABASE_URL);
-export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+export const ENV = {
+  SUPABASE_URL: cleanUrl(import.meta.env.VITE_SUPABASE_URL),
+  SUPABASE_ANON_KEY: String(import.meta.env.VITE_SUPABASE_ANON_KEY || "").trim(),
+  FUNCTIONS_URL: cleanUrl(import.meta.env.VITE_SUPABASE_FUNCTIONS_URL), // opcional
+  ADMIN_API_TOKEN: String(import.meta.env.VITE_ADMIN_API_TOKEN || "").trim(),
+  SITE_URL: cleanUrl(import.meta.env.VITE_SITE_URL || window.location.origin),
+};
 
-// Preferir explícito; senão cair no padrão oficial: https://xxx.supabase.co/functions/v1
-export const FUNCTIONS_BASE =
-  stripTrailingSlash(import.meta.env.VITE_SUPABASE_FUNCTIONS_URL) ||
-  (SUPABASE_URL ? `${SUPABASE_URL}/functions/v1` : "");
+export const FUNCTIONS_BASE = ENV.FUNCTIONS_URL
+  ? ENV.FUNCTIONS_URL
+  : `${ENV.SUPABASE_URL}/functions/v1`;
 
-export const ADMIN_API_TOKEN = import.meta.env.VITE_ADMIN_API_TOKEN || "";
-
-// Debug opcional
-if (typeof window !== "undefined") {
-  console.log("[ENV] SUPABASE_URL:", SUPABASE_URL);
-  console.log("[ENV] FUNCTIONS_BASE:", FUNCTIONS_BASE);
+export function assertEnv() {
+  if (!ENV.SUPABASE_URL) throw new Error("VITE_SUPABASE_URL não configurado");
+  if (!ENV.SUPABASE_ANON_KEY) throw new Error("VITE_SUPABASE_ANON_KEY não configurado");
 }

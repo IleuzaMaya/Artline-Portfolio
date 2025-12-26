@@ -1,38 +1,57 @@
 // frontend/src/lib/adminApi.js
-import { edge } from "./edgeApi";
-import { ADMIN_API_TOKEN } from "./env";
+import { FUNCTIONS_BASE, ENV } from "./env";
 
-function withAdminToken(headers = {}) {
-  // Edge Functions exigem x-admin-token (seu padrão)
-  return {
-    ...headers,
-    ...(ADMIN_API_TOKEN ? { "x-admin-token": ADMIN_API_TOKEN } : {}),
-  };
+async function readJsonSafe(res) {
+  const text = await res.text();
+  try {
+    return text ? JSON.parse(text) : null;
+  } catch {
+    return { raw: text };
+  }
+}
+
+function makeError(res, payload) {
+  const msg =
+    payload?.error ||
+    payload?.message ||
+    payload?.raw ||
+    `Edge Function returned a non-2xx status code (${res.status})`;
+  const err = new Error(msg);
+  err.status = res.status;
+  err.payload = payload;
+  return err;
+}
+
+async function post(fnName, body) {
+  const url = `${FUNCTIONS_BASE}/${fnName}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-admin-token": ENV.ADMIN_API_TOKEN,
+    },
+    body: JSON.stringify(body ?? {}),
+  });
+
+  const payload = await readJsonSafe(res);
+  if (!res.ok) throw makeError(res, payload);
+  return payload;
 }
 
 export const adminApi = {
-  // cria/convite
-  async createClient(payload) {
-    return edge.invoke("admin-create-client", payload, withAdminToken());
+  createClient(payload) {
+    return post("admin-create-client", payload);
   },
-
-  // lista contas (clientes/admins)
-  async listAccounts(payload = {}) {
-    return edge.invoke("admin-list-accounts", payload, withAdminToken());
+  updateClient(payload) {
+    return post("admin-update-client", payload);
   },
-
-  // reset password link
-  async resetPassword(payload) {
-    return edge.invoke("admin-reset-password", payload, withAdminToken());
+  listAccounts(payload) {
+    return post("admin-list-accounts", payload);
   },
-
-  // atualizar cliente
-  async updateClient(payload) {
-    return edge.invoke("admin-update-client", payload, withAdminToken());
+  resetPassword(payload) {
+    return post("admin-reset-password", payload);
   },
-
-  // setar acesso/ativar/desativar (se você usa)
-  async setAccess(payload) {
-    return edge.invoke("admin-set-access", payload, withAdminToken());
+  setAccess(payload) {
+    return post("admin-set-access", payload);
   },
 };
