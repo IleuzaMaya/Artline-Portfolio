@@ -1,49 +1,38 @@
 // frontend/src/lib/adminApi.js
-import { edgeApi } from "./edgeApi";
+import { edge } from "./edgeApi";
 import { ADMIN_API_TOKEN } from "./env";
 
 function withAdminToken(headers = {}) {
+  // Edge Functions exigem x-admin-token (seu padrão)
   return {
     ...headers,
-    "x-admin-token": ADMIN_API_TOKEN,
+    ...(ADMIN_API_TOKEN ? { "x-admin-token": ADMIN_API_TOKEN } : {}),
   };
 }
 
-async function createClient(payload) {
-  // ✅ IMPORTANTÍSSIMO: recebe payload por parâmetro
-  return edgeApi.invoke("admin-create-client", payload, {
-    headers: withAdminToken(),
-  });
-}
-
-async function updateClient(payload) {
-  return edgeApi.invoke("admin-update-client", payload, {
-    headers: withAdminToken(),
-  });
-}
-
-async function resetPassword(payload) {
-  return edgeApi.invoke("admin-reset-password", payload, {
-    headers: withAdminToken(),
-  });
-}
-
-async function listAccounts(payload = {}) {
-  return edgeApi.invoke("admin-list-accounts", payload, {
-    headers: withAdminToken(),
-  });
-}
-
-async function setAccess(payload) {
-  return edgeApi.invoke("admin-set-access", payload, {
-    headers: withAdminToken(),
-  });
-}
-
 export const adminApi = {
-  createClient,
-  updateClient,
-  resetPassword,
-  listAccounts,
-  setAccess,
+  // cria/convite
+  async createClient(payload) {
+    return edge.invoke("admin-create-client", payload, withAdminToken());
+  },
+
+  // lista contas (clientes/admins)
+  async listAccounts(payload = {}) {
+    return edge.invoke("admin-list-accounts", payload, withAdminToken());
+  },
+
+  // reset password link
+  async resetPassword(payload) {
+    return edge.invoke("admin-reset-password", payload, withAdminToken());
+  },
+
+  // atualizar cliente
+  async updateClient(payload) {
+    return edge.invoke("admin-update-client", payload, withAdminToken());
+  },
+
+  // setar acesso/ativar/desativar (se você usa)
+  async setAccess(payload) {
+    return edge.invoke("admin-set-access", payload, withAdminToken());
+  },
 };
