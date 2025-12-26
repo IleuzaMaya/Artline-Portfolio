@@ -27,7 +27,7 @@ serve(async (req) => {
   if (req.method !== "POST") return json(405, { error: "Method not allowed" });
 
   try {
-    // ✅ secrets
+    // ✅ secrets (compatível com os dois nomes)
     const ADMIN_API_TOKEN = Deno.env.get("ADMIN_API_TOKEN") ?? "";
 
     const SERVICE_ROLE =
@@ -49,76 +49,90 @@ serve(async (req) => {
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
 
-    // body opcional (no seu front você manda {})
-    const payload = await req.json().catch(() => ({} as any));
-    const includeDeleted = !!payload?.includeDeleted;
-
-    // 1) acessos_permitidos (enxuto)
+    // ✅ Tabelas (select enxuto)
     const { data: acessos, error: errAcessos } = await sb
       .from("acessos_permitidos")
       .select("email, role, ativo, is_primary_admin, is_deleted, created_at")
-      .eq("is_deleted", includeDeleted ? (true as any) : false);
+      .eq("is_deleted", false);
 
     if (errAcessos) throw errAcessos;
 
-    // 2) clientes (enxuto)
     const { data: clientes, error: errClientes } = await sb
       .from("clientes")
       .select("id, email, nome, telefone, empresa");
 
     if (errClientes) throw errClientes;
 
-    // 3) Map por email (rápido)
+    // ✅ Map por email (clientes)
     const mapCli = new Map(
       (clientes ?? []).map((c: any) => [normEmail(c.email), c])
     );
 
-    // 4) (Opcional) tentar enriquecer com Auth: getUserByEmail (um a um, com limite seguro)
-    // Isso evita paginar users.list (que é mais pesado). Mantemos “best effort”.
-    const MAX_AUTH_LOOKUPS = 25; // segurança: não travar a função se tiver muitos
-    let authLookups = 0;
+    // ✅ Puxar usuários do Auth com paginação e mapear por email
+    const mapAuth = new Map<string, any>();
 
-    async function safeGetAuthUserIdByEmail(email: string): Promise<string | null> {
-      if (!email) return null;
-      if (authLookups >= MAX_AUTH_LOOKUPS) return null;
-      authLookups++;
+    const PER_PAGE = 200;     // seguro
+    const MAX_PAGES = 25;     // evita loop infinito (até 5000 usuários)
 
-      try {
-        const { data } = await sb.auth.admin.getUserByEmail(email);
-        return data?.user?.id ?? null;
-      } catch {
-        return null;
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const { data, error } = await sb.auth.admin.listUsers({
+        page,
+        perPage: PER_PAGE,
+      });
+
+      if (error) throw error;
+
+      const users = data?.users ?? [];
+      for (const u of users) {
+        const em = normEmail(u.email);
+        if (em) mapAuth.set(em, u);
       }
+
+      // se veio menos que PER_PAGE, acabou
+      if (users.length < PER_PAGE) break;
     }
 
-    // 5) montar accounts
-    const accounts = await Promise.all(
-      (acessos ?? []).map(async (acc: any) => {
-        const email = normEmail(acc.email);
-        const cli = mapCli.get(email) ?? null;
+    // ✅ Montar lista final
+    const accounts = (acessos ?? []).map((acc: any) => {
+      const emailAcc = normEmail(acc.email);
+      const cli = mapCli.get(emailAcc) ?? null;
+      const au = mapAuth.get(emailAcc) ?? null;
 
-        // prioridade: id do cliente; fallback: tentar buscar no Auth (limitado)
-        const idFromCliente = cli?.id ?? null;
-        const idFromAuth = idFromCliente ? null : await safeGetAuthUserIdByEmail(email);
+      // Nome preferencial: cliente.nome -> auth.user_metadata.name -> null
+      const nameFromAuth =
+        au?.user_metadata?.name ||
+        au?.user_metadata?.nome ||
+        au?.app_metadata?.name ||
+        null;
 
-        return {
-          id: idFromCliente || idFromAuth || null,
-          email,
-          nome: cli?.nome ?? null,
-          telefone: cli?.telefone ?? null,
-          empresa: cli?.empresa ?? null,
+      return {
+        // id: preferir clientes.id (uuid do auth.users)
+        id: cli?.id ?? au?.id ?? null,
 
-          role: acc?.role === "admin" ? "admin" : "cliente",
-          ativo: acc?.ativo ?? true,
-          is_primary_admin: !!acc?.is_primary_admin,
-          is_deleted: !!acc?.is_deleted,
-          created_at: acc?.created_at ?? null,
-        };
-      })
-    );
+        email: emailAcc,
+        role: acc.role ?? "cliente",
+        ativo: acc.ativo ?? true,
+        is_primary_admin: !!acc.is_primary_admin,
+        created_at: acc.created_at ?? null,
 
-    // ordenar (opcional): admins primeiro? aqui só por email
-    accounts.sort((a: any, b: any) => String(a.email).localeCompare(String(b.email)));
+        // dados “humanos”
+        nome: cli?.nome ?? nameFromAuth ?? null,
+        telefone: cli?.telefone ?? null,
+        empresa: cli?.empresa ?? null,
+
+        // extras úteis (opcional)
+        auth_exists: !!au,
+        last_sign_in_at: au?.last_sign_in_at ?? null,
+      };
+    });
+
+    // opcional: ordenar (admins primeiro, depois nome)
+    accounts.sort((a: any, b: any) => {
+      const ra = a.role === "admin" ? 0 : 1;
+      const rb = b.role === "admin" ? 0 : 1;
+      if (ra !== rb) return ra - rb;
+      return String(a.nome || a.email).localeCompare(String(b.nome || b.email));
+    });
 
     return json(200, { ok: true, accounts });
   } catch (e: any) {
