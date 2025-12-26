@@ -47,3 +47,8 @@ coverage/
 *backup*.js
 *.swp
 *.swm
+
+# Notas privadas (não versionar)
+private-notes/
+
+
