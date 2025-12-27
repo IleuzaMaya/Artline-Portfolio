@@ -23,7 +23,6 @@ serve(async (req) => {
   if (req.method !== "POST") return json(405, { error: "Method not allowed" });
 
   try {
-    // ✅ secrets (compatível com os dois nomes)
     const ADMIN_API_TOKEN = Deno.env.get("ADMIN_API_TOKEN") ?? "";
 
     const SERVICE_ROLE =
@@ -42,15 +41,15 @@ serve(async (req) => {
       return json(500, { error: "Missing secrets" });
     }
 
-    // ✅ auth do admin (token do Vercel)
     const adminToken = req.headers.get("x-admin-token") || "";
     if (adminToken !== ADMIN_API_TOKEN) {
       return json(401, { error: "Unauthorized" });
     }
 
-    const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const sb = createClient(SUPABASE_URL, SERVICE_ROLE, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
 
-    // ✅ AQUI resolve o seu erro: agora existe "payload"
     const payload = await req.json().catch(() => null);
     if (!payload || typeof payload !== "object") {
       return json(400, { error: "Invalid JSON body" });
@@ -67,7 +66,7 @@ serve(async (req) => {
 
     if (!emailRaw) return json(400, { error: "E-mail é obrigatório." });
 
-    // ✅ se já existe na tabela de acessos (incluindo deletados), tratar
+    // 1) checa acessos_permitidos (inclui deletados)
     const { data: accRow, error: accErr } = await sb
       .from("acessos_permitidos")
       .select("email, is_deleted, ativo")
@@ -77,7 +76,6 @@ serve(async (req) => {
     if (accErr) throw accErr;
 
     if (accRow?.is_deleted) {
-      // você pode usar isso no front pra oferecer “recuperar”
       return json(409, {
         error: "Conta já existiu e foi excluída",
         code: "ACCOUNT_DELETED",
@@ -86,9 +84,17 @@ serve(async (req) => {
       });
     }
 
-    // ✅ não permitir duplicidade de usuário no Auth
-    const { data: existing } = await sb.auth.admin.getUserByEmail(emailRaw);
-    if (existing?.user) {
+    // 2) checa duplicidade no AUTH (bloqueia)
+    const { data: usersData, error: listErr } = await sb.auth.admin.listUsers({
+      page: 1,
+      perPage: 1,
+      filter: `email.eq.${emailRaw}`,
+    });
+
+    if (listErr) throw listErr;
+
+    const existingUser = usersData?.users?.[0] ?? null;
+    if (existingUser) {
       return json(409, {
         error: "E-mail já cadastrado",
         code: "EMAIL_ALREADY_EXISTS",
@@ -96,7 +102,7 @@ serve(async (req) => {
       });
     }
 
-    // ✅ cria usuário ou convida
+    // 3) cria usuário OU convida
     let userId: string | null = null;
     let invite_link: string | null = null;
 
@@ -110,7 +116,6 @@ serve(async (req) => {
       if (created.error) throw created.error;
       userId = created.data.user?.id ?? null;
     } else {
-      // convida (envia email)
       const inv = await sb.auth.admin.inviteUserByEmail(emailRaw, {
         redirectTo: PROJECT_URL,
         data: { name },
@@ -118,7 +123,6 @@ serve(async (req) => {
       if (inv.error) throw inv.error;
       userId = inv.data.user?.id ?? null;
 
-      // gera link também (pra você exibir/copiar se quiser)
       const gen = await sb.auth.admin.generateLink({
         type: "invite",
         email: emailRaw,
@@ -132,8 +136,7 @@ serve(async (req) => {
       return json(500, { error: "Falha ao criar/convidar usuário (sem userId)" });
     }
 
-    // ✅ insere dados de cliente / perfil (id = auth.users.id)
-    // (se você preferir separar admin/cliente, pode condicionar; aqui grava ambos)
+    // 4) grava profiles
     const { error: profErr } = await sb
       .from("profiles")
       .upsert(
@@ -142,6 +145,7 @@ serve(async (req) => {
       );
     if (profErr) throw profErr;
 
+    // 5) grava clientes
     const { error: cliErr } = await sb
       .from("clientes")
       .upsert(
@@ -150,7 +154,7 @@ serve(async (req) => {
       );
     if (cliErr) throw cliErr;
 
-    // ✅ acessos_permitidos (não sobrescreve se já existir)
+    // 6) acessos_permitidos (não sobrescreve)
     if (!accRow) {
       const { error: accInsErr } = await sb
         .from("acessos_permitidos")
@@ -168,7 +172,7 @@ serve(async (req) => {
       ok: true,
       email: emailRaw,
       role,
-      invite_link, // null se criou com senha
+      invite_link,
     });
   } catch (e: any) {
     console.error("admin-create-client error:", e);
