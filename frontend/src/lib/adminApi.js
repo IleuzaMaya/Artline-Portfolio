@@ -1,57 +1,40 @@
 // frontend/src/lib/adminApi.js
-import { FUNCTIONS_BASE, ENV } from "./env";
+import { supabase } from "./supabase";
+import { env } from "./env";
 
-async function readJsonSafe(res) {
-  const text = await res.text();
-  try {
-    return text ? JSON.parse(text) : null;
-  } catch {
-    return { raw: text };
-  }
-}
+async function headersAdmin() {
+  const { data } = await supabase.auth.getSession();
+  const accessToken = data?.session?.access_token;
 
-function makeError(res, payload) {
-  const msg =
-    payload?.error ||
-    payload?.message ||
-    payload?.raw ||
-    `Edge Function returned a non-2xx status code (${res.status})`;
-  const err = new Error(msg);
-  err.status = res.status;
-  err.payload = payload;
-  return err;
+  return {
+    "Content-Type": "application/json",
+    apikey: env.SUPABASE_ANON_KEY,
+    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+    "x-admin-token": env.ADMIN_API_TOKEN,
+  };
 }
 
 async function post(fnName, body) {
-  const url = `${FUNCTIONS_BASE}/${fnName}`;
-  const res = await fetch(url, {
+  const res = await fetch(`${env.FUNCTIONS_BASE}/${fnName}`, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-admin-token": ENV.ADMIN_API_TOKEN,
-    },
-    body: JSON.stringify(body ?? {}),
+    headers: await headersAdmin(),
+    body: JSON.stringify(body),
   });
 
-  const payload = await readJsonSafe(res);
-  if (!res.ok) throw makeError(res, payload);
+  const text = await res.text();
+  let payload;
+  try { payload = text ? JSON.parse(text) : null; } catch { payload = { raw: text }; }
+
+  if (!res.ok) {
+    const err = new Error(payload?.error || payload?.message || "Erro na Edge Function");
+    err.status = res.status;
+    err.payload = payload;
+    throw err;
+  }
   return payload;
 }
 
 export const adminApi = {
-  createClient(payload) {
-    return post("admin-create-client", payload);
-  },
-  updateClient(payload) {
-    return post("admin-update-client", payload);
-  },
-  listAccounts(payload) {
-    return post("admin-list-accounts", payload);
-  },
-  resetPassword(payload) {
-    return post("admin-reset-password", payload);
-  },
-  setAccess(payload) {
-    return post("admin-set-access", payload);
-  },
+  createClient: (payload) => post("admin-create-client", payload),
+  // ...
 };
