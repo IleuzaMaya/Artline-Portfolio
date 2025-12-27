@@ -12,47 +12,56 @@ function buildFunctionsBase() {
   return `${supa}/functions/v1`;
 }
 
-const FUNCTIONS_BASE = buildFunctionsBase();
+const functionsBase = buildFunctionsBase();
 const anon = ENV.SUPABASE_ANON_KEY;
 
-// Headers padrão exigidos pelo gateway do Supabase Functions
-function baseHeaders(extra = {}) {
-  return {
+function assertFunctionsBase() {
+  if (!functionsBase) {
+    throw new Error("FUNCTIONS_BASE indefinida. Verifique VITE_SUPABASE_FUNCTIONS_URL ou VITE_SUPABASE_URL.");
+  }
+  if (!anon) {
+    throw new Error("SUPABASE_ANON_KEY indefinida. Verifique VITE_SUPABASE_ANON_KEY.");
+  }
+}
+
+// ✅ invoker genérico (para admin-*, ping, etc.)
+async function invoke(fnName, body = {}, extraHeaders = {}) {
+  assertFunctionsBase();
+
+  const url = `${functionsBase}/${fnName}`;
+  const headers = {
     Authorization: `Bearer ${anon}`,
     apikey: anon,
     "Content-Type": "application/json",
-    ...extra,
+    ...extraHeaders,
   };
-}
 
-// ✅ Compat: Orçamento usa isso como "api" (catalogo)
-export const edge = axios.create({
-  baseURL: `${FUNCTIONS_BASE}/catalogo`,
-  headers: baseHeaders(),
-});
-
-// ✅ Para Admin: chama qualquer function por nome e devolve data
-export async function invoke(functionName, payload = {}, extraHeaders = {}) {
   try {
-    const url = `${FUNCTIONS_BASE}/${functionName}`;
-    const res = await axios.post(url, payload, {
-      headers: baseHeaders(extraHeaders),
-    });
+    const res = await axios.post(url, body, { headers });
     return res.data;
   } catch (err) {
+    // padroniza erro pro seu try/catch do Admin.jsx
     const status = err?.response?.status;
-    const data = err?.response?.data;
-
-    // cria um erro “rico” pro seu try/catch do React entender
-    const e = new Error(
-      data?.error ||
-        data?.message ||
-        err?.message ||
-        "Erro ao chamar Edge Function"
-    );
-
+    const payload = err?.response?.data;
+    const message = payload?.error || err?.message || "Erro na Edge Function";
+    const e = new Error(message);
     e.status = status;
-    e.payload = data;
+    e.payload = payload;
     throw e;
   }
 }
+
+// ✅ Export que o Orcamento.jsx usa: import { edge as api } from '../lib/edgeApi';
+export const edge = {
+  invoke,
+};
+
+// ✅ Cliente separado só pro catálogo (se quiser usar axios direto)
+export const catalogApi = axios.create({
+  baseURL: `${functionsBase}/catalogo`,
+  headers: {
+    Authorization: `Bearer ${anon}`,
+    apikey: anon,
+    "Content-Type": "application/json",
+  },
+});
