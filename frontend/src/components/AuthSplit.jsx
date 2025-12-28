@@ -154,10 +154,20 @@ export default function AuthSplit({ onAuth }) {
         navigate("/orcamento", { replace: true });
       }
     } catch (err) {
-      setMsg({ type: "error", text: err.message || "Falha no login." });
+      const raw = String(err?.message || "");
+      const low = raw.toLowerCase();
+
+      const msgFriendly =
+        low.includes("invalid login credentials") ? "Login inválido. Verifique e-mail/usuário e senha." :
+        low.includes("email not confirmed") ? "E-mail ainda não confirmado. Verifique sua caixa de entrada." :
+        low.includes("too many requests") ? "Muitas tentativas. Aguarde um pouco e tente novamente." :
+        (raw || "Falha no login.");
+
+      setMsg({ type: "error", text: msgFriendly });
     } finally {
       setLoading(false);
     }
+
   };
 
   return (

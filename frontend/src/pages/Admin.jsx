@@ -101,7 +101,7 @@ export default function Admin() {
   async function loadAccounts() {
     try {
       setGlobalError("");
-      const data = await adminApi.listAccounts({});
+      const data = await adminApi.listAccounts();
       const list = Array.isArray(data?.accounts) ? data.accounts : [];
       setAccounts(list);
 
@@ -274,16 +274,6 @@ export default function Admin() {
     }, 180);
   }
 
-  const raw = String(err?.message || "");
-  const low = raw.toLowerCase();
-
-  const msg =
-    low.includes("invalid login credentials") ? "Login inválido" :
-    low.includes("email not confirmed") ? "E-mail ainda não confirmado" :
-    low.includes("too many requests") ? "Muitas tentativas. Aguarde um pouco e tente novamente." :
-    (err?.message || "Erro ao logar");
-
-  setError(msg);
 
   async function handleCreateClient(e) {
     e.preventDefault();
