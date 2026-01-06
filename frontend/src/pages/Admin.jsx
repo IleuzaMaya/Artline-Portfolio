@@ -544,11 +544,11 @@ const [editError, setEditError] = useState("");
               // mantém compat, mas PASSA email_old e email_new (se mudou)
               email: emailOld, // referência do registro (fallback)
               ...(emailChanged ? { email_new: emailNew } : {}),
-
+              actor_email: currentEmail,
               nome: (editForm.nome || "").trim(),
               empresa: (editForm.empresa || "").trim() || null,
               telefone: (editForm.telefone || "").trim() || null,
-              actor_email: currentEmail,
+              
             });
           }
 
@@ -802,12 +802,6 @@ const [editError, setEditError] = useState("");
                     </td>
                   </tr>
                 )}
-
-                {showingList.map((acc) => {
-                  if (!isUuid(acc?.id)) {
-                    console.warn("Conta sem id válido (backend precisa enviar id):", acc);
-                    return null; // <-- obrigatório pra evitar key undefined
-                  }
 
                   const rowKey = acc.id;
                   const isEditing = editingId === rowKey;
