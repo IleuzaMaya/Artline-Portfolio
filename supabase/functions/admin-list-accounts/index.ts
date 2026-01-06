@@ -106,7 +106,7 @@ serve(async (req) => {
         // dados “humanos”
         nome: cli?.nome ?? nameFromAuth ?? null,
         telefone: cli?.telefone ?? null,
-        empresa: cli?.empresat ?? cli?.empresa ?? null,
+        empresa: cli?.empresa ?? null,
         segmento: cli?.segmento ?? null,
 
         // extras úteis
