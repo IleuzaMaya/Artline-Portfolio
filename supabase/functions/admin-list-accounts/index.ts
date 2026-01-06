@@ -27,59 +27,50 @@ serve(async (req) => {
   if (req.method !== "POST") return json(405, { error: "Method not allowed" });
 
   try {
-    // ✅ secrets (compatível com os dois nomes)
     const ADMIN_API_TOKEN = Deno.env.get("ADMIN_API_TOKEN") ?? "";
-
     const SERVICE_ROLE =
       Deno.env.get("SERVICE_ROLE_KEY") ??
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
       "";
-
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 
     if (!ADMIN_API_TOKEN || !SERVICE_ROLE || !SUPABASE_URL) {
       return json(500, { error: "Missing secrets" });
     }
 
-    // ✅ auth do admin (token do Vercel)
     const adminToken = req.headers.get("x-admin-token") || "";
     if (adminToken !== ADMIN_API_TOKEN) {
       return json(401, { error: "Unauthorized" });
     }
 
-    const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const sb = createClient(SUPABASE_URL, SERVICE_ROLE, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
 
-    // ✅ Tabelas (select enxuto)
+    // ✅ acessos
     const { data: acessos, error: errAcessos } = await sb
-      .from("acessos_permitidos")
+      .from("adm_acessos_permitidos")
       .select("email, role, ativo, is_primary_admin, is_deleted, created_at")
       .eq("is_deleted", false);
 
     if (errAcessos) throw errAcessos;
 
+    // ✅ clientes (nota: user_id pode ser null)
     const { data: clientes, error: errClientes } = await sb
-      .from("clientes")
-      .select("id, email, nome, telefone, empresa");
+      .from("adm_clientes")
+      .select("user_id, email, nome, telefone, empresa, segmento");
 
     if (errClientes) throw errClientes;
 
-    // ✅ Map por email (clientes)
-    const mapCli = new Map(
-      (clientes ?? []).map((c: any) => [normEmail(c.email), c])
-    );
+    const mapCli = new Map((clientes ?? []).map((c: any) => [normEmail(c.email), c]));
 
-    // ✅ Puxar usuários do Auth com paginação e mapear por email
+    // ✅ Auth users (paginado)
     const mapAuth = new Map<string, any>();
-
-    const PER_PAGE = 200;     // seguro
-    const MAX_PAGES = 25;     // evita loop infinito (até 5000 usuários)
+    const PER_PAGE = 200;
+    const MAX_PAGES = 25;
 
     for (let page = 1; page <= MAX_PAGES; page++) {
-      const { data, error } = await sb.auth.admin.listUsers({
-        page,
-        perPage: PER_PAGE,
-      });
-
+      const { data, error } = await sb.auth.admin.listUsers({ page, perPage: PER_PAGE });
       if (error) throw error;
 
       const users = data?.users ?? [];
@@ -87,18 +78,15 @@ serve(async (req) => {
         const em = normEmail(u.email);
         if (em) mapAuth.set(em, u);
       }
-
-      // se veio menos que PER_PAGE, acabou
       if (users.length < PER_PAGE) break;
     }
 
-    // ✅ Montar lista final
+    // ✅ montar lista final
     const accounts = (acessos ?? []).map((acc: any) => {
       const emailAcc = normEmail(acc.email);
       const cli = mapCli.get(emailAcc) ?? null;
       const au = mapAuth.get(emailAcc) ?? null;
 
-      // Nome preferencial: cliente.nome -> auth.user_metadata.name -> null
       const nameFromAuth =
         au?.user_metadata?.name ||
         au?.user_metadata?.nome ||
@@ -106,8 +94,8 @@ serve(async (req) => {
         null;
 
       return {
-        // id: preferir clientes.id (uuid do auth.users)
-        id: cli?.id ?? au?.id ?? null,
+        // id preferido: user_id do cliente -> auth.id -> null
+        user_id: cli?.user_id ?? au?.id ?? null,
 
         email: emailAcc,
         role: acc.role ?? "cliente",
@@ -118,15 +106,15 @@ serve(async (req) => {
         // dados “humanos”
         nome: cli?.nome ?? nameFromAuth ?? null,
         telefone: cli?.telefone ?? null,
-        empresa: cli?.empresa ?? null,
+        empresa: cli?.empresat ?? cli?.empresa ?? null,
+        segmento: cli?.segmento ?? null,
 
-        // extras úteis (opcional)
+        // extras úteis
         auth_exists: !!au,
         last_sign_in_at: au?.last_sign_in_at ?? null,
       };
     });
 
-    // opcional: ordenar (admins primeiro, depois nome)
     accounts.sort((a: any, b: any) => {
       const ra = a.role === "admin" ? 0 : 1;
       const rb = b.role === "admin" ? 0 : 1;

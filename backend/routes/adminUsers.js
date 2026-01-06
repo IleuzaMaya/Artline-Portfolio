@@ -73,7 +73,7 @@ router.post("/create-client", async (req, res) => {
 
       // Não precisamos do userId agora. Ele será criado ao clicar no link.
       await supabaseAdmin
-        .from("acessos_permitidos")
+        .from("adm_acessos_permitidos")
         .upsert({ email: emailLower, role: "cliente", ativo: true }, { onConflict: "email" });
 
       return res.json({ ok: true, mode: "signup_link_sent" });
@@ -84,10 +84,10 @@ router.post("/create-client", async (req, res) => {
       const upd = await supabaseAdmin.auth.admin.updateUserById(userId, { password: senha });
       if (upd.error) throw upd.error;
       await supabaseAdmin
-        .from("profiles")
+        .from("adm_usuarios")
         .upsert({ id: userId, nome: nome || null, tipo: "cliente" }, { onConflict: "id" });
       await supabaseAdmin
-        .from("acessos_permitidos")
+        .from("adm_acessos_permitidos")
         .upsert({ email: emailLower, role: "cliente", ativo: true }, { onConflict: "email" });
 
       return res.json({ ok: true, mode: "password_updated", user_id: userId });
@@ -102,10 +102,10 @@ router.post("/create-client", async (req, res) => {
     if (genErr) throw genErr;
 
     await supabaseAdmin
-      .from("profiles")
+      .from("adm_usuarios")
       .upsert({ id: userId, nome: nome || null, tipo: "cliente" }, { onConflict: "id" });
     await supabaseAdmin
-      .from("acessos_permitidos")
+      .from("adm_acessos_permitidos")
       .upsert({ email: emailLower, role: "cliente", ativo: true }, { onConflict: "email" });
 
     return res.json({ ok: true, mode: "recovery_link_sent", user_id: userId });

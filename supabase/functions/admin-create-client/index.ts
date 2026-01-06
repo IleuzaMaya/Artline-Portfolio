@@ -18,6 +18,10 @@ function json(status: number, body: unknown) {
   });
 }
 
+function normEmail(v: any) {
+  return String(v || "").trim().toLowerCase();
+}
+
 function isEmailAlreadyExistsError(e: any) {
   const msg = String(e?.message || e || "").toLowerCase();
   return (
@@ -57,7 +61,7 @@ serve(async (req) => {
     }
 
     const sb = createClient(SUPABASE_URL, SERVICE_ROLE, {
-      auth: { persistSession: false },
+      auth: { persistSession: false, autoRefreshToken: false },
     });
 
     // ====== BODY ======
@@ -66,21 +70,20 @@ serve(async (req) => {
       return json(400, { error: "Invalid JSON body" });
     }
 
-    const name = String(payload.name || "").trim();
-    const email = String(payload.email || "").trim().toLowerCase();
-    const role = payload.role === "admin" ? "admin" : "cliente";
-    const telefone = payload.telefone ? String(payload.telefone).trim() : null;
-    const empresa = payload.empresa ? String(payload.empresa).trim() : null;
-    const password = payload.password ? String(payload.password).trim() : "";
+    const name = String((payload as any).name || "").trim();
+    const email = normEmail((payload as any).email);
+    const role = (payload as any).role === "admin" ? "admin" : "cliente";
+    const telefone = (payload as any).telefone ? String((payload as any).telefone).trim() : null;
+    const empresa = (payload as any).empresa ? String((payload as any).empresa).trim() : null;
+    const segmento = (payload as any).segmento ? String((payload as any).segmento).trim() : null;
+    const password = (payload as any).password ? String((payload as any).password).trim() : "";
 
-    if (!email) {
-      return json(400, { error: "E-mail é obrigatório" });
-    }
+    if (!email) return json(400, { error: "E-mail é obrigatório" });
 
-    // ====== NÃO DUPLICAR acesso ======
+    // ====== NÃO DUPLICAR ACESSO (E DETECTAR DELETADO) ======
     const { data: accRow, error: accErr } = await sb
-      .from("acessos_permitidos")
-      .select("email, is_deleted")
+      .from("adm_acessos_permitidos")
+      .select("email, role, ativo, is_deleted")
       .eq("email", email)
       .maybeSingle();
 
@@ -98,9 +101,9 @@ serve(async (req) => {
     let userId: string | null = null;
     let invite_link: string | null = null;
 
+    // ====== CRIAR/CONVIDAR NO AUTH ======
     try {
       if (password) {
-        // ====== CRIA COM SENHA ======
         const created = await sb.auth.admin.createUser({
           email,
           password,
@@ -110,7 +113,6 @@ serve(async (req) => {
         if (created.error) throw created.error;
         userId = created.data.user?.id ?? null;
       } else {
-        // ====== CONVIDA ======
         const inv = await sb.auth.admin.inviteUserByEmail(email, {
           redirectTo: PROJECT_URL,
           data: { name },
@@ -129,6 +131,7 @@ serve(async (req) => {
       }
     } catch (e: any) {
       if (isEmailAlreadyExistsError(e)) {
+        // auth já tem esse email — não sobrescreve
         return json(409, {
           error: "E-mail já cadastrado",
           code: "EMAIL_ALREADY_EXISTS",
@@ -138,48 +141,49 @@ serve(async (req) => {
       throw e;
     }
 
-    if (!userId) {
-      return json(500, { error: "Falha ao criar usuário (sem userId)" });
-    }
+    if (!userId) return json(500, { error: "Falha ao criar usuário (sem userId)" });
 
-    // ====== PROFILES ======
-    const { error: profErr } = await sb
-      .from("profiles")
+    // ====== adm_usuarios (profiles) ======
+    // tipo aqui pode continuar usando "admin"/"cliente" (ou seu enum)
+    const { error: usrErr } = await sb
+      .from("adm_usuarios")
       .upsert(
         { id: userId, nome: name || null, telefone, tipo: role },
-        { onConflict: "id" }
+        { onConflict: "id" },
       );
-    if (profErr) throw profErr;
+    if (usrErr) throw usrErr;
 
-    // ====== CLIENTES ======
+    // ====== adm_clientes (user_id nullable + email UNIQUE) ======
+    // (pra UI não quebrar + e-commerce depois)
     const { error: cliErr } = await sb
-      .from("clientes")
+      .from("adm_clientes")
       .upsert(
-        { id: userId, email, nome: name || null, telefone, empresa },
-        { onConflict: "email" }
+        {
+          user_id: userId,
+          email,
+          nome: name || null,
+          telefone,
+          empresa,
+          segmento,
+        },
+        { onConflict: "email" },
       );
     if (cliErr) throw cliErr;
 
-    // ====== ACESSOS ======
+    // ====== adm_acessos_permitidos ======
+    // cria se não existir; se existir, NÃO sobrescreve automaticamente (evita “resetar” role/ativo)
     if (!accRow) {
-      const { error: accInsErr } = await sb
-        .from("acessos_permitidos")
-        .insert({
-          email,
-          role,
-          ativo: true,
-          is_primary_admin: false,
-          is_deleted: false,
-        });
+      const { error: accInsErr } = await sb.from("adm_acessos_permitidos").insert({
+        email,
+        role,
+        ativo: true,
+        is_primary_admin: false,
+        is_deleted: false,
+      });
       if (accInsErr) throw accInsErr;
     }
 
-    return json(200, {
-      ok: true,
-      email,
-      role,
-      invite_link,
-    });
+    return json(200, { ok: true, email, role, invite_link, user_id: userId });
   } catch (e: any) {
     console.error("admin-create-client error:", e);
     return json(500, { error: String(e?.message || e) });

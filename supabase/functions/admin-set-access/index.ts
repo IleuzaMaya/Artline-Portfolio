@@ -7,7 +7,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const headersBase = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-admin-token",
+    "authorization, Authorization, x-client-info, apikey, content-type, x-admin-token",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -29,12 +29,10 @@ serve(async (req) => {
   try {
     // ✅ secrets
     const ADMIN_API_TOKEN = Deno.env.get("ADMIN_API_TOKEN") ?? "";
-
     const SERVICE_ROLE =
       Deno.env.get("SERVICE_ROLE_KEY") ??
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
       "";
-
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 
     if (!ADMIN_API_TOKEN || !SERVICE_ROLE || !SUPABASE_URL) {
@@ -47,17 +45,15 @@ serve(async (req) => {
       return json(401, { error: "Unauthorized" });
     }
 
-    const sb = createClient(SUPABASE_URL, SERVICE_ROLE);
+    const sb = createClient(SUPABASE_URL, SERVICE_ROLE, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
 
     // ✅ pega caller via JWT (Authorization: Bearer <jwt>)
-    const authHeader = req.headers.get("authorization") || "";
-    const jwt = authHeader.toLowerCase().startsWith("bearer ")
-      ? authHeader.slice(7)
-      : "";
+    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization") || "";
+    const jwt = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7) : "";
 
-    if (!jwt) {
-      return json(401, { error: "Missing Authorization bearer token" });
-    }
+    if (!jwt) return json(401, { error: "Missing Authorization bearer token" });
 
     const { data: callerUser, error: callerErr } = await sb.auth.getUser(jwt);
     if (callerErr || !callerUser?.user) {
@@ -87,9 +83,7 @@ serve(async (req) => {
     const nextAtivoRaw = body?.ativo; // boolean | undefined
     const nextDeletedRaw = body?.is_deleted; // boolean | undefined
 
-    if (!targetEmail) {
-      return json(400, { error: "email is required" });
-    }
+    if (!targetEmail) return json(400, { error: "email is required" });
 
     // ninguém mexe em si mesmo (role/ativo/delete)
     if (targetEmail === callerEmail) {
@@ -100,7 +94,7 @@ serve(async (req) => {
       });
     }
 
-    // conta principal é protegida: NINGUÉM muda role/ativo/is_deleted dela
+    // conta principal é protegida
     if (targetEmail === PRIMARY_SYSTEM_EMAIL) {
       return json(403, {
         error: "Conta principal do sistema é protegida.",
@@ -109,7 +103,7 @@ serve(async (req) => {
       });
     }
 
-    // super-admins (ileuza/michelle) só podem ser alterados por super-admin
+    // super-admins só por super-admin
     if (SUPER_ADMINS.has(targetEmail) && !isSuperAdmin) {
       return json(403, {
         error: "Somente super-admin pode alterar outro super-admin.",
@@ -118,15 +112,12 @@ serve(async (req) => {
       });
     }
 
-    // regra: admin comum pode mexer em CLIENTES (ativo / is_deleted),
-    // mas NÃO pode mexer em admins nem em role.
-    // (a conta PRIMARY_SYSTEM_EMAIL pode mexer em todos, menos super-admins e ela mesma)
     const canManageAdmins = isSuperAdmin || isPrimarySystem;
 
-    // carregar o registro alvo
+    // carregar registro alvo
     const { data: currentAcc, error: curErr } = await sb
-      .from("acessos_permitidos")
-      .select("email, role, ativo, is_deleted, is_primary_admin")
+      .from("adm_acessos_permitidos")
+      .select("email, user_id, role, ativo, is_deleted, is_primary_admin")
       .eq("email", targetEmail)
       .maybeSingle();
 
@@ -134,7 +125,7 @@ serve(async (req) => {
 
     if (!currentAcc) {
       return json(404, {
-        error: "Conta não encontrada em acessos_permitidos.",
+        error: "Conta não encontrada em adm_acessos_permitidos.",
         code: "ACCOUNT_NOT_FOUND",
         email: targetEmail,
       });
@@ -159,18 +150,6 @@ serve(async (req) => {
       });
     }
 
-    // admin comum só pode mexer em ativo/is_deleted de clientes
-    if (!canManageAdmins) {
-      // se tentou mexer em algo além de ativo/is_deleted (por ex role), já retornou acima
-      if (targetIsAdmin) {
-        return json(403, {
-          error: "Você não tem permissão para alterar administradores.",
-          code: "CANNOT_EDIT_ADMINS",
-          email: targetEmail,
-        });
-      }
-    }
-
     // normaliza role
     let nextRole: "admin" | "cliente" | undefined = undefined;
     if (typeof nextRoleRaw !== "undefined") {
@@ -178,14 +157,11 @@ serve(async (req) => {
     }
 
     // normaliza ativo/is_deleted
-    const nextAtivo =
-      typeof nextAtivoRaw === "boolean" ? nextAtivoRaw : undefined;
-    const nextDeleted =
-      typeof nextDeletedRaw === "boolean" ? nextDeletedRaw : undefined;
+    const nextAtivo = typeof nextAtivoRaw === "boolean" ? nextAtivoRaw : undefined;
+    const nextDeleted = typeof nextDeletedRaw === "boolean" ? nextDeletedRaw : undefined;
 
     // build patch
     const patch: Record<string, any> = {};
-
     if (typeof nextRole !== "undefined") patch.role = nextRole;
     if (typeof nextAtivo !== "undefined") patch.ativo = nextAtivo;
     if (typeof nextDeleted !== "undefined") patch.is_deleted = nextDeleted;
@@ -197,28 +173,38 @@ serve(async (req) => {
       });
     }
 
-    // Se deletar, força ativo=false (pra “excluir” mesmo)
-    if (patch.is_deleted === true) {
-      patch.ativo = false;
-    }
+    // Se deletar, força ativo=false
+    if (patch.is_deleted === true) patch.ativo = false;
 
-    // Se recuperar (is_deleted=false) e ativo não veio, reativa
-    if (patch.is_deleted === false && typeof patch.ativo === "undefined") {
-      patch.ativo = true;
-    }
+    // Se recuperar e ativo não veio, reativa
+    if (patch.is_deleted === false && typeof patch.ativo === "undefined") patch.ativo = true;
 
     const { error: updErr } = await sb
-      .from("acessos_permitidos")
+      .from("adm_acessos_permitidos")
       .update(patch)
       .eq("email", targetEmail);
 
     if (updErr) throw updErr;
 
-    return json(200, {
-      ok: true,
-      email: targetEmail,
-      updated: patch,
-    });
+    // ✅ Sync Auth ban/unban (se tiver user_id)
+    if (currentAcc.user_id) {
+      const shouldBan =
+        patch.is_deleted === true || patch.ativo === false;
+
+      // ban_duration: string (ex: "876000h" ~ 100 anos)
+      const ban_duration = shouldBan ? "876000h" : "none";
+
+      const { error: banErr } = await sb.auth.admin.updateUserById(
+        currentAcc.user_id,
+        { ban_duration }
+      );
+
+      // Não quebra a operação se o ban falhar (mas loga)
+      if (banErr) console.warn("auth ban sync warn:", banErr.message);
+    }
+
+
+    return json(200, { ok: true, email: targetEmail, updated: patch });
   } catch (e: any) {
     console.error("admin-set-access error:", e);
     return json(500, { error: String(e?.message || e) });

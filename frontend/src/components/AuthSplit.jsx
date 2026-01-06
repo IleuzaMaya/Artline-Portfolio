@@ -124,7 +124,7 @@ export default function AuthSplit({ onAuth }) {
 
         // confere permissão
         const { data: perm, error: e2 } = await supabase
-          .from("acessos_permitidos")
+          .from("adm_acessos_permitidos")
           .select("role, ativo")
           .eq("email", emailFromAuth)
           .maybeSingle();
