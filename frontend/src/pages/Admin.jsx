@@ -13,24 +13,49 @@ const SUPER_ADMINS = new Set([
 ]);
 
 
-function normEmail(s) { return String(s || "").trim().toLowerCase(); }
+function normEmail(s) {
+  return String(s || "").trim().toLowerCase();
+}
+
+function isUuid(v) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    String(v || "")
+  );
+}
+
+// ID “real” (UUID) quando existir
+function getAccId(acc) {
+  return String(acc?.user_id || acc?.id || "").trim();
+}
+
+// Chave canônica da linha: usa UUID se tiver, senão email normalizado
+function getRowKey(acc) {
+  const accId = getAccId(acc);
+  if (isUuid(accId)) return accId;
+
+  const email = normEmail(acc?.email);
+  return email ? `email:${email}` : "";
+}
+
 
 function canEditProfile(callerEmail, target) {
   const caller = normEmail(callerEmail);
-  if (!caller) return false;
+  const targetEmail = normEmail(target?.email);
+
+  if (!caller || !targetEmail) return false;
+
+  // 🔒 nunca editar a conta do sistema (nem super-admin)
+  if (targetEmail === PRIMARY_SYSTEM_EMAIL) return false;
 
   const isSuper = SUPER_ADMINS.has(caller);
-  if (isSuper) return true; // super-admin edita todos (clientes e admins)
+  if (isSuper) return true;
 
-  // admin comum: pode editar a si mesmo e clientes
-  const targetEmail = normEmail(target?.email);
-  if (!targetEmail) return false;
+  if (caller === targetEmail) return true;
+  if (target?.role === "cliente") return true;
 
-  if (caller === targetEmail) return true;             // próprios dados
-  if (target?.role === "cliente") return true;         // dados de clientes
-
-  return false; // não edita admins
+  return false;
 }
+
 
 
 function canEditAccess(callerEmail, target) {
@@ -42,6 +67,8 @@ function canEditAccess(callerEmail, target) {
 
   const isSuper = SUPER_ADMINS.has(caller);
   const isPrimarySystem = caller === PRIMARY_SYSTEM_EMAIL;
+
+
   const canManageAdmins = isSuper || isPrimarySystem;
 
   // não mexe na conta principal
@@ -126,6 +153,7 @@ export default function Admin() {
   // Form de edição
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({
+  rowKey: "",
   id: "",
   nome: "",
   email: "",
@@ -458,18 +486,25 @@ const [editError, setEditError] = useState("");
         return;
       }
 
-      const uid = acc.user_id || acc.id; // <- PRIORIDADE
-
-      if (!isUuid(uid)) {
-        alert("Este registro está sem ID válido. Recarregue a página ou verifique o backend.");
+      // 🔒 blindagem extra: conta do sistema nunca edita
+      if (normEmail(acc?.email) === PRIMARY_SYSTEM_EMAIL) {
+        alert("A conta do sistema não pode ser editada.");
         return;
       }
 
+      const rowKey = getRowKey(acc);
+      if (!rowKey) {
+        alert("Este registro está sem ID/Email válido. Recarregue a página ou verifique o backend.");
+        return;
+      }
+
+      const uid = getAccId(acc);
       const isSuper = SUPER_ADMINS.has(normEmail(currentEmail));
 
-      setEditingId(uid);
+      setEditingId(rowKey);
       setEditForm({
-        id: uid,
+        rowKey,
+        id: isUuid(uid) ? uid : "", // guarda UUID se existir
         nome: acc.nome || "",
         email: normEmail(acc.email),
         telefone: acc.telefone || "",
@@ -485,10 +520,12 @@ const [editError, setEditError] = useState("");
       });
     }
 
+
     function cancelEdit() {
       setEditingId(null);
       setEditError("");
       setEditForm({
+        rowKey: "",
         id: "",
         nome: "",
         email: "",
@@ -506,12 +543,9 @@ const [editError, setEditError] = useState("");
     }
 
   function handleEditChange(field, value) {
+    if (!savingEdit && editError) setEditError("");
     setEditForm((prev) => ({ ...prev, [field]: value }));
   }
-
-    function isUuid(v) {
-      return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || ""));
-    }
 
       async function saveEdit() {
         setEditError("");
@@ -522,6 +556,18 @@ const [editError, setEditError] = useState("");
           const emailOld = normEmail(editForm.email_original);
           const emailNew = normEmail(editForm.email);
           const emailChanged = !!(emailOld && emailNew && emailOld !== emailNew);
+
+          // fallback: se não houver UUID, garantimos um "email de referência"
+          const refEmailFromRowKey =
+            String(editForm.rowKey || "").startsWith("email:")
+              ? normEmail(String(editForm.rowKey).slice(6))
+              : "";
+          
+          const emailRef = emailOld || refEmailFromRowKey || emailNew;
+          if (!emailRef) {
+            setEditError("Não foi possível identificar o e-mail do registro para salvar. Recarregue a página.");
+            return;
+          }
 
           if (emailChanged) {
             if (!editForm.__canEmail) {
@@ -543,20 +589,19 @@ const [editError, setEditError] = useState("");
               ...(idSafe ? { user_id: idSafe } : {}),
 
               // mantém compat, mas PASSA email_old e email_new (se mudou)
-              email: emailOld, // referência do registro (fallback)
+              email: emailRef,
               ...(emailChanged ? { email_new: emailNew } : {}),
               actor_email: currentEmail,
               nome: (editForm.nome || "").trim(),
               empresa: (editForm.empresa || "").trim() || null,
               telefone: (editForm.telefone || "").trim() || null,
-              
             });
           }
 
           // 2) Acesso (só se puder)
           if (editForm.__canAccess) {
             await adminApi.setAccess({
-              email: emailChanged ? emailNew : emailOld, // <- importante
+              email: emailChanged ? emailNew : emailRef,
               role: editForm.role === "admin" ? "admin" : "cliente",
               ativo: !!editForm.ativo,
             });
@@ -800,13 +845,19 @@ const [editError, setEditError] = useState("");
                     </td>
                   </tr>
                 ) : (
-                  showingList.map((acc) => {
-                    const rowKey = acc.user_id || acc.id || `email:${acc.email}`;
+                  showingList.map((acc, i) => {
+                    const accId = getAccId(acc);
+                    const rowKey = getRowKey(acc);
+
+                    // fallback ultra seguro: se vier sem tudo, evita crash
+                    if (!rowKey) {
+                      console.warn("Registro sem rowKey:", acc);
+                    }
 
                     const isEditing = editingId === rowKey;
 
                     return (
-                    <React.Fragment key={rowKey}>
+                      <React.Fragment key={rowKey || `idx:${activeTab}:${i}`}>
 
                       {/* Linha principal */}
                       <tr className="hover:bg-slate-50 transition">
@@ -941,8 +992,14 @@ const [editError, setEditError] = useState("");
                       {/* Linha extra com Empresa / Telefone / Ativo quando estiver editando */}
                       {isEditing && (
                         <tr className="bg-slate-50">
-                          <td colSpan={5} className="px-4 pb-4 pt-2">
+                           <td colSpan={5} className="px-4 pb-4 pt-2">
+                              {editError && (
+                                <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                                  {editError}
+                                </div>
+                              )}
                             <div className="grid gap-3 md:grid-cols-3">
+
                               <div>
                                 <label className="block text-xs font-medium text-slate-500 mb-1">
                                   Empresa (opcional)
