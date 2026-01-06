@@ -458,17 +458,18 @@ const [editError, setEditError] = useState("");
         return;
       }
 
-      if (!isUuid(acc?.id)) {
+      const uid = acc.user_id || acc.id; // <- PRIORIDADE
+
+      if (!isUuid(uid)) {
         alert("Este registro está sem ID válido. Recarregue a página ou verifique o backend.");
         return;
       }
 
-      const safeId = acc.id;
       const isSuper = SUPER_ADMINS.has(normEmail(currentEmail));
 
-      setEditingId(safeId);
+      setEditingId(uid);
       setEditForm({
-        id: safeId,
+        id: uid,
         nome: acc.nome || "",
         email: normEmail(acc.email),
         telefone: acc.telefone || "",
@@ -792,32 +793,19 @@ const [editError, setEditError] = useState("");
               </thead>
 
               <tbody className="divide-y divide-slate-100">
-                {showingList.length === 0 && (
+                {showingList.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan={5}
-                      className="px-4 py-6 text-sm text-slate-500 text-center"
-                    >
+                    <td colSpan={5} className="px-4 py-6 text-sm text-slate-500 text-center">
                       Nenhum registro encontrado.
                     </td>
                   </tr>
-                )}
+                ) : (
+                  showingList.map((acc) => {
+                    const rowKey = acc.user_id || acc.id || `email:${acc.email}`;
 
-                  const rowKey = acc.id;
-                  const isEditing = editingId === rowKey;
+                    const isEditing = editingId === rowKey;
 
-                  return (
-                    <React.Fragment key={rowKey}>
-                      ...
-                    </React.Fragment>
-                  );
-                })}
-
-
-                  const rowKey = acc.id;    
-                  const isEditing = editingId === rowKey;    
-
-                  return (
+                    return (
                     <React.Fragment key={rowKey}>
 
                       {/* Linha principal */}
@@ -1001,7 +989,8 @@ const [editError, setEditError] = useState("");
                       )}
                     </React.Fragment>
                   );
-                })}
+                 })
+                )}
               </tbody>
             </table>
 
