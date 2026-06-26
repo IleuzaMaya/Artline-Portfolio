@@ -18,7 +18,7 @@ function json(status: number, body: unknown) {
   });
 }
 
-function normEmail(v: any) {
+function normalizeEmail(v: any) {
   return String(v || "").trim().toLowerCase();
 }
 
@@ -60,7 +60,7 @@ serve(async (req) => {
       return json(401, { error: "Invalid session" });
     }
 
-    const callerEmail = normEmail(callerUser.user.email);
+    const callerEmail = normalizeEmail(callerUser.user.email);
 
     // =========================
     // Regras de permissão (BACK)
@@ -72,7 +72,7 @@ serve(async (req) => {
 
     // Body
     const body = await req.json().catch(() => ({}));
-    const targetEmail = normEmail(body?.email);
+    const targetEmail = normalizeEmail(body?.email);
 
     const nextRoleRaw = body?.role; // "admin" | "cliente" | undefined
     const nextAtivoRaw = body?.ativo; // boolean | undefined

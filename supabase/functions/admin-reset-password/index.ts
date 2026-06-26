@@ -32,8 +32,8 @@ serve(async (req) => {
     }
 
     const { email, redirectTo } = await req.json();
-    const normEmail = String(email || "").trim().toLowerCase();
-    if (!normEmail) {
+    const normalizeEmail = String(email || "").trim().toLowerCase();
+    if (!normalizeEmail) {
       return new Response(JSON.stringify({ error: "email é obrigatório" }), { status: 400, headers: { ...headers, "Content-Type": "application/json" }});
     }
 
@@ -41,7 +41,7 @@ serve(async (req) => {
 
     const gen = await sb.auth.admin.generateLink({
       type: "recovery",
-      email: normEmail,
+      email: normalizeEmail,
       options: { redirectTo: redirectTo || DEFAULT_REDIRECT },
     });
     if (gen.error) {

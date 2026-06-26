@@ -36,7 +36,7 @@ type Body = {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function normEmail(v: any) {
+function normalizeEmail(v: any) {
   return String(v || "").trim().toLowerCase();
 }
 
@@ -90,11 +90,11 @@ serve(async (req) => {
     const user_id = body.user_id ? String(body.user_id).trim() : "";
     const userIdIsUuid = !!(user_id && UUID_RE.test(user_id));
 
-    const email_old = normEmail(body.email);
-    const email_new = normEmail(body.email_new);
+    const email_old = normalizeEmail(body.email);
+    const email_new = normalizeEmail(body.email_new);
 
     const actor_email =
-      normEmail(body.actor_email) || normEmail(req.headers.get("x-actor-email"));
+      normalizeEmail(body.actor_email) ||normalizeEmail(req.headers.get("x-actor-email"));
 
     if (!userIdIsUuid && !email_old) {
       return json(headers, 400, { error: "Informe user_id (uuid válido) ou email" });
@@ -148,7 +148,7 @@ serve(async (req) => {
       });
     }
 
-    const targetEmail = normEmail(target.email);
+    const targetEmail = normalizeEmail(target.email);
 
     if (target?.is_deleted) {
       return json(headers, 409, { error: "Conta já excluída", code: "ACCOUNT_DELETED", email: targetEmail });

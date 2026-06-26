@@ -18,7 +18,7 @@ function json(status: number, body: unknown) {
   });
 }
 
-function normEmail(v: any) {
+function normalizeEmail(v: any) {
   return String(v || "").trim().toLowerCase();
 }
 
@@ -62,7 +62,7 @@ serve(async (req) => {
 
     if (errClientes) throw errClientes;
 
-    const mapCli = new Map((clientes ?? []).map((c: any) => [normEmail(c.email), c]));
+    const mapCli = new Map((clientes ?? []).map((c: any) => [normalizeEmail(c.email), c]));
 
     // ✅ Auth users (paginado)
     const mapAuth = new Map<string, any>();
@@ -75,7 +75,7 @@ serve(async (req) => {
 
       const users = data?.users ?? [];
       for (const u of users) {
-        const em = normEmail(u.email);
+        const em = normalizeEmail(u.email);
         if (em) mapAuth.set(em, u);
       }
       if (users.length < PER_PAGE) break;
@@ -83,7 +83,7 @@ serve(async (req) => {
 
     // ✅ montar lista final
     const accounts = (acessos ?? []).map((acc: any) => {
-      const emailAcc = normEmail(acc.email);
+      const emailAcc = normalizeEmail(acc.email);
       const cli = mapCli.get(emailAcc) ?? null;
       const au = mapAuth.get(emailAcc) ?? null;
 

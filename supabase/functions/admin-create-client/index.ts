@@ -18,7 +18,7 @@ function json(status: number, body: unknown) {
   });
 }
 
-function normEmail(v: any) {
+function normalizeEmail(v: any) {
   return String(v || "").trim().toLowerCase();
 }
 
@@ -71,7 +71,7 @@ serve(async (req) => {
     }
 
     const name = String((payload as any).name || "").trim();
-    const email = normEmail((payload as any).email);
+    const email = normalizeEmail((payload as any).email);
     const role = (payload as any).role === "admin" ? "admin" : "cliente";
     const telefone = (payload as any).telefone ? String((payload as any).telefone).trim() : null;
     const empresa = (payload as any).empresa ? String((payload as any).empresa).trim() : null;

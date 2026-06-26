@@ -5,6 +5,7 @@ import { supabase } from "../lib/supabase";
 import { adminApi } from "../lib/adminApi";
 import { ENV } from "../config/env";
 import { SYSTEM } from "../config/system";
+import { normalizeEmail, isUuid } from "../utils/string";
 import {
   isPrimaryUser,
   isSuperAdmin,
@@ -14,7 +15,7 @@ import {
 const PRIMARY_SYSTEM_EMAIL = SYSTEM.PRIMARY_SYSTEM_EMAIL;
 
 
-function normEmail(s) {
+function normalizeEmail(s) {
   return String(s || "").trim().toLowerCase();
 }
 
@@ -34,14 +35,14 @@ function getRowKey(acc) {
   const accId = getAccId(acc);
   if (isUuid(accId)) return accId;
 
-  const email = normEmail(acc?.email);
+  const email = normalizeEmail(acc?.email);
   return email ? `email:${email}` : "";
 }
 
 
 function canEditProfile(callerEmail, target) {
-  const caller = normEmail(callerEmail);
-  const targetEmail = normEmail(target?.email);
+  const caller = normalizeEmail(callerEmail);
+  const targetEmail = normalizeEmail(target?.email);
 
   if (!caller || !targetEmail) return false;
 
@@ -60,8 +61,8 @@ function canEditProfile(callerEmail, target) {
 
 
 function canEditAccess(callerEmail, target) {
-  const caller = normEmail(callerEmail);
-  const targetEmail = normEmail(target.email);
+  const caller = normalizeEmail(callerEmail);
+  const targetEmail = normalizeEmail(target.email);
 
   if (!caller || !targetEmail) return false;
   if (caller === targetEmail) return false; // ninguém mexe em si mesmo
@@ -492,7 +493,7 @@ const [editError, setEditError] = useState("");
       }
 
       // 🔒 blindagem extra: conta do sistema nunca edita
-      if (normEmail(acc?.email) === PRIMARY_SYSTEM_EMAIL) {
+      if (normalizeEmail(acc?.email) === PRIMARY_SYSTEM_EMAIL) {
         alert("A conta do sistema não pode ser editada.");
         return;
       }
@@ -504,20 +505,20 @@ const [editError, setEditError] = useState("");
       }
 
       const uid = getAccId(acc);
-      const isSuper = SUPER_ADMINS.has(normEmail(currentEmail));
+      const isSuper = SUPER_ADMINS.has(normalizeEmail(currentEmail));
 
       setEditingId(rowKey);
       setEditForm({
         rowKey,
         id: isUuid(uid) ? uid : "", // guarda UUID se existir
         nome: acc.nome || "",
-        email: normEmail(acc.email),
+        email: normalizeEmail(acc.email),
         telefone: acc.telefone || "",
         empresa: acc.empresa || "",
         role: acc.role || "cliente",
         ativo: acc.ativo ?? true,
 
-        email_original: normEmail(acc.email),
+        email_original: normalizeEmail(acc.email),
         __canEmail: isSuper,
 
         __canProfile: canProfile,
@@ -558,14 +559,14 @@ const [editError, setEditError] = useState("");
         try {
           setSavingEdit(true);
 
-          const emailOld = normEmail(editForm.email_original);
-          const emailNew = normEmail(editForm.email);
+          const emailOld = normalizeEmail(editForm.email_original);
+          const emailNew = normalizeEmail(editForm.email);
           const emailChanged = !!(emailOld && emailNew && emailOld !== emailNew);
 
           // fallback: se não houver UUID, garantimos um "email de referência"
           const refEmailFromRowKey =
             String(editForm.rowKey || "").startsWith("email:")
-              ? normEmail(String(editForm.rowKey).slice(6))
+              ? normalizeEmail(String(editForm.rowKey).slice(6))
               : "";
           
           const emailRef = emailOld || refEmailFromRowKey || emailNew;
