@@ -6,6 +6,7 @@ import { adminApi } from "../lib/adminApi";
 import { ENV } from "../config/env";
 import { SYSTEM } from "../config/system";
 import { normalizeEmail, isUuid } from "../utils/string";
+import AdminToolbar from "../components/admin/AdminToolbar";
 import {
   isPrimaryUser,
   isSuperAdmin,
@@ -494,7 +495,7 @@ const [editError, setEditError] = useState("");
       }
 
       const uid = getAccId(acc);
-      const isSuper = SUPER_ADMINS.has(normalizeEmail(currentEmail));
+      const isSuper = isSuperAdmin(currentEmail);
 
       setEditingId(rowKey);
       setEditForm({
@@ -636,7 +637,7 @@ const [editError, setEditError] = useState("");
       <div className="mx-auto max-w-6xl px-4 py-8">
         <div className="mb-6 flex items-center justify-between gap-4">
           <h1 className="text-2xl font-semibold text-emerald-800">
-            Administração
+            AdminToolbar 
           </h1>
 
           <Link
