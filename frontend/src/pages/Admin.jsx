@@ -1,6 +1,5 @@
 // frontend/src/pages/Admin.jsx
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { adminApi } from "../lib/adminApi";
 import { ENV } from "../config/env";
