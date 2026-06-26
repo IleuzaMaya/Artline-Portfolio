@@ -1,6 +1,6 @@
 // frontend/src/lib/edgeApi.js
 import axios from "axios";
-import { ENV } from "./env";
+import { ENV } from "../config/env";
 
 function buildFunctionsBase() {
   const explicit = (ENV.FUNCTIONS_BASE || "").replace(/\/$/, "");

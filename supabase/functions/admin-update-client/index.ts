@@ -5,11 +5,9 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const ORIGINS = ["https://app.artemoldurados.com.br", "http://localhost:5173"];
 
 // 🔒 Regras do seu sistema
-const PRIMARY_SYSTEM_EMAIL = "artemoldurados@gmail.com";
+const PRIMARY_SYSTEM_EMAIL = "ileuza.maya@gmail.com"";
 const SUPER_ADMINS = new Set([
-  "artemoldurados@gmail.com",
   "ileuza.maya@gmail.com",
-  "michelle.mayaa@gmail.com",
 ]);
 
 function cors(origin: string | null): Record<string, string> {

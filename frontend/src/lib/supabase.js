@@ -1,6 +1,6 @@
 // frontend/src/lib/supabase.js
 import { createClient } from "@supabase/supabase-js";
-import { ENV, assertEnv } from "./env";
+import { ENV, assertEnv } from "../config/env";
 
 assertEnv();
 

@@ -3,7 +3,7 @@ import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
-import { ENV } from "../lib/env";
+import { ENV } from "../config/env";
 
 // Ícones inline (olho)
 const EyeIcon = (props) => (

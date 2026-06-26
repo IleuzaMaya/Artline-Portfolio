@@ -65,12 +65,10 @@ serve(async (req) => {
     // =========================
     // Regras de permissão (BACK)
     // =========================
-    const PRIMARY_SYSTEM_EMAIL = "artemoldurados@gmail.com";
+    const PRIMARY_SYSTEM_EMAIL = "ileuza.maya@gmail.com";
 
     const SUPER_ADMINS = new Set([
-      "artemoldurados@gmail.com",
       "ileuza.maya@gmail.com",
-      "michelle.mayaa@gmail.com",
     ]);
 
     const isSuperAdmin = SUPER_ADMINS.has(callerEmail);

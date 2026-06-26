@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { adminApi } from "../lib/adminApi";
-import { ENV } from "../lib/env";
+import { ENV } from "../config/env";
 
 
 const PRIMARY_SYSTEM_EMAIL = "ileuza.maya@gmail.com";

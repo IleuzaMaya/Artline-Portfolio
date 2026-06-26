@@ -1,6 +1,6 @@
 // frontend/src/lib/adminApi.js
 import { edge } from "./edgeApi";
-import { ENV } from "./env";
+import { ENV } from "../config/env";
 
 export const adminApi = {
   createClient(payload) {
