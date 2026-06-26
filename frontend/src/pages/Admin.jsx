@@ -195,8 +195,6 @@ const [editError, setEditError] = useState("");
       const list = Array.isArray(data?.accounts) ? data.accounts : [];
       setAccounts(list);
 
-      console.log("ACCOUNTS DO BACKEND:", list);
-
       // tenta descobrir o admin principal pela flag, se vier do backend
       const primary = list.find((acc) => acc.is_primary_admin);
       if (primary?.email) {
@@ -622,7 +620,12 @@ const [editError, setEditError] = useState("");
             return;
           }
 
-          setEditError(err?.message || "Erro ao salvar alterações.");
+          setEditError(
+            err?.message ||
+            err?.payload?.message ||
+            "Erro ao salvar alterações."
+          );
+
         } finally {
           setSavingEdit(false);
         }

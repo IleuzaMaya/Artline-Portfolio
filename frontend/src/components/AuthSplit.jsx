@@ -3,6 +3,7 @@ import { useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
+import { ENV } from "../lib/env";
 
 // Ícones inline (olho)
 const EyeIcon = (props) => (
@@ -334,7 +335,7 @@ export default function AuthSplit({ onAuth }) {
                       e.preventDefault();
                       if (!form.email) return setMsg({ type: "error", text: "Informe seu e-mail." });
                       const { error } = await supabase.auth.resetPasswordForEmail(form.email, {
-                        redirectTo: window.location.origin + "/reset",
+                        redirectTo: `${ENV.SITE_URL}/reset`,
                       });
                       setMsg(error ? { type: "error", text: error.message } : { type: "success", text: "Enviamos um link de redefinição de senha." });
                     }}

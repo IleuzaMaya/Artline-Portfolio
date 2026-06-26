@@ -1,4 +1,4 @@
-// frontend/src/lib/edgeApi.js
+// frontend/src/lib/adminApi.js
 import { edge } from "./edgeApi";
 import { ENV } from "./env";
 

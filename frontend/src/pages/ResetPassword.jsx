@@ -6,11 +6,17 @@ import { useToast } from "../ui/toast.jsx";
 function parseHashParams() {
   const hash = typeof window !== "undefined" ? window.location.hash : "";
   if (!hash || !hash.startsWith("#")) return {};
+
   const params = new URLSearchParams(hash.slice(1));
-  const access_token = params.get("access_token");
-  const refresh_token = params.get("refresh_token");
-  const type = params.get("type"); // ex.: 'recovery'
-  return { access_token, refresh_token, type };
+
+  return {
+    access_token: params.get("access_token"),
+    refresh_token: params.get("refresh_token"),
+    type: params.get("type"),
+    error: params.get("error"),
+    error_code: params.get("error_code"),
+    error_description: params.get("error_description"),
+  };
 }
 
 export default function ResetPassword() {
@@ -33,6 +39,13 @@ export default function ResetPassword() {
     const { access_token, refresh_token, type } = parseHashParams();
 
     async function ensureSessionFromHash() {
+      if (error || error_code) {
+        show({
+          type: "error",
+          message: "Link expirado ou inválido. Solicite um novo link de redefinição.",
+        });
+        return;
+      }
       if (access_token && refresh_token) {
         try {
           const { error } = await supabase.auth.setSession({

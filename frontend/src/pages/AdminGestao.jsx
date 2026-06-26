@@ -75,11 +75,13 @@ export default function AdminGestao() {
 
   async function sendReset(email) {
     setMsg("");
+
     try {
       await adminApi.resetPassword({
         email,
-        redirectTo: `${window.location.origin}/reset`,
+        redirectTo: `${env.SITE_URL}/reset`,
       });
+
       setMsg("E-mail de redefinição enviado.");
     } catch (e) {
       setMsg(String(e.message ?? e));

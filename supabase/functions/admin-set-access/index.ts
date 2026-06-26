@@ -68,6 +68,7 @@ serve(async (req) => {
     const PRIMARY_SYSTEM_EMAIL = "artemoldurados@gmail.com";
 
     const SUPER_ADMINS = new Set([
+      "artemoldurados@gmail.com",
       "ileuza.maya@gmail.com",
       "michelle.mayaa@gmail.com",
     ]);
