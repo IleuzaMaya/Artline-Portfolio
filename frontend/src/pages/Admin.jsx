@@ -4,12 +4,14 @@ import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { adminApi } from "../lib/adminApi";
 import { ENV } from "../config/env";
+import { SYSTEM } from "../config/system";
+import {
+  isPrimaryUser,
+  isSuperAdmin,
+} from "../config/permissions";
 
 
-const PRIMARY_SYSTEM_EMAIL = "ileuza.maya@gmail.com";
-const SUPER_ADMINS = new Set([
-  "ileuza.maya@gmail.com",
-]);
+const PRIMARY_SYSTEM_EMAIL = SYSTEM.PRIMARY_SYSTEM_EMAIL;
 
 
 function normEmail(s) {
@@ -44,9 +46,9 @@ function canEditProfile(callerEmail, target) {
   if (!caller || !targetEmail) return false;
 
   // 🔒 nunca editar a conta do sistema (nem super-admin)
-  if (targetEmail === PRIMARY_SYSTEM_EMAIL) return false;
+  if (isPrimaryUser(targetEmail)) return false;
 
-  const isSuper = SUPER_ADMINS.has(caller);
+  const isSuper = isSuperAdmin(caller)
   if (isSuper) return true;
 
   if (caller === targetEmail) return true;
@@ -64,17 +66,17 @@ function canEditAccess(callerEmail, target) {
   if (!caller || !targetEmail) return false;
   if (caller === targetEmail) return false; // ninguém mexe em si mesmo
 
-  const isSuper = SUPER_ADMINS.has(caller);
+  const isSuper = isSuperAdmin(caller)
   const isPrimarySystem = caller === PRIMARY_SYSTEM_EMAIL;
 
 
   const canManageAdmins = isSuper || isPrimarySystem;
 
   // não mexe na conta principal
-  if (targetEmail === PRIMARY_SYSTEM_EMAIL) return false;
+  if (isPrimaryUser(targetEmail)) return false;
 
   // proteger super-admins
-  if (SUPER_ADMINS.has(targetEmail) && !isSuper) return false;
+  if (isSuperAdmin(targetEmail) && !isSuper) return false;
 
   // admin comum não edita admin
   if (target.role === "admin" && !canManageAdmins) return false;

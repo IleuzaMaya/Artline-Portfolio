@@ -5,10 +5,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const ORIGINS = ["https://app.artemoldurados.com.br", "http://localhost:5173"];
 
 // 🔒 Regras do seu sistema
-const PRIMARY_SYSTEM_EMAIL = "ileuza.maya@gmail.com"";
-const SUPER_ADMINS = new Set([
-  "ileuza.maya@gmail.com",
-]);
+const PRIMARY_SYSTEM_EMAIL = SYSTEM.PRIMARY_SYSTEM_EMAIL;
 
 function cors(origin: string | null): Record<string, string> {
   const allow = origin && ORIGINS.includes(origin) ? origin : ORIGINS[0];
@@ -160,7 +157,7 @@ serve(async (req) => {
     // ------------------------------------------------------------
     // 2) Proteções
     // ------------------------------------------------------------
-    if (targetEmail === PRIMARY_SYSTEM_EMAIL) {
+    if (isPrimaryUser(targetEmail)) {
       // permite editar nome/telefone/empresa, mas NÃO troca email
       if (wantsEmailChange) {
         return json(headers, 403, {
@@ -173,7 +170,7 @@ serve(async (req) => {
 
     if (actor_email) {
       const actorIsSuper = SUPER_ADMINS.has(actor_email);
-      const targetIsSuper = SUPER_ADMINS.has(targetEmail);
+      const targetIsSuper = isSuperAdmin(targetEmail)
 
       if (targetIsSuper && !actorIsSuper) {
         return json(headers, 403, {

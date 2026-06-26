@@ -65,12 +65,8 @@ serve(async (req) => {
     // =========================
     // Regras de permissão (BACK)
     // =========================
-    const PRIMARY_SYSTEM_EMAIL = "ileuza.maya@gmail.com";
-
-    const SUPER_ADMINS = new Set([
-      "ileuza.maya@gmail.com",
-    ]);
-
+    const PRIMARY_SYSTEM_EMAIL = SYSTEM.PRIMARY_SYSTEM_EMAIL;
+    
     const isSuperAdmin = SUPER_ADMINS.has(callerEmail);
     const isPrimarySystem = callerEmail === PRIMARY_SYSTEM_EMAIL;
 
@@ -94,7 +90,7 @@ serve(async (req) => {
     }
 
     // conta principal é protegida
-    if (targetEmail === PRIMARY_SYSTEM_EMAIL) {
+    if (isPrimaryUser(targetEmail)) {
       return json(403, {
         error: "Conta principal do sistema é protegida.",
         code: "PRIMARY_SYSTEM_PROTECTED",
@@ -103,7 +99,7 @@ serve(async (req) => {
     }
 
     // super-admins só por super-admin
-    if (SUPER_ADMINS.has(targetEmail) && !isSuperAdmin) {
+    if (isSuperAdmin(targetEmail)) && !isSuperAdmin) {
       return json(403, {
         error: "Somente super-admin pode alterar outro super-admin.",
         code: "SUPER_ADMIN_PROTECTED",
