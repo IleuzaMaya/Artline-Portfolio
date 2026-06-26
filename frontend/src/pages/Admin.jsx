@@ -14,17 +14,6 @@ import {
 
 const PRIMARY_SYSTEM_EMAIL = SYSTEM.PRIMARY_SYSTEM_EMAIL;
 
-
-function normalizeEmail(s) {
-  return String(s || "").trim().toLowerCase();
-}
-
-function isUuid(v) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-    String(v || "")
-  );
-}
-
 // ID “real” (UUID) quando existir
 function getAccId(acc) {
   return String(acc?.user_id || acc?.id || "").trim();
@@ -49,7 +38,7 @@ function canEditProfile(callerEmail, target) {
   // 🔒 nunca editar a conta do sistema (nem super-admin)
   if (isPrimaryUser(targetEmail)) return false;
 
-  const isSuper = isSuperAdmin(caller)
+  const isSuper = isSuperAdmin(caller);
   if (isSuper) return true;
 
   if (caller === targetEmail) return true;
@@ -67,7 +56,7 @@ function canEditAccess(callerEmail, target) {
   if (!caller || !targetEmail) return false;
   if (caller === targetEmail) return false; // ninguém mexe em si mesmo
 
-  const isSuper = isSuperAdmin(caller)
+  const isSuper = isSuperAdmin(caller);
   const isPrimarySystem = caller === PRIMARY_SYSTEM_EMAIL;
 
 
