@@ -6,6 +6,7 @@ import { ENV } from "../config/env";
 import { SYSTEM } from "../config/system";
 import { normalizeEmail, isUuid } from "../utils/string";
 import AdminToolbar from "../components/admin/AdminToolbar";
+import AdminCreateUserForm from "../components/admin/AdminCreateUserForm";
 import {
   isPrimaryUser,
   isSuperAdmin,
@@ -654,143 +655,26 @@ const [editError, setEditError] = useState("");
         )}
 
         {/* Card superior - Criar/Convidar cliente */}
-        <div className="mb-6 rounded-2xl bg-white shadow p-5 md:p-6">
-          <h2 className="text-base font-semibold text-slate-800">
-            Criar/Convidar cliente
-          </h2>
-          <p className="mt-1 text-xs text-slate-500">
-            Se <span className="font-semibold">senha</span> ficar em branco, será
-            gerado um <span className="font-semibold">link de convite</span>.
-          </p>
-
-          <form
-            onSubmit={handleCreateClient}
-            className="mt-4 grid gap-4 md:grid-cols-3"
-          >
-            {/* Nome */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-600">Nome</label>
-              <input
-                type="text"
-                className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                placeholder="Nome do cliente"
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-              />
-            </div>
-
-            {/* Empresa */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-600">
-                Empresa (opcional)
-              </label>
-              <input
-                type="text"
-                className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                placeholder="Empresa do cliente"
-                value={formEmpresa}
-                onChange={(e) => setFormEmpresa(e.target.value)}
-              />
-            </div>
-
-            {/* Tipo de acesso */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-600">
-                Tipo de acesso
-              </label>
-              <select
-                className="h-10 rounded-md border border-slate-200 bg-white px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                value={formRole}
-                onChange={(e) => setFormRole(e.target.value)}
-              >
-                <option value="cliente">Cliente</option>
-                <option value="admin">Administrador</option>
-              </select>
-            </div>
-
-            {/* E-mail */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-600">
-                E-mail
-              </label>
-              <input
-                type="email"
-                className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                placeholder="cliente@exemplo.com"
-                value={formEmail}
-                onChange={(e) => setFormEmail(e.target.value)}
-              />
-            </div>
-
-            {/* Telefone */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-600">
-                Telefone (opcional)
-              </label>
-              <input
-                type="tel"
-                className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                placeholder="(11) 91234-5678"
-                value={formTelefone}
-                onChange={(e) => setFormTelefone(formatPhone(e.target.value))}
-              />
-            </div>
-
-            {/* Senha */}
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-600">
-                Senha (opcional)
-              </label>
-              <div className="relative">
-                <input
-                  type={showCreatePassword ? "text" : "password"}
-                  className="h-10 w-full rounded-md border border-slate-200 px-3 pr-16 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                  placeholder="Deixe vazio para enviar convite"
-                  value={formSenha}
-                  onChange={(e) => setFormSenha(e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCreatePassword((v) => !v)}
-                  className="absolute inset-y-0 right-2 flex items-center justify-center rounded-md px-2 text-slate-500 hover:text-slate-800"
-                  aria-label={showCreatePassword ? "Ocultar senha" : "Mostrar senha"}
-                  title={showCreatePassword ? "Ocultar senha" : "Mostrar senha"}
-                >
-                  {showCreatePassword ? (
-                    // eye-off
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path d="M3 3l18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                      <path d="M10.6 10.6A3 3 0 0013.4 13.4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                      <path d="M9.9 5.3A10.7 10.7 0 0122 12c-.7 1.4-1.7 2.6-2.9 3.6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                      <path d="M6.2 6.2A10.8 10.8 0 002 12c2.1 4.1 6 7 10 7 1.4 0 2.7-.3 3.9-.8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-                    </svg>
-                  ) : (
-                    // eye
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path d="M2 12c2.1-4.1 6-7 10-7s7.9 2.9 10 7c-2.1 4.1-6 7-10 7s-7.9-2.9-10-7z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
-                      <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" stroke="currentColor" strokeWidth="2"/>
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Botão */}
-            <div className="md:col-span-3 flex items-end">
-              <button
-                type="submit"
-                disabled={loadingSubmit}
-                className="inline-flex items-center justify-center rounded-md bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                {loadingSubmit ? "Enviando..." : "Criar / Enviar convite"}
-              </button>
-            </div>
-          </form>
-
-          {submitError && (
-            <p className="mt-2 text-sm text-red-600">{submitError}</p>
-          )}
-        </div>
+        <AdminCreateUserForm
+          formName={formName}
+          setFormName={setFormName}
+          formEmpresa={formEmpresa}
+          setFormEmpresa={setFormEmpresa}
+          formRole={formRole}
+          setFormRole={setFormRole}
+          formEmail={formEmail}
+          setFormEmail={setFormEmail}
+          formTelefone={formTelefone}
+          setFormTelefone={setFormTelefone}
+          formSenha={formSenha}
+          setFormSenha={setFormSenha}
+          showCreatePassword={showCreatePassword}
+          setShowCreatePassword={setShowCreatePassword}
+          loadingSubmit={loadingSubmit}
+          submitError={submitError}
+          onSubmit={handleCreateClient}
+          formatPhone={formatPhone}
+        />
 
         {/* Card lista de acessos */}
         <div className="mb-6 rounded-2xl bg-white shadow p-5 md:p-6">
