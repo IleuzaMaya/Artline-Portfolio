@@ -3,13 +3,12 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { adminApi } from "../lib/adminApi";
+import { ENV } from "../lib/env";
 
 
-const PRIMARY_SYSTEM_EMAIL = "artemoldurados@gmail.com";
+const PRIMARY_SYSTEM_EMAIL = "ileuza.maya@gmail.com";
 const SUPER_ADMINS = new Set([
-  "artemoldurados@gmail.com",
   "ileuza.maya@gmail.com",
-  "michelle.mayaa@gmail.com",
 ]);
 
 
@@ -408,7 +407,10 @@ const [editError, setEditError] = useState("");
 
     try {
       setLoadingReset(true);
-      await adminApi.resetPassword({ email: acc.email });
+      await adminApi.resetPassword({
+          email: acc.email,
+          redirectTo: `${ENV.SITE_URL}/reset`,
+      });
       alert("Link de redefinição enviado para o seu e-mail.");
     } catch (err) {
       console.error(err);
@@ -427,7 +429,10 @@ const [editError, setEditError] = useState("");
 
     try {
       setLoadingReset(true);
-      await adminApi.resetPassword({ email: resetEmail.trim().toLowerCase() });
+      await adminApi.resetPassword({
+          email: resetEmail.trim().toLowerCase(),
+          redirectTo: `${ENV.SITE_URL}/reset`,
+      });
       alert("Link de redefinição enviado (se o usuário existir e tiver acesso).");
       setResetEmail("");
     } catch (err) {
