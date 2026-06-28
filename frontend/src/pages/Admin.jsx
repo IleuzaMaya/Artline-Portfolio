@@ -8,6 +8,7 @@ import { normalizeEmail, isUuid } from "../utils/string";
 import AdminToolbar from "../components/admin/AdminToolbar";
 import AdminCreateUserForm from "../components/admin/AdminCreateUserForm";
 import AdminFilters from "../components/admin/AdminFilters";
+import AdminAccountsTable from "../components/admin/AdminAccountsTable";
 
 import {
   isPrimaryUser,
@@ -678,7 +679,7 @@ const [editError, setEditError] = useState("");
 
           {/* Tabela */}
           <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
+{/*             <table className="min-w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-xs text-slate-500">
                   <th className="px-3 py-2 font-medium w-56">Nome</th>
@@ -903,7 +904,35 @@ const [editError, setEditError] = useState("");
                  })
                 )}
               </tbody>
-            </table>
+            </table> */}
+
+
+            <AdminAccountsTable
+              accounts={showingList}
+              activeTab={activeTab}
+              editingId={editingId}
+              editForm={editForm}
+              editError={editError}
+              savingEdit={savingEdit}
+              currentEmail={currentEmail}
+              onStartEdit={startEdit}
+              onCancelEdit={cancelEdit}
+              onSaveEdit={saveEdit}
+              onEditChange={handleEditChange}
+              onOpenDetails={openDetails}
+              canEditProfile={canEditProfile}
+              canEditAccess={canEditAccess}
+              getAccId={getAccId}
+              getRowKey={getRowKey}
+              isUuid={isUuid}
+            />
+
+
+
+
+
+
+
 
             {detailsOpen && detailsAcc && (
               <div
