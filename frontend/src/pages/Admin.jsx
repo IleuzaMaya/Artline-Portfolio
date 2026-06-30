@@ -10,6 +10,7 @@ import AdminCreateUserForm from "../components/admin/AdminCreateUserForm";
 import AdminFilters from "../components/admin/AdminFilters";
 import AdminAccountsTable from "../components/admin/AdminAccountsTable";
 import AdminDetailsModal from "../components/admin/AdminDetailsModal";
+import { formatPhone } from "../utils/format";
 
 import {
   isPrimaryUser,
