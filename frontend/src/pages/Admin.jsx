@@ -125,7 +125,7 @@ export default function Admin() {
 
   const [currentEmail, setCurrentEmail] = useState(null);
   const [primaryAdminEmail, setPrimaryAdminEmail] =
-    useState("artemoldurados@gmail.com");
+    useState(SYSTEM.PRIMARY_SYSTEM_EMAIL);
 
   // Form "Criar/Convidar cliente"
   const [formName, setFormName] = useState("");
