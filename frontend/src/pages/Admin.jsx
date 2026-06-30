@@ -11,6 +11,7 @@ import AdminFilters from "../components/admin/AdminFilters";
 import AdminAccountsTable from "../components/admin/AdminAccountsTable";
 import AdminDetailsModal from "../components/admin/AdminDetailsModal";
 import { formatPhone } from "../utils/format";
+import { getAccId, getRowKey, classNames } from "../utils/adminUtils";
 
 import {
   isPrimaryUser,
@@ -19,20 +20,6 @@ import {
 
 
 const PRIMARY_SYSTEM_EMAIL = SYSTEM.PRIMARY_SYSTEM_EMAIL;
-
-// ID “real” (UUID) quando existir
-function getAccId(acc) {
-  return String(acc?.user_id || acc?.id || "").trim();
-}
-
-// Chave canônica da linha: usa UUID se tiver, senão email normalizado
-function getRowKey(acc) {
-  const accId = getAccId(acc);
-  if (isUuid(accId)) return accId;
-
-  const email = normalizeEmail(acc?.email);
-  return email ? `email:${email}` : "";
-}
 
 
 function canEditProfile(callerEmail, target) {
@@ -80,9 +67,6 @@ function canEditAccess(callerEmail, target) {
   return true;
 }
 
-function classNames(...classes) {
-  return classes.filter(Boolean).join(" ");
-}
 
 function InfoRow({ label, value }) {
   return (
