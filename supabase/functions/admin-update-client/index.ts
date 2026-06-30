@@ -2,10 +2,31 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const ORIGINS = ["https://app.artemoldurados.com.br", "http://localhost:5173"];
+const ORIGINS = [
+  "https://app.artemoldurados.com.br",
+  "http://localhost:5173",
+];
 
-// 🔒 Regras do seu sistema
-const PRIMARY_SYSTEM_EMAIL = SYSTEM.PRIMARY_SYSTEM_EMAIL;
+// 🔒 Regras do sistema
+const PRIMARY_SYSTEM_EMAIL =
+  (Deno.env.get("PRIMARY_SYSTEM_EMAIL") ?? "ileuza.maya@gmail.com")
+    .trim()
+    .toLowerCase();
+
+const SUPER_ADMINS = new Set(
+  (Deno.env.get("SUPER_ADMINS") ?? PRIMARY_SYSTEM_EMAIL)
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+function isPrimaryUser(email: string) {
+  return normalizeEmail(email) === PRIMARY_SYSTEM_EMAIL;
+}
+
+function isSuperAdmin(email: string) {
+  return SUPER_ADMINS.has(normalizeEmail(email));
+}
 
 function cors(origin: string | null): Record<string, string> {
   const allow = origin && ORIGINS.includes(origin) ? origin : ORIGINS[0];
