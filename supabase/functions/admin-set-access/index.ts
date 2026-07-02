@@ -65,10 +65,28 @@ serve(async (req) => {
     // =========================
     // Regras de permissão (BACK)
     // =========================
-    const PRIMARY_SYSTEM_EMAIL = SYSTEM.PRIMARY_SYSTEM_EMAIL;
-    
-    const isSuperAdmin = SUPER_ADMINS.has(callerEmail);
-    const isPrimarySystem = callerEmail === PRIMARY_SYSTEM_EMAIL;
+    const PRIMARY_SYSTEM_EMAIL =
+      (Deno.env.get("PRIMARY_SYSTEM_EMAIL") ?? "ileuza.maya@gmail.com")
+        .trim()
+        .toLowerCase();
+
+    const SUPER_ADMINS = new Set(
+      (Deno.env.get("SUPER_ADMINS") ?? PRIMARY_SYSTEM_EMAIL)
+        .split(",")
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean),
+    );
+
+    function isPrimaryUser(email: string) {
+      return normalizeEmail(email) === PRIMARY_SYSTEM_EMAIL;
+    }
+
+    function isSuperAdminEmail(email: string) {
+      return SUPER_ADMINS.has(normalizeEmail(email));
+    }
+
+    const callerIsSuperAdmin = isSuperAdminEmail(callerEmail);
+    const callerIsPrimarySystem = callerEmail === PRIMARY_SYSTEM_EMAIL;
 
     // Body
     const body = await req.json().catch(() => ({}));
@@ -99,7 +117,7 @@ serve(async (req) => {
     }
 
     // super-admins só por super-admin
-    if (isSuperAdmin(targetEmail)) && !isSuperAdmin) {
+    if (isSuperAdminEmail(targetEmail) && !callerIsSuperAdmin) {
       return json(403, {
         error: "Somente super-admin pode alterar outro super-admin.",
         code: "SUPER_ADMIN_PROTECTED",
@@ -107,7 +125,7 @@ serve(async (req) => {
       });
     }
 
-    const canManageAdmins = isSuperAdmin || isPrimarySystem;
+    const canManageAdmins = callerIsSuperAdmin || callerIsPrimarySystem;
 
     // carregar registro alvo
     const { data: currentAcc, error: curErr } = await sb
