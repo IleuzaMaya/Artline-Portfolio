@@ -10,7 +10,7 @@ export const ENV = {
   // Token admin (vai no header x-admin-token)
   ADMIN_API_TOKEN: import.meta.env.VITE_ADMIN_API_TOKEN,
 
-  SITE_URL: import.meta.env.VITE_SITE_URL || "https://app.artemoldurados.com.br",
+  SITE_URL: import.meta.env.VITE_SITE_URL || "https://app.artline.com.br",
 };
 
 // ✅ Compat: alguns arquivos importavam { env }

@@ -48,7 +48,7 @@ serve(async (req) => {
     const PROJECT_URL =
       Deno.env.get("PROJECT_URL") ??
       Deno.env.get("SITE_URL") ??
-      "https://app.artemoldurados.com.br";
+      "https://app.artline.com.br";
 
     if (!ADMIN_API_TOKEN || !SUPABASE_URL || !SERVICE_ROLE) {
       return json(500, { error: "Missing secrets" });

@@ -2,7 +2,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const ORIGINS = ["https://app.artemoldurados.com.br", "http://localhost:5173"];
+const ORIGINS = ["https://app.artline.com.br", "http://localhost:5173"];
 const cors = (o: string | null) => ({
   "Access-Control-Allow-Origin": o && ORIGINS.includes(o) ? o : ORIGINS[0],
   "Access-Control-Allow-Methods": "POST, OPTIONS",

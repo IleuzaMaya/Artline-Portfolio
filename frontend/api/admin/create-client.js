@@ -19,7 +19,7 @@ module.exports = async (req, res) => {
     if (!email) return res.status(400).json({ error: 'E-mail obrigatório' });
 
     const redirectTo =
-      (process.env.VITE_SITE_URL || 'https://app.artemoldurados.com.br') + '/reset';
+      (process.env.VITE_SITE_URL || 'https://app.artline.com.br') + '/reset';
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
     if (error) return res.status(400).json({ error: error.message });

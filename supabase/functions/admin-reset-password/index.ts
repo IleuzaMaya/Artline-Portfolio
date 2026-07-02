@@ -3,7 +3,7 @@
 import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const ORIGINS = ["https://app.artemoldurados.com.br", "http://localhost:5173"];
+const ORIGINS = ["https://app.artline.com.br", "http://localhost:5173"];
 const cors = (o:string|null)=>({
   "Access-Control-Allow-Origin": (o && ORIGINS.includes(o)) ? o : ORIGINS[0],
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -21,7 +21,7 @@ serve(async (req) => {
     const ADMIN_API_TOKEN = Deno.env.get("ADMIN_API_TOKEN") ?? "";
     const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
-    const DEFAULT_REDIRECT = Deno.env.get("RESET_REDIRECT_TO") ?? "https://app.artemoldurados.com.br/reset";
+    const DEFAULT_REDIRECT = Deno.env.get("RESET_REDIRECT_TO") ?? "https://app.artline.com.br/reset";
     if (!ADMIN_API_TOKEN || !SERVICE_ROLE || !SUPABASE_URL) {
       return new Response(JSON.stringify({ error: "Missing secrets" }), { status: 500, headers: { ...headers, "Content-Type": "application/json" }});
     }
