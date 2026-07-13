@@ -15,7 +15,7 @@ import {
 
 export default function Orcamento() {
   useEffect(() => {
-    document.title = "Artemoldurados — Orçamento";
+    document.title = "Artline — Orçamento";
   }, []);
 
   return <OrcamentoForm />;
