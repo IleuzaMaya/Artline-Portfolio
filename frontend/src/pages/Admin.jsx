@@ -93,7 +93,7 @@ export default function Admin() {
 
   // Form "Criar/Convidar cliente"
   const [formName, setFormName] = useState("");
-  const [formEmpresa, setFormEmpresa] = useState("Artemoldurados");
+  const [formEmpresa, setFormEmpresa] = useState("Artline");
   const [formRole, setFormRole] = useState("cliente"); // "cliente" | "admin"
   const [formEmail, setFormEmail] = useState("");
   const [formTelefone, setFormTelefone] = useState("");
@@ -257,7 +257,7 @@ const [editError, setEditError] = useState("");
 
   function resetCreateForm() {
     setFormName("");
-    setFormEmpresa("Artemoldurados");
+    setFormEmpresa("Artline");
     setFormRole("cliente");
     setFormEmail("");
     setFormTelefone("");

@@ -31,7 +31,7 @@ export default function ResetPassword() {
 
   // Título da página (substitui Helmet)
   useEffect(() => {
-    document.title = "Artemoldurados — Redefinir senha";
+    document.title = "Artline — Redefinir senha";
   }, []);
 
   // 1) Se veio por link de recuperação (#access_token/#refresh_token), cria sessão local

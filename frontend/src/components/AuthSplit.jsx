@@ -231,7 +231,7 @@ export default function AuthSplit({ onAuth }) {
         <div className="px-6 py-7 md:px-9 md:py-9">
           {/* LOGO */}
           <div className="flex justify-center mb-6 md:mb-7">
-            <img src="/Logo.png" alt="Art Emoldurados" className="h-10 md:h-12 opacity-90" />
+            <img src="/artline-logo-horizontal-dark.png" alt="Artline" className="h-10 md:h-12 opacity-90" />
           </div>
 
           {/* SWITCH */}
@@ -362,7 +362,7 @@ export default function AuthSplit({ onAuth }) {
           )}
 
           <div className="mt-6 text-[11px] text-slate-400">
-            © {new Date().getFullYear()} Art Emoldurados — todos os direitos reservados.
+            © {new Date().getFullYear()} Artline — todos os direitos reservados.
           </div>
         </div>
       </div>
