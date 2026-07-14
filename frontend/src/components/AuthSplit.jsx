@@ -44,7 +44,18 @@ function PasswordInput({ id, value, onChange, required = true, autoComplete = "c
       <input
         id={id}
         type={show ? "text" : "password"}
-        className="w-full border border-slate-300 rounded-xl px-4 py-2 pr-14 outline-none focus:ring-2 focus:ring-emerald-500"
+        className="
+        w-full
+        rounded-xl
+        border
+        border-stone-300
+        bg-white
+        px-4
+        py-3
+        focus:border-emerald-500
+        focus:ring-2
+        focus:ring-emerald-100
+        "
         value={value}
         onChange={onChange}
         required={required}
@@ -230,7 +241,7 @@ export default function AuthSplit({ onAuth }) {
         {/* COLUNA DIREITA — conteúdo */}
         <div className="px-6 py-7 md:px-9 md:py-9">
           {/* LOGO */}
-          <div className="flex justify-center mb-4 md:mb-10">
+          <div className="flex justify-center mb-8 md:mb-12">
             <img
               src="/artline-logo-horizontal-transparent.png"
               alt="Artline"
@@ -281,7 +292,7 @@ export default function AuthSplit({ onAuth }) {
               {isAdmin ? "Acesso do Administrador" : "Artline Business Engine"}
             </h1>
             <p className="text-slate-500 mt-1 text-[13px] md:text-sm">
-              {isAdmin ? "Use seu usuário interno para gerenciar cadastros." : "Business Engine, gestão inteligente para moldurarias."}
+              {isAdmin ? "Use seu usuário interno para gerenciar cadastros." : "Plataforma profissional para gestão inteligente de moldurarias."}
             </p>
           </div>
 
@@ -310,7 +321,19 @@ export default function AuthSplit({ onAuth }) {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-xl transition disabled:opacity-60"
+                  className="
+                  w-full
+                  rounded-xl
+                  bg-gradient-to-b
+                  from-emerald-500
+                  to-emerald-600
+                  hover:from-emerald-600
+                  hover:to-emerald-700
+                  shadow-md
+                  hover:shadow-lg
+                  transition-all
+                  duration-300
+                  "
                 >
                   {loading ? "Validando..." : "Logar (Admin)"}
                 </button>
