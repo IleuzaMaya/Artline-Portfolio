@@ -279,7 +279,7 @@ export default function AuthSplit({ onAuth }) {
           {/* TÍTULO + SUB */}
           <div className="mt-6 mb-5">
             <h1 className="text-xl md:text-1xl font-bold text-emerald-900">
-              {isAdmin ? "Acesso do Administrador" : "Bem-vindo ao Artline Business Engine"}
+              {isAdmin ? "Acesso do Administrador" : "Artline Business Engine"}
             </h1>
             <p className="text-slate-500 mt-1 text-[13px] md:text-sm">
               {isAdmin ? "Use seu usuário interno para gerenciar cadastros." : "Gestão inteligente para moldurarias."}
