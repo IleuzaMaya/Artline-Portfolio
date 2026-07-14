@@ -232,7 +232,7 @@ export default function AuthSplit({ onAuth }) {
           {/* LOGO */}
           <div className="flex justify-center mb-4 md:mb-10">
             <img
-              src="/artline-logo-horizontal-dark.png"
+              src="/artline-logo-horizontal-transparent.png"
               alt="Artline"
               className="w-80 md:w-96 select-none"
               draggable={false}
@@ -240,10 +240,10 @@ export default function AuthSplit({ onAuth }) {
           </div>
 
           {/* SWITCH */}
-          <div className="relative mx-auto w-full max-w-sm bg-stone-50/50 backdrop-blur-sm rounded-2xl p-1 flex">
+          <div className="relative mx-auto w-full max-w-sm rounded-full bg-stone-50/40 p-0.5 backdrop-blur-sm">
 
               <button
-                  className={`relative z-10 flex-1 py-2.5 text-sm font-medium transition ${
+                  className={`relative z-10 flex-1 py-0.5 text-sm font-medium transition ${
                       !isAdmin
                           ? "text-emerald-900"
                           : "text-slate-500"
@@ -253,7 +253,7 @@ export default function AuthSplit({ onAuth }) {
               </button>
 
               <button
-                  className={`relative z-10 flex-1 py-2.5 text-sm font-medium transition ${
+                  className={`relative z-10 flex-1 py-2 text-sm font-medium transition ${
                       isAdmin
                           ? "text-emerald-900"
                           : "text-slate-500"
@@ -263,7 +263,7 @@ export default function AuthSplit({ onAuth }) {
               </button>
 
               <motion.span
-                  className="absolute top-1 bottom-1 w-1/2 rounded-xl bg-white shadow-[0_2px_8px_rgba(0,0,0,.08)]"
+                  className="absolute top-0.5 bottom-0.5 w-1/2 rounded-full bg-white shadow-sm"
                   layout
                   initial={false}
                   animate={{ x: isAdmin ? "100%" : "0%" }}
@@ -311,7 +311,7 @@ export default function AuthSplit({ onAuth }) {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl transition disabled:opacity-60"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-xl transition disabled:opacity-60"
                 >
                   {loading ? "Validando..." : "Logar (Admin)"}
                 </button>
@@ -341,7 +341,7 @@ export default function AuthSplit({ onAuth }) {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-xl transition disabled:opacity-60"
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-xl transition disabled:opacity-60"
                 >
                   {loading ? "Entrando..." : "Entrar"}
                 </button>
@@ -368,7 +368,7 @@ export default function AuthSplit({ onAuth }) {
           {/* mensagens */}
           {msg && (
             <div
-              className={`mt-5 text-[13px] rounded-lg px-3.5 py-2.5 ${
+              className={`mt-5 text-[13px] rounded-lg px-3.5 py-2 ${
                 msg.type === "error"
                   ? "bg-red-50 text-red-700 border border-red-200"
                   : "bg-emerald-50 text-emerald-800 border-emerald-200 border"
