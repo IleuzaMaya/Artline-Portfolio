@@ -230,11 +230,11 @@ export default function AuthSplit({ onAuth }) {
         {/* COLUNA DIREITA — conteúdo */}
         <div className="px-6 py-7 md:px-9 md:py-9">
           {/* LOGO */}
-          <div className="flex justify-center mb-8 md:mb-10">
+          <div className="flex justify-center mb-4 md:mb-10">
             <img
-              src="/artline-logo-horizontal-light.png"
+              src="/artline-logo-horizontal-dark.png"
               alt="Artline"
-              className="w-56 md:w-64 opacity-95 select-none"
+              className="w-80 md:w-96 select-none"
               draggable={false}
             />
           </div>
