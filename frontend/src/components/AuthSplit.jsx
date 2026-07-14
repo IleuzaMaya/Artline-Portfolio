@@ -240,7 +240,7 @@ export default function AuthSplit({ onAuth }) {
           </div>
 
           {/* SWITCH */}
-          <div className="relative mx-auto w-full max-w-sm bg-slate-100/80 backdrop-blur-sm rounded-2xl p-1 flex">
+          <div className="relative mx-auto w-full max-w-sm bg-stone-50/50 backdrop-blur-sm rounded-2xl p-1 flex">
 
               <button
                   className={`relative z-10 flex-1 py-2.5 text-sm font-medium transition ${
@@ -263,7 +263,7 @@ export default function AuthSplit({ onAuth }) {
               </button>
 
               <motion.span
-                  className="absolute top-1 bottom-1 w-1/2 rounded-xl bg-white shadow-md"
+                  className="absolute top-1 bottom-1 w-1/2 rounded-xl bg-white shadow-[0_2px_8px_rgba(0,0,0,.08)]"
                   layout
                   initial={false}
                   animate={{ x: isAdmin ? "100%" : "0%" }}
