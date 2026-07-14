@@ -232,7 +232,7 @@ export default function AuthSplit({ onAuth }) {
           {/* LOGO */}
           <div className="flex justify-center mb-8 md:mb-10">
             <img
-              src="/artline-logo-horizontal-dark.png"
+              src="/artline-logo-horizontal-light.png"
               alt="Artline"
               className="w-56 md:w-64 opacity-95 select-none"
               draggable={false}
@@ -282,7 +282,7 @@ export default function AuthSplit({ onAuth }) {
               {isAdmin ? "Acesso do Administrador" : "Artline Business Engine"}
             </h1>
             <p className="text-slate-500 mt-1 text-[13px] md:text-sm">
-              {isAdmin ? "Use seu usuário interno para gerenciar cadastros." : "Gestão inteligente para moldurarias."}
+              {isAdmin ? "Use seu usuário interno para gerenciar cadastros." : "Business Engine, gestão inteligente para moldurarias."}
             </p>
           </div>
 
