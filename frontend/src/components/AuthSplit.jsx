@@ -240,40 +240,39 @@ export default function AuthSplit({ onAuth }) {
           </div>
 
           {/* SWITCH */}
-          <div className="relative mx-auto w-full max-w-sm rounded-full bg-stone-50/40 p-0.5 backdrop-blur-sm">
+          <div className="relative mx-auto flex w-full max-w-sm rounded-full bg-stone-50/40 p-0.5 backdrop-blur-sm">
+            <button
+              type="button"
+              onClick={() => setRole("cliente")}
+              aria-pressed={!isAdmin}
+              className={`relative z-10 flex-1 rounded-full py-2 text-sm font-medium transition-colors ${
+                !isAdmin ? "text-emerald-900" : "text-slate-500"
+              }`}
+            >
+              Cliente
+            </button>
 
-              <button
-                  className={`relative z-10 flex-1 py-0.5 text-sm font-medium transition ${
-                      !isAdmin
-                          ? "text-emerald-900"
-                          : "text-slate-500"
-                  }`}
-              >
-                  Cliente
-              </button>
+            <button
+              type="button"
+              onClick={() => setRole("admin")}
+              aria-pressed={isAdmin}
+              className={`relative z-10 flex-1 rounded-full py-2 text-sm font-medium transition-colors ${
+                isAdmin ? "text-emerald-900" : "text-slate-500"
+              }`}
+            >
+              Administrador
+            </button>
 
-              <button
-                  className={`relative z-10 flex-1 py-2 text-sm font-medium transition ${
-                      isAdmin
-                          ? "text-emerald-900"
-                          : "text-slate-500"
-                  }`}
-              >
-                  Administrador
-              </button>
-
-              <motion.span
-                  className="absolute top-0.5 bottom-0.5 w-1/2 rounded-full bg-white shadow-sm"
-                  layout
-                  initial={false}
-                  animate={{ x: isAdmin ? "100%" : "0%" }}
-                  transition={{
-                      type: "spring",
-                      stiffness: 400,
-                      damping: 30
-                  }}
-              />
-
+            <motion.span
+              className="absolute bottom-0.5 left-0.5 top-0.5 w-[calc(50%-2px)] rounded-full bg-white shadow-sm"
+              initial={false}
+              animate={{ x: isAdmin ? "100%" : "0%" }}
+              transition={{
+                type: "spring",
+                stiffness: 400,
+                damping: 30,
+              }}
+            />
           </div>
 
           {/* TÍTULO + SUB */}
