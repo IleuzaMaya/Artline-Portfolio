@@ -230,42 +230,59 @@ export default function AuthSplit({ onAuth }) {
         {/* COLUNA DIREITA — conteúdo */}
         <div className="px-6 py-7 md:px-9 md:py-9">
           {/* LOGO */}
-          <div className="flex justify-center mb-6 md:mb-7">
-            <img src="/artline-logo-horizontal-dark.png" alt="Artline" className="h-10 md:h-12 opacity-90" />
+          <div className="flex justify-center mb-8 md:mb-10">
+            <img
+              src="/artline-logo-horizontal-dark.png"
+              alt="Artline"
+              className="w-56 md:w-64 opacity-95 select-none"
+              draggable={false}
+            />
           </div>
 
           {/* SWITCH */}
-          <div className="relative mx-auto w-full max-w-sm bg-slate-100 rounded-full p-1 flex">
-            <button
-              className={`relative z-10 flex-1 py-1.5 text-[13px] font-medium transition ${!isAdmin ? "text-emerald-900" : "text-slate-500"}`}
-              onClick={() => setRole("cliente")}
-              aria-pressed={!isAdmin}
-            >
-              Cliente
-            </button>
-            <button
-              className={`relative z-10 flex-1 py-1.5 text-[13px] font-medium transition ${isAdmin ? "text-emerald-900" : "text-slate-500"}`}
-              onClick={() => setRole("admin")}
-              aria-pressed={isAdmin}
-            >
-              Administrador
-            </button>
-            <motion.span
-              className="absolute top-1 bottom-1 w-1/2 rounded-full bg-white shadow"
-              layout
-              initial={false}
-              animate={{ x: isAdmin ? "100%" : "0%" }}
-              transition={{ type: "spring", stiffness: 400, damping: 30 }}
-            />
+          <div className="relative mx-auto w-full max-w-sm bg-slate-100/80 backdrop-blur-sm rounded-2xl p-1 flex">
+
+              <button
+                  className={`relative z-10 flex-1 py-2.5 text-sm font-medium transition ${
+                      !isAdmin
+                          ? "text-emerald-900"
+                          : "text-slate-500"
+                  }`}
+              >
+                  Cliente
+              </button>
+
+              <button
+                  className={`relative z-10 flex-1 py-2.5 text-sm font-medium transition ${
+                      isAdmin
+                          ? "text-emerald-900"
+                          : "text-slate-500"
+                  }`}
+              >
+                  Administrador
+              </button>
+
+              <motion.span
+                  className="absolute top-1 bottom-1 w-1/2 rounded-xl bg-white shadow-md"
+                  layout
+                  initial={false}
+                  animate={{ x: isAdmin ? "100%" : "0%" }}
+                  transition={{
+                      type: "spring",
+                      stiffness: 400,
+                      damping: 30
+                  }}
+              />
+
           </div>
 
           {/* TÍTULO + SUB */}
           <div className="mt-6 mb-5">
             <h1 className="text-xl md:text-1xl font-bold text-emerald-900">
-              {isAdmin ? "Acesso do Administrador" : "Entre na sua conta"}
+              {isAdmin ? "Acesso do Administrador" : "Bem-vindo ao Artline Business Engine"}
             </h1>
             <p className="text-slate-500 mt-1 text-[13px] md:text-sm">
-              {isAdmin ? "Use seu usuário interno para gerenciar cadastros." : "Acompanhe pedidos e orçamentos."}
+              {isAdmin ? "Use seu usuário interno para gerenciar cadastros." : "Gestão inteligente para moldurarias."}
             </p>
           </div>
 
