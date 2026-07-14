@@ -21,7 +21,7 @@ export default function AdminCreateUserForm({
   formatPhone,
 }) {
   return (
-    <div className="mb-6 rounded-2xl bg-white shadow p-5 md:p-6">
+    <div className="mb-6 rounded-2xl bg-white shadow-[0_2px_8px_rgba(0,0,0,.08)] p-5 md:p-6">
       <h2 className="text-base font-semibold text-slate-800">
         Criar/Convidar cliente
       </h2>
