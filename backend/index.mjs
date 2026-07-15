@@ -67,6 +67,22 @@ app.use('/', solicitarAcesso); // o arquivo já registra POST /solicitar-acesso
 
 app.use("/admin", adminUsersRoutes);
 
+app.get("/", (_req, res) => {
+  res.json({
+    ok: true,
+    service: "Artline Business Engine API",
+    status: "online",
+  });
+});
+
+app.get("/health", (_req, res) => {
+  res.json({
+    ok: true,
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`Servidor backend rodando em http://localhost:${PORT}`);
 });
