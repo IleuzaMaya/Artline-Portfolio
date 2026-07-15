@@ -251,7 +251,7 @@ export default function AuthSplit({ onAuth }) {
           </div>
 
           {/* SWITCH */}
-          <div className="relative mx-auto flex w-full max-w-sm rounded-full bg-stone-50/40 p-0.5 backdrop-blur-sm">
+          <div className="relative mx-auto flex w-full max-w-sm rounded-full bg-zinc-100/40 p-0.5 backdrop-blur-sm">
             <button
               type="button"
               onClick={() => setRole("cliente")}
