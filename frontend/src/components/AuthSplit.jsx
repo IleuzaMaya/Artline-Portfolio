@@ -363,7 +363,24 @@ export default function AuthSplit({ onAuth }) {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2 rounded-xl transition disabled:opacity-60"
+                  className="
+                  w-full
+                  rounded-xl
+                  py-2.5
+                  font-semibold
+                  text-white
+                  transition-all
+                  duration-300
+                  shadow-md
+                  hover:shadow-lg
+                  hover:-translate-y-[1px]
+                  hover:brightness-105
+                  active:scale-[0.99]
+                  disabled:opacity-60
+                  bg-gradient-to-b
+                  from-[#10b981]
+                  to-[#059669]
+                  "
                 >
                   {loading ? "Entrando..." : "Entrar"}
                 </button>
