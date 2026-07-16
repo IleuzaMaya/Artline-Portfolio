@@ -57,3 +57,6 @@ private-notes/
 
 
 **/.DS_Store
+
+# Recuperação local — contém backups e dados privados
+recovery/
